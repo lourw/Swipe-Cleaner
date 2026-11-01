@@ -1,0 +1,7 @@
+// Shared, committed build settings. Personal signing values go in Local.xcconfig,
+// which is gitignored (AGENTS.md hard rule 8). Copy Local.xcconfig.example to start.
+
+TEAM_ID =
+BUNDLE_ID = dev.swipe.cleaner
+
+#include? "Local.xcconfig"
