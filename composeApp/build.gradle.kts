@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.sqldelight)
+    alias(libs.plugins.ktlint)
 }
 
 kotlin {
@@ -60,5 +61,13 @@ sqldelight {
             schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
             verifyMigrations.set(true)
         }
+    }
+}
+
+// Formatting (REQUIREMENTS §8.3). Rules come from .editorconfig.
+ktlint {
+    version.set(libs.versions.ktlint.cli)
+    filter {
+        exclude { it.file.path.contains("${File.separator}build${File.separator}") }
     }
 }
