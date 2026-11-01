@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin / KSP
+.kotlin/
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+iosApp/Configuration/Local.xcconfig
+
+# macOS
+.DS_Store
+
+# Fixtures: only the README is committed (REQUIREMENTS §8.2)
+docs/fixtures/*
+!docs/fixtures/README.md
+
+# IDE / local machine
+.idea/
+*.iml
+local.properties
