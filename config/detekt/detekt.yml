@@ -1,0 +1,41 @@
+# detekt config (REQUIREMENTS §8.3). Builds on the default config, so only overrides live here.
+# Compose rules (io.nlopez.compose.rules) are loaded as a detektPlugins dependency.
+# No baseline: fix findings. Any @Suppress needs a comment explaining why.
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    # Compose CompositionLocals are named LocalXxx.
+    privatePropertyPattern: '(_)?[A-Za-z][A-Za-z0-9]*'
+
+style:
+  MaxLineLength:
+    # Match ktlint_official's 140 so the two tools agree.
+    maxLineLength: 140
+  MagicNumber:
+    # Token and spec files are where the numbers from REQUIREMENTS §5 are written down.
+    excludes:
+      - '**/ui/theme/**'
+      - '**/ui/components/swipe/SwipeSpec.kt'
+      - '**/commonTest/**'
+      - '**/iosTest/**'
+
+complexity:
+  LongParameterList:
+    # Composables and UiState data classes take many parameters by design.
+    ignoreAnnotated: ['Composable']
+    ignoreDataClasses: true
+
+Compose:
+  CompositionLocalAllowlist:
+    allowedCompositionLocals:
+      - LocalSwipeColors
+      - LocalSwipeTypography
+      - LocalSwipeSpacing
+      - LocalSwipeRadii
+      - LocalSwipeSizes
+  ViewModelForwarding:
+    active: true
+  ViewModelInjection:
+    active: true

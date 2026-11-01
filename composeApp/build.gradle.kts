@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.sqldelight)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
 }
 
 kotlin {
@@ -70,4 +71,16 @@ ktlint {
     filter {
         exclude { it.file.path.contains("${File.separator}build${File.separator}") }
     }
+}
+
+// Static analysis (REQUIREMENTS §8.3). Scans every source set, not just the defaults.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    source.setFrom(fileTree("src") { include("*/kotlin/**/*.kt") })
+    parallel = true
+}
+
+dependencies {
+    detektPlugins(libs.compose.rules.detekt)
 }
