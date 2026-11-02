@@ -36,7 +36,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | Wave | WPs | Status |
 | --- | --- | --- |
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
-| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 MERGED (3fdac74) · 1.6 MERGED (6581385); next 1.4, then 1.5 |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 MERGED (3fdac74) · 1.6 MERGED (6581385) · 1.4 MERGED (b6be2e9); next 1.5 |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
@@ -50,6 +50,17 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.4 (m1-photokit-library) — verified APPROVE-WITH-MINOR, findings fixed, merged b6be2e9
+- PhotoKitMediaLibrary (read side), IosSystemActions, NSUserDefaultsSettingsStore, pure
+  PhotoKitMapping in commonMain, Koin bindings. §6.8 string byte-exact via INFOPLIST_KEY_*
+  build settings (no Info.plist edit needed — bundle plist verified). Portrait-only verified.
+- Open 👤 (simulator tap): launch app, tap "Allow Access to All Photos", verify
+  assetIds all=4 photos=3 videos=1 vs seeded fixtures (`/tmp/wp14-fixtures/`, re-seed with
+  `xcrun simctl addmedia booted` if needed). LIMITED path needs a real "Select Photos…" tap.
+- Open 👤 (device): `assetIds(All)` timing on a large library (NFR-4); Reduce Motion toggle;
+  iCloud asset behavior.
+- Note: `SystemActions.openSettings`/`presentLimitedLibraryPicker` are main-thread-only (KDoc).
 
 ### WP-1.6 (m1-deck-usecases) — verified APPROVE-WITH-MINOR, findings fixed, merged 6581385
 - BuildDeckUseCase / RecordDecisionUseCase / UndoDecisionUseCase / DuplicateGrouper; §6.5

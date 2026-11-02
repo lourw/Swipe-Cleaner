@@ -785,7 +785,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 | 1.1 | Domain, interfaces, fakes | M1 | [ ] |
 | 1.2 | Theme tokens, icons, base components | M1 | [x] |
 | 1.3 | SQLDelight store | M1 | [x] |
-| 1.4 | PhotoKit library (read) | M1 | [ ] |
+| 1.4 | PhotoKit library (read) | M1 | [x] |
 | 1.5 | Image loader + LRU | M1 | [ ] |
 | 1.6 | Deck use cases | M1 | [x] |
 | 1.7 | Navigation + onboarding/permission | M1 | [ ] |
