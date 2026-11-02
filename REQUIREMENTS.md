@@ -685,7 +685,7 @@ Use `scripts/validate.sh --full` before merging to `main`, and after any change 
 | ID | Risk | Mitigation |
 | --- | --- | --- |
 | R1 | Compose MP on iOS janks during a drag while images decode | Decode off the main thread, cap the bitmap size to the screen, profile with Instruments in M1. |
-| R2 | Video interop (`UIKitView`) clips badly or ignores card rotation and gestures | Spike in M1. Fallback: show the poster frame while dragging and the live player only when the card is at rest. |
+| R2 | Video interop (`UIKitView`) clips badly or ignores card rotation and gestures | **Confirmed (M1 spike, branch `spike-video-interop`):** rounded clipping works, but `graphicsLayer` rotation/translation are ignored — the player view stays axis-aligned at its layout rect. The fallback is needed: show the poster frame while dragging and the live player only when the card is at rest (WP-4.1). |
 | R3 | No public API for asset file size (`PHAssetResource` "fileSize" is undocumented KVC) | Storage estimate is optional (open question). Never block a feature on it. |
 | R4 | The 7-day free signing expiry interrupts use | Documented re-sign step. Switch to a paid account if this gets annoying. |
 | R5 | Accidental mass deletion | Batch confirm in the app plus the iOS dialog, Recently Deleted for 30 days, and a single delete code path (NFR-5). |
