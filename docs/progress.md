@@ -6,11 +6,6 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 ## Environment notes
 
 - **No vision**: this model has no image input. Sub-agents must NOT screenshot or read images.
-  **Never open `.png/.jpg/.heic/.mov` (incl. `docs/fixtures/` and `/tmp/wp14-fixtures/`) with the
-  `read` tool or any image-capable path — that tries to feed an image to the model and aborts the
-  session (happened 2026-11-02 on WP-1.5).** Fixtures are opaque files: use their PATHS only
-  (e.g. `xcrun simctl addmedia booted <path>`), verify with `file`/`ls -l`. Visual QA = 👤 checkpoints.
-  Use text checks: simctl launch success, runComposeUiTest semantics assertions, simctl spawn ls.
 - Icons: 15 Material Symbols Rounded vectors pre-converted into wp-1-2 worktree composeResources
   (source: marella/material-symbols svg/400/rounded, viewBox 0 -960 960 960 → 24x24 affine
   x/40, (y+960)/40; converter at /private/var/folders/hq/.../opencode/svg2vector.py).
