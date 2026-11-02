@@ -22,7 +22,9 @@ import kotlin.time.Clock
  */
 val commonModule: Module =
     module {
-        single { Clock.System }
+        // `single<Clock>` explicitly: `Clock.System` alone would register the concrete
+        // companion-object subtype, so `get<Clock>()` would not find it.
+        single<Clock> { Clock.System }
         single<DecisionStore> { SqlDecisionStore(database = get(), clock = get()) }
         single<SessionStore> { SqlSessionStore(database = get(), clock = get()) }
 
