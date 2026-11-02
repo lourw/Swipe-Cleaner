@@ -1,0 +1,59 @@
+-- Review sessions and their per-session skips (REQUIREMENTS §7). The stored seed and
+-- position let a relaunch resume the same deck (FR-20, §6.5 step 1).
+
+CREATE TABLE session (
+  id          TEXT NOT NULL PRIMARY KEY,
+  source      TEXT NOT NULL,          -- serialized DeckSource
+  type_filter TEXT NOT NULL,
+  seed        INTEGER NOT NULL,
+  position    INTEGER NOT NULL DEFAULT 0,
+  started_at  INTEGER NOT NULL,
+  ended_at    INTEGER
+);
+
+CREATE TABLE session_skip (
+  session_id  TEXT NOT NULL,
+  asset_id    TEXT NOT NULL,
+  PRIMARY KEY (session_id, asset_id)
+);
+
+-- Start a session (§6.5 step 1): position starts at the column default, ended_at is NULL.
+insert:
+INSERT INTO session(id, source, type_filter, seed, started_at)
+VALUES (?, ?, ?, ?, ?);
+
+-- Save the resume position (FR-20).
+updatePosition:
+UPDATE session
+SET position = ?
+WHERE id = ?;
+
+-- Stamp the end when the deck runs out (FR-21, §7).
+endSession:
+UPDATE session
+SET ended_at = ?
+WHERE id = ?;
+
+-- The most recent session with no end time, for resume (FR-20). decided_at-style tie:
+-- same started_at resolves to the most recently inserted row.
+selectOpen:
+SELECT *
+FROM session
+WHERE ended_at IS NULL
+ORDER BY started_at DESC, rowid DESC
+LIMIT 1;
+
+-- Assets skipped in this session; excluded until it ends (FR-14).
+skippedIds:
+SELECT asset_id
+FROM session_skip
+WHERE session_id = ?;
+
+-- One skip row; skipping the same asset twice is a no-op (FR-14).
+insertSkip:
+INSERT OR IGNORE INTO session_skip(session_id, asset_id)
+VALUES (?, ?);
+
+-- Undo (FR-15): clear the asset from every session's skips.
+deleteSkipsByAsset:
+DELETE FROM session_skip WHERE asset_id = ?;

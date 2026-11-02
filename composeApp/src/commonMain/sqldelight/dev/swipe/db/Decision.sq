@@ -1,0 +1,53 @@
+-- One row per reviewed asset (REQUIREMENTS §7). SKIP never lands here; it lives in
+-- session_skip (§7 comment, FR-14). Schema version 1, so no .sqm migrations yet.
+
+CREATE TABLE decision (
+  asset_id    TEXT NOT NULL PRIMARY KEY,
+  decision    TEXT NOT NULL,          -- KEEP | DELETE | DELETED   (SKIP is never stored here)
+  decided_at  INTEGER NOT NULL,       -- epoch ms
+  session_id  TEXT NOT NULL
+);
+
+CREATE INDEX decision_by_type ON decision(decision);
+
+-- Persist a swipe decision before the UI advances (FR-20, NFR-7). Replace keeps the
+-- PRIMARY KEY upsert semantics; the fresh rowid makes insertion-order tie-breaks
+-- (see deleteQueue) line up with "newest recorded first".
+upsert:
+INSERT OR REPLACE INTO decision(asset_id, decision, decided_at, session_id)
+VALUES (?, ?, ?, ?);
+
+-- Undo (FR-15): drop the decision row for this asset.
+deleteById:
+DELETE FROM decision WHERE asset_id = ?;
+
+-- KEEP + pending DELETE; decks subtract these (FR-9). DELETED rows stay out.
+decidedIds:
+SELECT asset_id
+FROM decision
+WHERE decision IN ('KEEP', 'DELETE');
+
+-- Pending DELETEs, newest decision first (FR-23); decided_at ties fall back to
+-- insertion order (rowid DESC), newest recorded first.
+deleteQueue:
+SELECT asset_id
+FROM decision
+WHERE decision = 'DELETE'
+ORDER BY decided_at DESC, rowid DESC;
+
+-- After the confirmed iOS dialog (FR-26): flip queued rows to DELETED, nothing else.
+markDeleted:
+UPDATE decision
+SET decision = 'DELETED'
+WHERE decision = 'DELETE' AND asset_id IN ?;
+
+-- Clear kept (FR-30): KEEP rows only; the delete queue stays untouched.
+clearKeeps:
+DELETE FROM decision WHERE decision = 'KEEP';
+
+-- Lifetime counts for Home come from these rows via COUNT (FR-10, §7); nothing is
+-- stored separately.
+countByDecision:
+SELECT decision, COUNT(*) AS total
+FROM decision
+GROUP BY decision;
