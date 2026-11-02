@@ -351,7 +351,7 @@ swipe-app/
 ├── settings.gradle.kts / build.gradle.kts / gradle/libs.versions.toml
 ├── .editorconfig                       # ktlint settings (§8.3)
 ├── config/detekt/detekt.yml
-├── scripts/                            # validate.sh, check-rules.sh, install-hooks.sh
+├── scripts/                            # validate.sh, check-rules.sh, install-hooks.sh, git-hooks/, xcode-build-kotlin.sh
 ├── docs/                               # manual-test.md, fixtures/README.md
 ├── composeApp/
 │   └── src/
@@ -515,7 +515,7 @@ CREATE TABLE session_skip (
 
 ### 8.1 Prerequisites and install
 
-**Prerequisites**: macOS with Xcode 16+, JDK 17+, Android Studio or IntelliJ IDEA with the Kotlin Multiplatform plugin, and an iPhone on iOS 17+.
+**Prerequisites**: macOS with Xcode 26+ selected with `xcode-select` (the Command Line Tools alone can't build Kotlin/Native or run simulators), an iOS Simulator runtime, JDK 21 (pinned in `mise.toml`), Android Studio or IntelliJ IDEA with the Kotlin Multiplatform plugin, and an iPhone on iOS 17+.
 
 **Installing with a free Apple ID**
 
@@ -559,8 +559,8 @@ Seed the simulator by dragging photos and videos into the Photos app, or by usin
 
 | Tool | Purpose | Gradle task |
 | --- | --- | --- |
-| ktlint (`org.jlleitschuh.gradle.ktlint`) | Formatting, using the official Kotlin style | `ktlintCheck`, with `ktlintFormat` to fix |
-| detekt | Static analysis: complexity, potential bugs, and forbidden imports | `detekt` |
+| ktlint 1.8 (`org.jlleitschuh.gradle.ktlint`) | Formatting, using the official Kotlin style | `ktlintCheck`, with `ktlintFormat` to fix |
+| detekt 2.x (`dev.detekt`; 2.0 is the line that supports Kotlin 2.4 and that the Compose rules build against) | Static analysis: complexity, potential bugs, and forbidden imports | `detekt` |
 | Compose rules (`io.nlopez.compose.rules:detekt`) | Compose-specific checks, such as modifier ordering, state hoisting, and no ViewModels passed down the tree | runs as part of `detekt` |
 | `scripts/check-rules.sh` | Grep-based guards for the AGENTS.md hard rules (see below) | run directly |
 
@@ -595,7 +595,7 @@ Seed the simulator by dragging photos and videos into the Photos app, or by usin
 | 4 | Compile | `./gradlew :composeApp:compileKotlinIosSimulatorArm64` |
 | 5 | Schema migrations | `./gradlew :composeApp:verifySqlDelightMigration` |
 | 6 | Tests | `./gradlew :composeApp:iosSimulatorArm64Test` |
-| 7 | App build (`--full` only) | `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 16' build` |
+| 7 | App build (`--full` only) | `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode build` |
 
 Use `scripts/validate.sh --full` before merging to `main`, and after any change to `iosApp/`, `iosMain/`, or the Gradle build.
 
@@ -619,7 +619,7 @@ Use `scripts/validate.sh --full` before merging to `main`, and after any change 
 
 | # | Milestone | Done when |
 | --- | --- | --- |
-| M0 | Scaffold | KMP + Compose MP project builds and runs "Hello" on simulator and device. Theme tokens are in place. Lint config, the fakes, `scripts/check-rules.sh` and `scripts/validate.sh` are in place, and `validate.sh --full` passes. |
+| M0 | Scaffold | KMP + Compose MP project builds and runs "Hello" on simulator and device. Theme tokens are in place. Lint config, `scripts/check-rules.sh` and `scripts/validate.sh` are in place, and `validate.sh --full` passes. |
 | M1 | Library access | Permission flow (FR-1–3). Shuffle-all deck shows real photos. Image pipeline meets NFR-1. |
 | M2 | Swiping | Full gesture spec (§5.6), Keep / Delete / Skip / Undo, persisted decisions, summary screen. |
 | M3 | Review and delete | Queue grid, restore, batch delete with all three outcomes (FR-23–28). |

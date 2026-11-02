@@ -10,23 +10,58 @@ Instructions for coding agents working in this repo. The product spec is in [`RE
 
 ## Commands
 
+All of these were run and verified on 2026-11-01 (Xcode 26.6, iOS 26.5 simulator, JDK 21 from `mise.toml`).
+
+**Setup (once per machine)**
+
 ```bash
-scripts/validate.sh                                    # definition of done: lint + guards + compile + migrations + tests
-scripts/validate.sh --full                             # also builds the Xcode app; use before merging
-./gradlew ktlintFormat                                 # auto-fix formatting
-./gradlew ktlintCheck detekt                           # lint only
-scripts/check-rules.sh                                 # grep guards for the hard rules below
-./gradlew :composeApp:verifySqlDelightMigration        # check .sqm migrations against schema snapshots
-./gradlew :composeApp:compileKotlinIosSimulatorArm64   # fast compile check
-./gradlew :composeApp:iosSimulatorArm64Test            # run commonTest + iosTest on simulator
-./gradlew :composeApp:allTests                         # all test targets
-./gradlew :composeApp:generateCommonMainSwipeDatabaseInterface  # regenerate SQLDelight after .sq edits
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp \
-  -destination 'platform=iOS Simulator,name=iPhone 16' build   # full app build
-xcrun simctl addmedia booted <files...>                # seed simulator photo library
+mise install                                           # JDK 21 + Gradle from mise.toml
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer   # Kotlin/Native + simulators need full Xcode
+xcodebuild -downloadPlatform iOS                       # only if `xcrun simctl list runtimes` is empty
+scripts/install-hooks.sh                               # pre-push hook runs scripts/validate.sh
+cp iosApp/Configuration/Local.xcconfig.example iosApp/Configuration/Local.xcconfig  # then set TEAM_ID / BUNDLE_ID for device builds
 ```
 
-Run `scripts/validate.sh` before declaring a task done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. Don't add lint baselines or bare `@Suppress`. If a command name above has drifted from the real Gradle task, fix this file.
+**Validate (definition of done)**
+
+```bash
+scripts/validate.sh            # ktlint → detekt → check-rules → compile → migrations → simulator tests
+scripts/validate.sh --full     # also builds the Xcode app; use before merging
+```
+
+**Lint**
+
+```bash
+./gradlew ktlintFormat                                 # auto-fix formatting
+./gradlew ktlintCheck                                  # formatting check
+./gradlew detekt                                       # static analysis + Compose rules; report in composeApp/build/reports/detekt/
+scripts/check-rules.sh                                 # grep guards for the hard rules below
+```
+
+**Build and test**
+
+```bash
+./gradlew :composeApp:compileKotlinIosSimulatorArm64   # fast compile check
+./gradlew :composeApp:iosSimulatorArm64Test            # commonTest + iosTest on the simulator
+./gradlew :composeApp:allTests                         # all test targets
+./gradlew :composeApp:verifySqlDelightMigration        # check .sqm migrations against schema snapshots
+./gradlew :composeApp:generateCommonMainSwipeDatabaseInterface  # regenerate SQLDelight after .sq edits
+```
+
+**Run the app on a simulator**
+
+```bash
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp \
+  -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode build
+xcrun simctl boot "iPhone 17"                          # any device from `xcrun simctl list devices available`
+xcrun simctl install booted build/xcode/Build/Products/Debug-iphonesimulator/SwipeCleaner.app
+xcrun simctl launch booted dev.swipe.cleaner
+xcrun simctl addmedia booted <files...>                # seed the photo library (see docs/fixtures/README.md)
+```
+
+Or open `iosApp/iosApp.xcodeproj` in Xcode and press Run. On a device, set `TEAM_ID` and `BUNDLE_ID` in `Local.xcconfig` first.
+
+Run `scripts/validate.sh` before declaring a task done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. Don't add lint baselines or bare `@Suppress`. If a command above stops working, fix it here in the same change.
 
 ## Hard rules
 
