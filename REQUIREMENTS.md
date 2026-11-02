@@ -388,6 +388,7 @@ interface MediaLibrary {
     suspend fun items(ids: List<String>): List<MediaItem>  // metadata for a page
     suspend fun delete(ids: List<String>): DeleteResult    // DELETED, CANCELLED, FAILED(msg)
     fun changes(): Flow<Unit>                              // PHPhotoLibraryChangeObserver
+    suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey>  // id+date+size only, date-sorted (FR-6)
 }
 
 interface MediaLoader {
@@ -398,14 +399,52 @@ interface MediaLoader {
 }
 
 interface DecisionStore {
-    suspend fun record(id: String, decision: Decision, sessionId: String)
-    suspend fun remove(id: String)                          // undo
+    suspend fun record(id: String, decision: Decision, sessionId: String)  // SKIP goes to session_skip, never to decision (§7)
+    suspend fun remove(id: String)                          // undo; clears the decision or session_skip row
     suspend fun decidedIds(): Set<String>                   // KEEP + pending DELETE
     fun deleteQueue(): Flow<List<String>>
     suspend fun markDeleted(ids: List<String>)
     suspend fun clearKeeps()
+    fun stats(): Flow<Stats>                                // reviewed, kept, deleted, queued; COUNT queries, nothing stored (FR-10, §7)
+}
+
+interface SessionStore {                                    // session + session_skip rows (§7); timestamps from the injected kotlin.time.Clock
+    suspend fun create(source: DeckSource, typeFilter: MediaTypeFilter, seed: Long): String
+    suspend fun updatePosition(id: String, position: Int)   // resume position (FR-20)
+    suspend fun end(id: String)
+    suspend fun openSession(): SessionRecord?
+    suspend fun skippedIds(sessionId: String): Set<String>  // skips of this session (FR-14)
+}
+
+interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true, onboardingSeen = false
+    val haptics: StateFlow<Boolean>                         // FR-29
+    val includeCloudOnly: StateFlow<Boolean>                // FR-29
+    val autoplayVideos: StateFlow<Boolean>                  // FR-29
+    val onboardingSeen: StateFlow<Boolean>                  // FR-1
+    fun setHaptics(enabled: Boolean)
+    fun setIncludeCloudOnly(enabled: Boolean)
+    fun setAutoplayVideos(enabled: Boolean)
+    fun setOnboardingSeen(seen: Boolean)
+}
+
+interface Haptics {                                         // §5.6; silent while SettingsStore.haptics is off
+    fun selection()                                         // threshold crossed
+    fun impactLight()                                       // keep / skip committed
+    fun impactMedium()                                      // delete committed
+    fun notificationSuccess()                               // batch delete confirmed (FR-26)
+}
+
+interface SystemActions {
+    fun openSettings()                                      // FR-3
+    fun presentLimitedLibraryPicker()                       // FR-2
+    fun isReduceMotionEnabled(): Flow<Boolean>              // §5.6, NFR-8
+    fun appVersion(): String                                // FR-31
+    fun signingExpiry(): Instant?                           // FR-31; null hides the row
 }
 ```
+
+Timestamps and clocks use `kotlin.time.Clock` injected through Koin — it is stable in the
+Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implements it in tests.
 
 `VideoPlayer` is a composable `expect fun VideoPlayer(id: String, muted: Boolean, playing: Boolean, onProgress: (Float) -> Unit)` with the `actual` in iosMain. It's the only `expect/actual` composable. Everything else is an interface injected through Koin, which keeps it easy to fake in tests.
 
