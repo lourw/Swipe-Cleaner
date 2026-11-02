@@ -78,7 +78,9 @@ Run `scripts/validate.sh` before declaring a code change done, plus any extra ch
 
 Use subagents for implementation and verification wherever you can. The main agent plans, sends out the work, merges, and checks each result. It doesn't write the feature code itself.
 
-- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0. WPs in the same wave (`plan.md` §1) don't depend on each other, so run them in parallel, each in its own worktree and branch.
+**Run only 1 subagent at a time.** Never dispatch a subagent while another is running; queue the rest and dispatch the next as each finishes.
+
+- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0, each in its own worktree and branch. WPs in the same wave (`plan.md` §1) don't depend on each other, so any order within a wave is fine — but still one at a time.
 - **Verification.** When a WP is done, a *separate* subagent reviews it against the REQUIREMENTS sections the WP cites, the hard rules above, and the `plan.md` §0 definition of done. Give it the branch diff and the WP, not the implementer's summary, so it reviews the code rather than confirming the summary. Send its findings back to the implementer, or to a new fix-up subagent, before merging.
 - **Main agent.** It owns the branch merge, the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
 - **Exception: small changes.** A change of a few lines (a typo, a one-line fix, a docs tweak) can be done directly, because writing the brief would cost more than making the change.
