@@ -2,6 +2,7 @@ package dev.swipe.fakes
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.IntSize
+import dev.swipe.data.LoadedImage
 import dev.swipe.data.MediaLoader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -18,6 +19,9 @@ class FakeMediaLoader : MediaLoader {
     /** Emitted second by [image] (NFR-1). */
     var fullBitmap: ImageBitmap = ImageBitmap(width = 2, height = 2)
 
+    /** Value for [LoadedImage.isCloud] on both emissions; set it to exercise the badge (R6). */
+    var isCloud: Boolean = false
+
     /** Every [image] call as (id, targetPx), oldest first. */
     val imageRequests = mutableListOf<Pair<String, IntSize>>()
 
@@ -33,15 +37,15 @@ class FakeMediaLoader : MediaLoader {
     override fun image(
         id: String,
         targetPx: IntSize,
-    ): Flow<ImageBitmap> {
+    ): Flow<LoadedImage> {
         imageRequests += id to targetPx
         return flow {
             failNextImage?.let {
                 failNextImage = null
                 throw it
             }
-            emit(degradedBitmap)
-            emit(fullBitmap)
+            emit(LoadedImage(degradedBitmap, isDegraded = true, isCloud = isCloud))
+            emit(LoadedImage(fullBitmap, isDegraded = false, isCloud = isCloud))
         }
     }
 
@@ -52,7 +56,10 @@ class FakeMediaLoader : MediaLoader {
         prefetchCalls += ids
     }
 
-    override fun cancelPrefetch(ids: List<String>) {
+    override fun cancelPrefetch(
+        ids: List<String>,
+        targetPx: IntSize,
+    ) {
         cancelPrefetchCalls += ids
     }
 }

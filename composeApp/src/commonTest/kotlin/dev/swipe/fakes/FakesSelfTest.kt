@@ -1,5 +1,6 @@
 package dev.swipe.fakes
 
+import androidx.compose.ui.unit.IntSize
 import app.cash.turbine.test
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
@@ -11,6 +12,8 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
@@ -70,6 +73,22 @@ class FakesSelfTest {
                 )
             assertEquals(expectedCalls, library.assetIdsCalls)
             assertEquals(LibraryAccess.FULL, library.authorization())
+        }
+
+    @Test
+    fun `FakeMediaLoader emits degraded then full`() =
+        runTest {
+            val loader = FakeMediaLoader()
+            loader.image("a", IntSize(1024, 1024)).test {
+                val degraded = awaitItem()
+                assertTrue(degraded.isDegraded)
+                assertEquals(loader.degradedBitmap, degraded.bitmap)
+                val full = awaitItem()
+                assertFalse(full.isDegraded)
+                assertEquals(loader.fullBitmap, full.bitmap)
+                awaitComplete()
+            }
+            assertEquals(listOf("a" to IntSize(1024, 1024)), loader.imageRequests)
         }
 
     private fun item(

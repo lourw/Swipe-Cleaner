@@ -394,10 +394,16 @@ interface MediaLibrary {
 }
 
 interface MediaLoader {
-    /** Emits a fast degraded image, then the full-quality one. */
-    fun image(id: String, targetPx: IntSize): Flow<ImageBitmap>
+    /**
+     * Emits a fast degraded image, then the full-quality one (NFR-1); closes after the full-quality
+     * result. `targetPx` is an upper bound — the loader caps it at the screen's pixel size, so a
+     * request never decodes more pixels than the display can show (NFR-2, R1). Full-size (non-degraded)
+     * decodes go through an LRU of 5 keyed by `(id, targetPx)` (NFR-3, §6.5 step 3); a cached decode
+     * at the same key is emitted directly, without a second PhotoKit request.
+     */
+    fun image(id: String, targetPx: IntSize): Flow<LoadedImage>   // LoadedImage(bitmap, isDegraded, isCloud) — isCloud drives the cloud badge (R6)
     fun prefetch(ids: List<String>, targetPx: IntSize)
-    fun cancelPrefetch(ids: List<String>)
+    fun cancelPrefetch(ids: List<String>, targetPx: IntSize)      // targetPx must match the prefetch being cancelled (PhotoKit matches by size)
 }
 
 interface DecisionStore {
