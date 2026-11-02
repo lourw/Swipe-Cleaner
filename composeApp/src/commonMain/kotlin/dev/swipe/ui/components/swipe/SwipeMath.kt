@@ -69,8 +69,12 @@ private fun flingVerdict(
     }
 }
 
-/** The verdict decided by release offset alone, or null below all thresholds. */
-private fun offsetVerdict(
+/**
+ * The verdict a release at [offset] alone would commit (no fling), or null
+ * below all thresholds. Also what the stamps and edge glow preview while
+ * dragging.
+ */
+fun previewVerdict(
     offset: Offset,
     cardSize: Size,
 ): SwipeVerdict? =
@@ -95,7 +99,7 @@ fun verdictFor(
     density: Float,
 ): SwipeVerdict? {
     if (cardSize.width <= 0f || cardSize.height <= 0f || density <= 0f) return null
-    return flingVerdict(velocityPxPerSec, density) ?: offsetVerdict(offset, cardSize)
+    return flingVerdict(velocityPxPerSec, density) ?: previewVerdict(offset, cardSize)
 }
 
 /**

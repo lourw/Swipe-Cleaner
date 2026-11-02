@@ -28,6 +28,12 @@ complexity:
     ignoreDataClasses: true
 
 Compose:
+  ParameterNaming:
+    # onThresholdCrossed is the callback name fixed by plan.md WP-2.1
+    # ("crossing the threshold → onThresholdCrossed()"); the gesture only
+    # fires after the crossing happened, so the past tense is deliberate.
+    allowedLambdaParameterNames:
+      - onThresholdCrossed
   CompositionLocalAllowlist:
     allowedCompositionLocals:
       - LocalSwipeColors

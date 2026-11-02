@@ -24,6 +24,13 @@ const val MAX_ROTATION_DEG = 12f
 /** Fly-off on commit: 220 ms, `FastOutLinearInEasing` (§5.6). */
 const val FLY_OFF_MS = 220
 
+/**
+ * How far past its own size the card travels on a fly-off (and re-enters
+ * from on undo). §5.6 fixes the duration, not the distance; this only needs
+ * to clear the screen.
+ */
+const val FLY_OFF_TRAVEL = 1.5f
+
 /** Undo return: 260 ms, `FastOutSlowInEasing` (§5.6). */
 const val UNDO_RETURN_MS = 260
 
