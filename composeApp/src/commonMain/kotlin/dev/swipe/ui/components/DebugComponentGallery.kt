@@ -62,14 +62,13 @@ fun ComponentGallery(modifier: Modifier = Modifier) {
 @Composable
 private fun GalleryIconSection() {
     Column {
-        GalleryHeading("1 · SwipeIcon + SystemDefaultIcon")
+        GalleryHeading("1 · SwipeIcon")
         Row(horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.l)) {
             SwipeIcon(Res.drawable.ic_check, tint = SwipeTheme.colors.keep, contentDescription = "Keep")
             SwipeIcon(Res.drawable.ic_close, tint = SwipeTheme.colors.delete, contentDescription = "Delete")
             SwipeIcon(Res.drawable.ic_arrow_upward, tint = SwipeTheme.colors.skip, contentDescription = "Skip")
             SwipeIcon(Res.drawable.ic_undo, tint = SwipeTheme.colors.accent, contentDescription = "Undo")
             SwipeIcon(Res.drawable.ic_cloud, tint = SwipeTheme.colors.warning, contentDescription = "Wait")
-            SystemDefaultIcon(glyph = "✓", contentDescription = null)
         }
     }
 }

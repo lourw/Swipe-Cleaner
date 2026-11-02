@@ -27,11 +27,6 @@ class ComponentSizesTest {
     }
 
     @Test
-    fun `5-3 system_default icon is 17sp`() {
-        assertEquals(SYSTEM_ICON_SIZE, sizes.systemDefaultIconSize.value)
-    }
-
-    @Test
     fun `5-7 disabled alpha applied to disabled component content`() {
         assertEquals(0.4f, sizes.disabledAlpha)
     }
@@ -83,4 +78,3 @@ private const val BUTTON_HEIGHT = 52f
 private const val BADGE_SIZE = 20f
 private const val BANNER_BAR = 4f
 private const val TOUCH_TARGET_MIN = 44f
-private const val SYSTEM_ICON_SIZE = 17f

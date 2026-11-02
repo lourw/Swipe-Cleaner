@@ -2,9 +2,7 @@ package dev.swipe.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /** Spacing scale from REQUIREMENTS §5.5. */
 @Immutable
@@ -46,9 +44,6 @@ data class SwipeSizes(
  */
 @Immutable
 data class SwipeComponentSizes(
-    // Icons: §5.3 `system_default` is a 17 pt SF Symbol; generic in-row icons are 20 dp (§5.7 rows).
-    val systemDefaultIconSize: TextUnit = 17.sp,
-    val rowIcon: Dp = 20.dp,
     // SwipeCard (§5.7): full width minus 2 × 8 dp inset, 96 dp bottom scrim.
     val cardInset: Dp = 8.dp,
     val cardScrimHeight: Dp = 96.dp,

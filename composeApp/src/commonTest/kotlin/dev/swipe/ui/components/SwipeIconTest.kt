@@ -24,10 +24,11 @@ class SwipeIconTest {
         }
 
     @Test
-    fun `5-3 decorative SwipeIcon announces the empty description`() =
+    fun `5-3 decorative SwipeIcon is hidden from accessibility`() =
         runComposeUiTest {
             setContent { SwipeIcon(Res.drawable.ic_check, contentDescription = null) }
-            val node = onNodeWithContentDescription("").fetchSemanticsNode()
-            assertEquals(listOf(""), node.config[SemanticsProperties.ContentDescription])
+            // A null description must publish no ContentDescription semantics
+            // at all (Image hides itself), unlike the old empty-string node.
+            onNodeWithContentDescription("").assertDoesNotExist()
         }
 }
