@@ -1,6 +1,5 @@
 package dev.swipe.presentation.swipe
 
-import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
@@ -217,8 +216,10 @@ class SwipeViewModel(
          * Prefetch asks for the screen's pixel size (§6.5 step 3); the loader caps
          * every request at the screen's pixel size (NFR-2, R1), so an unbounded
          * request resolves to exactly that. [MediaLoader.cancelPrefetch] must pass
-         * the identical value, so this is the one shared constant.
+         * the identical value, and WP-1.9's cards request the same
+         * [MediaLoader.FULL_TARGET_PX] so a prefetched decode lands in the card's
+         * cache key — one shared constant on the interface.
          */
-        val PREFETCH_TARGET_PX = IntSize(Int.MAX_VALUE, Int.MAX_VALUE)
+        val PREFETCH_TARGET_PX = MediaLoader.FULL_TARGET_PX
     }
 }

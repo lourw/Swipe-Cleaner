@@ -38,4 +38,14 @@ interface MediaLoader {
         ids: List<String>,
         targetPx: IntSize,
     )
+
+    companion object {
+        /**
+         * The full-display request: an unbounded [image] / [prefetch] target the loader
+         * caps at the screen's pixel size (NFR-2, R1). Cards and the ViewModel's prefetch
+         * share this one value so both resolve to the same cache key — a prefetched decode
+         * is served to the card without a second PhotoKit round-trip (NFR-1, NFR-3).
+         */
+        val FULL_TARGET_PX: IntSize = IntSize(Int.MAX_VALUE, Int.MAX_VALUE)
+    }
 }
