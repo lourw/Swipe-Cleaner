@@ -45,9 +45,10 @@ class BitmapLruCacheTest {
 
             cache.put(key("id-5"), "v5")
 
-            // id-1 goes, not id-0, and onEvict names the right key.
+            // id-1 goes, not id-0. Order after: get(id-0) moved it to most-recently-used,
+            // so the remaining keys oldest-first are id-2, id-3, id-4, id-0, then id-5.
             assertEquals(listOf(key("id-1") to "v1"), evicted)
-            assertEquals(listOf("id-0", "id-2", "id-3", "id-4", "id-5"), cache.keysOldestFirst().map { it.id })
+            assertEquals(listOf("id-2", "id-3", "id-4", "id-0", "id-5"), cache.keysOldestFirst().map { it.id })
         }
 
     @Test

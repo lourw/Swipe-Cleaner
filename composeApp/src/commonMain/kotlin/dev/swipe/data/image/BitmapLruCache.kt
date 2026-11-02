@@ -68,9 +68,14 @@ class BitmapLruCache<V>(
             entries.remove(key)?.let { evicted += key to it }
             entries[key] = value
             while (entries.size > capacity) {
+                // Copy key/value out of the entry view *before* removing it: on
+                // Kotlin/Native an EntryRef reads through to the backing map and
+                // throws ConcurrentModificationException once the map is modified.
                 val lru = entries.entries.first()
-                entries.remove(lru.key)
-                evicted += lru.key to lru.value
+                val lruKey = lru.key
+                val lruValue = lru.value
+                entries.remove(lruKey)
+                evicted += lruKey to lruValue
             }
         }
         evicted.forEach { (k, v) -> onEvict(k, v) }
