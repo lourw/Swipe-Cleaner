@@ -35,7 +35,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | --- | --- | --- |
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
 | B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | ALL MERGED: 1.3 (3fdac74) · 1.6 (6581385) · 1.4 (b6be2e9) · 1.5 (9fecd2d) |
-| C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | 1.7 MERGED (6d7f466); 1.8 next |
+| C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | BOTH MERGED: 1.7 (6d7f466) · 1.8 (3bebbf5) |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | pending |
@@ -48,6 +48,29 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.8 (m1-swipe-viewmodel-core) — verified APPROVE-WITH-MINOR, finding 1 fixed, merged 3bebbf5
+- SwipeViewModel core (§6.5): session+seed on init, BuildDeckUseCase, metadata pages of 20
+  (refetch trigger index+5 ≥ loaded), record-before-advance with SaveFailed toast + revertToken
+  on failure (CancellationException rethrown), prefetch current+3 with cancel for departed ids,
+  queueCount live from deleteQueue(), exhausted → current=null. SwipeUiState/Intent/CardState.
+  Koin: 3 use cases as singles; VM = `viewModel { params -> }`; WP-1.9 resolves via
+  `koinViewModel { parameters { parametersOf(source, typeFilter) } }`. Spec edit: §6.6 +
+  `revertToken: Long` + ToastMessage note (verifier: accurate, minimal). 87 tests green.
+- Review finding fixed (3bebbf5): double-tap race — two intents captured the same id and
+  index advanced twice, silently skipping a card. Now the advance is discarded when the deck
+  head moved during the write; regression test `NFR-7 rapid double tap does not skip an
+  undecided card` verified red→green.
+- Carried into later briefs:
+  - WP-1.9: `PREFETCH_TARGET_PX = IntSize(MAX, MAX)` relies on the loader's screen cap (§6.4);
+    move/parameterize to the real screen size when wiring the deck screen. Resolve the VM via
+    the params module above.
+  - WP-2.2: `Clock` constructor arg intentionally omitted (nothing timestamps yet; first use
+    with summary/session). `start()` has no error handling — session-create/buildDeck throw =
+    dead launch; add toast+retry or 👤 decision. Full ToastMessage events policy due there.
+  - Note: no `FR-20`-prefixed test; FR-20 logic covered inside FR-12/NFR-7 tests
+    (createCalls seed, updatePositionCalls).
+- No 👤 checkpoints (no device-dependent behavior yet beyond what WP-1.7/1.9 cover).
 
 ### WP-1.7 (m1-onboarding-permission) — verified APPROVE-WITH-MINOR, findings 1–2 fixed, merged 6d7f466
 - Routes.kt (11 `@Serializable` routes; Onboarding/Denied/Home registered, rest are stubs),
