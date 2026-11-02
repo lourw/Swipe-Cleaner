@@ -36,7 +36,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | Wave | WPs | Status |
 | --- | --- | --- |
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
-| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 in progress; then 1.6 → 1.4 → 1.5 |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 MERGED (3fdac74); next 1.6, then 1.4 → 1.5 |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
@@ -50,6 +50,18 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.3 (m1-persistence) — verified APPROVE-WITH-MINOR, findings 1–3 fixed, merged 3fdac74
+- Schema v1 + `1.db` snapshot, SqlDecisionStore/SqlSessionStore, DatabaseDriverFactory
+  (Application Support, backup-excluded, corrupt file moved to `swipe-cleaner.db.corrupt`),
+  Koin bindings. `iosApp` links `-lsqlite3`. DB materialises off main at Koin start (NFR-4).
+- Carried into later briefs:
+  - WP-1.8: `DecisionStore.remove(id)` clears skips from ALL sessions; §6.4 says "the row"
+    (singular). Add a `session_id` param when the resume flow lands.
+  - Spec-owner: `Stats.reviewed` = KEEP + pending DELETE + DELETED (SKIP excluded); the number
+    moves on swipe-left before the iOS delete dialog confirms.
+  - WAL sidecars (`-wal`/`-shm`) are not individually backup-excluded (Apple: main-file
+    exclusion suffices).
 
 ### WP-1.2 (m1-components-base) — verified APPROVE-WITH-MINOR, all findings fixed, merged c3088cb
 - Icons live in `commonMain/composeResources` (generated accessor is `Res`, not `R`).
