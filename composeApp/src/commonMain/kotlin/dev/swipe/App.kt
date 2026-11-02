@@ -11,7 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -27,6 +27,7 @@ import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
 import dev.swipe.ui.screens.onboarding.OnboardingScreen
 import dev.swipe.ui.theme.SwipeTheme
+import kotlinx.coroutines.flow.StateFlow
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -52,60 +53,53 @@ fun App(
  * Connects [PermissionViewModel] to [PermissionFlowContent] and re-checks
  * authorization every time the app comes to the foreground, which is how a
  * grant made in Settings (FR-3) or a limited-library edit (FR-2) takes
- * effect.
+ * effect. The flow and the handler are passed as stable instances so the
+ * [NavHost] below is never recomposed with a new graph.
  */
 @Composable
 private fun PermissionFlow(
     modifier: Modifier = Modifier,
     viewModel: PermissionViewModel = koinViewModel(),
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val onIntent: (PermissionIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.onIntent(PermissionIntent.Recheck)
     }
-    PermissionFlowContent(state = state, onIntent = viewModel::onIntent, modifier = modifier)
+    PermissionFlowContent(state = viewModel.uiState, onIntent = onIntent, modifier = modifier)
 }
 
 /**
- * The permission-flow [NavHost]. The start destination comes from
- * [PermissionUiState.startScreen] (WP-1.7); `null` — the first authorization
- * read in flight — shows the theme background as a splash. When the state
- * routes to a different screen than the host started on (for example after
- * the system prompt on Onboarding), the host navigates there and pops the
- * start destination so Back cannot return to it. Split out from the
- * ViewModel so the routing is testable without Koin.
+ * The permission-flow [NavHost]. The graph is built once, with the start
+ * destination named by the first non-null [PermissionUiState.startScreen]
+ * (WP-1.7); `null` — the first authorization read in flight — shows the theme
+ * background as a splash. Later routing is imperative: the host navigates to
+ * the screen the state names and pops the initial route inclusively, so Back
+ * cannot return to onboarding or Denied. Keeping `startDestination` and the
+ * builder lambda's captures stable (the [state] flow is collected inside
+ * [HomeContainer], never read in the builder) keeps navigation-compose from
+ * rebuilding the graph on state updates, which would otherwise reset deeper
+ * stacks once WP-1.9 adds routes. Split out from the ViewModel so the routing
+ * is testable without Koin; [navController] is injectable for the same
+ * reason.
  */
 @Composable
 internal fun PermissionFlowContent(
-    state: PermissionUiState,
+    state: StateFlow<PermissionUiState>,
     onIntent: (PermissionIntent) -> Unit,
     modifier: Modifier = Modifier,
+    navController: NavHostController = rememberNavController(),
 ) {
-    val startScreen = state.startScreen
+    val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
         Box(modifier = modifier.fillMaxSize().background(SwipeTheme.colors.bg))
         return
     }
-    val startRoute =
-        when (startScreen) {
-            PermissionScreen.ONBOARDING -> {
-                Onboarding
-            }
-
-            PermissionScreen.DENIED -> {
-                Denied
-            }
-
-            PermissionScreen.HOME -> {
-                Home
-            }
-        }
-    val navController = rememberNavController()
-    val initialRoute = remember { startRoute }
-    LaunchedEffect(startRoute) {
-        if (startRoute != initialRoute) {
-            navController.navigate(startRoute) {
-                popUpTo(navController.graph.findStartDestination().id) {
+    val currentRoute = startScreen.toRoute()
+    val initialRoute = remember { currentRoute }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != initialRoute) {
+            navController.navigate(currentRoute) {
+                popUpTo(initialRoute::class) {
                     inclusive = true
                 }
             }
@@ -113,7 +107,7 @@ internal fun PermissionFlowContent(
     }
     NavHost(
         navController = navController,
-        startDestination = startRoute,
+        startDestination = initialRoute,
         modifier = modifier.fillMaxSize(),
     ) {
         composable<Onboarding> {
@@ -126,11 +120,44 @@ internal fun PermissionFlowContent(
             // "Start shuffle" starts the deck in WP-1.9; the other routes in
             // the §5.8 screen map are declared in Routes.kt and get their
             // composable() entries from the work packages that own them.
-            HomeScreen(
-                onStartShuffle = {},
-                limitedItemCount = state.limitedCount,
+            HomeContainer(
+                state = state,
                 onManageLimitedAccess = { onIntent(PermissionIntent.ManageLimitedAccess) },
             )
         }
     }
 }
+
+/**
+ * Home destination that reads the FR-2 Limited-access count from the flow
+ * inside the composition, so the NavHost builder lambda never captures state
+ * values and the graph stays stable across `Recheck` updates.
+ */
+@Composable
+private fun HomeContainer(
+    state: StateFlow<PermissionUiState>,
+    onManageLimitedAccess: () -> Unit,
+) {
+    val ui by state.collectAsState()
+    HomeScreen(
+        onStartShuffle = {},
+        limitedItemCount = ui.limitedCount,
+        onManageLimitedAccess = onManageLimitedAccess,
+    )
+}
+
+/** The route registered for a permission screen (§5.8 screen map). */
+private fun PermissionScreen.toRoute(): Any =
+    when (this) {
+        PermissionScreen.ONBOARDING -> {
+            Onboarding
+        }
+
+        PermissionScreen.DENIED -> {
+            Denied
+        }
+
+        PermissionScreen.HOME -> {
+            Home
+        }
+    }
