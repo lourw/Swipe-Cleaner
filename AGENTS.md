@@ -74,6 +74,15 @@ Run `scripts/validate.sh` before declaring a code change done, plus any extra ch
 7. **No network or analytics code**, apart from PhotoKit's own iCloud downloads (NFR-6).
 8. **Signing stays local.** Don't commit an Apple `DEVELOPMENT_TEAM` or personal bundle ID. They belong in `iosApp/Configuration/Local.xcconfig`, which is gitignored.
 
+## Working with subagents
+
+Use subagents for implementation and verification wherever you can. The main agent plans, sends out the work, merges, and checks each result. It doesn't write the feature code itself.
+
+- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0. WPs in the same wave (`plan.md` §1) don't depend on each other, so run them in parallel, each in its own worktree and branch.
+- **Verification.** When a WP is done, a *separate* subagent reviews it against the REQUIREMENTS sections the WP cites, the hard rules above, and the `plan.md` §0 definition of done. Give it the branch diff and the WP, not the implementer's summary, so it reviews the code rather than confirming the summary. Send its findings back to the implementer, or to a new fix-up subagent, before merging.
+- **Main agent.** It owns the branch merge, the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
+- **Exception: small changes.** A change of a few lines (a typo, a one-line fix, a docs tweak) can be done directly, because writing the brief would cost more than making the change.
+
 ## Git workflow
 
 - **Never commit directly to `main`.** Start every feature, fix, or doc change on a branch from an up-to-date `main`, for example `git checkout -b m1-library-access`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`.
