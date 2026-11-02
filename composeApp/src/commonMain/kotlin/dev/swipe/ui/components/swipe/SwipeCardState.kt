@@ -75,20 +75,21 @@ class SwipeCardState internal constructor(
     }
 
     /**
-     * Undo: bring a committed card back from its exit edge in
+     * Undo: bring a committed card back from the edge of [verdict] in
      * [UNDO_RETURN_MS] with [FastOutSlowInEasing] (§5.6, FR-15), or
      * crossfade back in with [reduceMotion].
      */
-    suspend fun returnFrom(reduceMotion: Boolean = false) {
-        val verdict = committedVerdict
+    suspend fun returnFrom(
+        verdict: SwipeVerdict,
+        reduceMotion: Boolean = false,
+    ) {
         if (reduceMotion) {
             offsetAnim.snapTo(Offset.Zero)
             alphaAnim.snapTo(0f)
             committedVerdict = null
             alphaAnim.animateTo(1f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
         } else {
-            val entry = verdict?.let { exitTarget(it) } ?: Offset.Zero
-            offsetAnim.snapTo(entry)
+            offsetAnim.snapTo(exitTarget(verdict))
             alphaAnim.snapTo(1f)
             committedVerdict = null
             offsetAnim.animateTo(
@@ -96,6 +97,13 @@ class SwipeCardState internal constructor(
                 animationSpec = tween(UNDO_RETURN_MS, easing = FastOutSlowInEasing),
             )
         }
+    }
+
+    /** Put the slot back at rest for the next item after a fly-off. */
+    suspend fun resetForNext() {
+        committedVerdict = null
+        offsetAnim.snapTo(Offset.Zero)
+        alphaAnim.snapTo(1f)
     }
 
     /** A below-threshold release springs the card back to center (§5.6). */
