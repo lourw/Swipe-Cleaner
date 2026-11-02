@@ -63,13 +63,13 @@ data class SwipeComponentSizes(
     // Segmented control (§5.7 filter control).
     val segmentHeight: Dp = 36.dp,
     // Alpha for disabled content (§5.7 disabled states).
-    val disabledAlpha: Float = DisabledAlpha,
+    val disabledAlpha: Float = DISABLED_ALPHA,
     /** Alpha for tone-tinted fills that are not verdict colors (§5.3 uses 16% for verdicts). */
-    val tintedFillAlpha: Float = TintedFillAlpha,
+    val tintedFillAlpha: Float = TINTED_FILL_ALPHA,
 )
 
 /** Disabled content opacity (§5.7). */
-const val DisabledAlpha = 0.4f
+const val DISABLED_ALPHA = 0.4f
 
 /** Verdict-tinted fill opacity (§5.3), mirrored here for non-verdict tones. */
-const val TintedFillAlpha = 0.16f
+const val TINTED_FILL_ALPHA = 0.16f

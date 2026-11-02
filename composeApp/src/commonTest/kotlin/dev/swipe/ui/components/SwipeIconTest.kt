@@ -11,16 +11,18 @@ import kotlin.test.assertEquals
 /** §5.3 icon semantics: given descriptions are announced; decorative ones hide. */
 class SwipeIconTest {
     @Test
-    fun `§5.3 SwipeIcon exposes the content description it is given`() = runComposeUiTest {
-        setContent { SwipeIcon(R.drawable.ic_check, contentDescription = "Keep") }
-        val node = onNodeWithContentDescription("Keep").fetchSemanticsNode()
-        assertEquals(listOf("Keep"), node.config[SemanticsProperties.ContentDescription])
-    }
+    fun `§5.3 SwipeIcon exposes the content description it is given`() =
+        runComposeUiTest {
+            setContent { SwipeIcon(R.drawable.ic_check, contentDescription = "Keep") }
+            val node = onNodeWithContentDescription("Keep").fetchSemanticsNode()
+            assertEquals(listOf("Keep"), node.config[SemanticsProperties.ContentDescription])
+        }
 
     @Test
-    fun `§5.3 decorative SwipeIcon announces the empty description`() = runComposeUiTest {
-        setContent { SwipeIcon(R.drawable.ic_check, contentDescription = null) }
-        val node = onNodeWithContentDescription("").fetchSemanticsNode()
-        assertEquals(listOf(""), node.config[SemanticsProperties.ContentDescription])
-    }
+    fun `§5.3 decorative SwipeIcon announces the empty description`() =
+        runComposeUiTest {
+            setContent { SwipeIcon(R.drawable.ic_check, contentDescription = null) }
+            val node = onNodeWithContentDescription("").fetchSemanticsNode()
+            assertEquals(listOf(""), node.config[SemanticsProperties.ContentDescription])
+        }
 }

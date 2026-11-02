@@ -34,9 +34,10 @@ fun SwipeIcon(
         painter = painterResource(resource),
         contentDescription = contentDescription,
         colorFilter = ColorFilter.tint(tint),
-        modifier = modifier.size(size).semantics {
-            this.contentDescription = contentDescription ?: ""
-        },
+        modifier =
+            modifier.size(size).semantics {
+                this.contentDescription = contentDescription ?: ""
+            },
     )
 }
 
@@ -61,9 +62,10 @@ fun SystemDefaultIcon(
                 fontSize = SwipeTheme.componentSizes.systemDefaultIconSize,
                 color = tint,
             ),
-        modifier = modifier.semantics {
-            role = Role.Image
-            this.contentDescription = contentDescription ?: ""
-        },
+        modifier =
+            modifier.semantics {
+                role = Role.Image
+                this.contentDescription = contentDescription ?: ""
+            },
     )
 }

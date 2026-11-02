@@ -18,31 +18,34 @@ import kotlin.test.assertTrue
  */
 class PrimaryButtonTest {
     @Test
-    fun `§5.7 pressing the primary button fires its action`() = runComposeUiTest {
-        var clicks = 0
-        setContent { PrimaryButton(label = "Review", onClick = { clicks++ }) }
-        onNodeWithText("Review").performClick()
-        assertEquals(1, clicks)
-    }
-
-    @Test
-    fun `§5.7 disabled primary button ignores taps and marks Disabled`() = runComposeUiTest {
-        var clicks = 0
-        setContent { PrimaryButton(label = "Review", enabled = false, onClick = { clicks++ }) }
-        val node = onNodeWithText("Review").performClick().fetchSemanticsNode()
-        assertEquals(0, clicks)
-        assertTrue(node.config.contains(Disabled))
-    }
-
-    @Test
-    fun `§5.7 primary button exposes button role and description`() = runComposeUiTest {
-        setContent {
-            SwipeTheme {
-                PrimaryButton(label = "Review", contentDescription = "Review queue", onClick = {})
-            }
+    fun `§5.7 pressing the primary button fires its action`() =
+        runComposeUiTest {
+            var clicks = 0
+            setContent { PrimaryButton(label = "Review", onClick = { clicks++ }) }
+            onNodeWithText("Review").performClick()
+            assertEquals(1, clicks)
         }
-        val node = onNodeWithText("Review").fetchSemanticsNode()
-        assertEquals(Role.Button, node.config[SemanticsProperties.Role])
-        assertEquals(listOf("Review queue"), node.config[SemanticsProperties.ContentDescription])
-    }
+
+    @Test
+    fun `§5.7 disabled primary button ignores taps and marks Disabled`() =
+        runComposeUiTest {
+            var clicks = 0
+            setContent { PrimaryButton(label = "Review", enabled = false, onClick = { clicks++ }) }
+            val node = onNodeWithText("Review").performClick().fetchSemanticsNode()
+            assertEquals(0, clicks)
+            assertTrue(node.config.contains(Disabled))
+        }
+
+    @Test
+    fun `§5.7 primary button exposes button role and description`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    PrimaryButton(label = "Review", contentDescription = "Review queue", onClick = {})
+                }
+            }
+            val node = onNodeWithText("Review").fetchSemanticsNode()
+            assertEquals(Role.Button, node.config[SemanticsProperties.Role])
+            assertEquals(listOf("Review queue"), node.config[SemanticsProperties.ContentDescription])
+        }
 }

@@ -45,7 +45,8 @@ fun PrimaryButton(
                         container.copy(alpha = tokens.tintedFillAlpha)
                     },
                     CircleShape,
-                ).clickable(enabled = enabled, onClick = onClick).semantics {
+                ).clickable(enabled = enabled, onClick = onClick)
+                .semantics {
                     role = Role.Button
                     this.contentDescription = contentDescription ?: label
                     if (!enabled) {

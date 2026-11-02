@@ -11,8 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.SwipeComponentSizes
+import dev.swipe.ui.theme.SwipeTheme
 
 /**
  * The §5.7 `QueueBadge`: a `delete` pill, at least 20 dp, `caption`-sized

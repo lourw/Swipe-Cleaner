@@ -16,7 +16,10 @@ import dev.swipe.ui.theme.SwipeTheme
  * passed from debug entry points; release builds never reach it.
  */
 @Composable
-fun App(modifier: Modifier = Modifier, gallery: Boolean = false) {
+fun App(
+    modifier: Modifier = Modifier,
+    gallery: Boolean = false,
+) {
     SwipeTheme {
         Box(
             modifier = modifier.fillMaxSize().background(SwipeTheme.colors.bg),
