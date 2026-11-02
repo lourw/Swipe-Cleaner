@@ -5,6 +5,12 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 
 ## Environment notes
 
+- **No vision**: this model has no image input. Sub-agents must NOT screenshot or read images.
+  Visual QA (fonts, icon rendering, wireframe match) = 👤 checkpoints. Use text checks:
+  simctl launch success, runComposeUiTest semantics assertions, simctl spawn ls for files.
+- Icons: 15 Material Symbols Rounded vectors pre-converted into wp-1-2 worktree composeResources
+  (source: marella/material-symbols svg/400/rounded, viewBox 0 -960 960 960 → 24x24 affine
+  x/40, (y+960)/40; converter at /private/var/folders/hq/.../opencode/svg2vector.py).
 - `xcode-select` points at CommandLineTools. Everything xcode/simctl/gradle needs
   `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (validate.sh does this itself).
 - JDK 21 active (temurin 21.0.12.1). Simulators available: iPhone 17 (2BE890EF...), iPhone 17 Pro, etc. iOS 26.5.
@@ -22,10 +28,12 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 
 ## Wave plan
 
+Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.3 → 1.6 → 1.4 → 1.5 → 1.7 → 1.8 → ...
+
 | Wave | WPs | Status |
 | --- | --- | --- |
-| A | 1.1 domain+fakes · 1.2 theme+components | dispatching |
-| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | pending |
+| A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff); 1.2 next (serial) |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | queued (serial) |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
@@ -40,6 +48,17 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
 
+### WP-1.1 (m1-domain-and-fakes) — verified APPROVE-WITH-MINOR, fixing + re-validating
+- Findings 1–2 fixed in fakes directly (openSession/deleteQueue fixed-clock tie-breaks).
+- Carried into later briefs:
+  - WP-1.6: DuplicateGrouper must use the fake's run-chaining reading of FR-6 (each item ≤2 s
+    of its predecessor, groups ≥2, adjacent; chaining allowed beyond 2 s total span).
+  - WP-1.6/1.8: §6.4 `sources()` can't carry counts; Home rows use `assetIds(src).size`
+    (or richer type later). FakeMediaLibrary.sources() returns [All] only — extend when needed.
+  - WP-1.7+: FakeMediaLibrary.changes() has no replay — collect before notifying.
+  - WP-1.7+: FakeSettingsStore flows are MutableStateFlow — direct writes bypass setCalls.
+
 ## Open 👤 human checkpoints
 
-(accrue here; device-only checks the agents can't do)
+- WP-1.2: visual confirmation that FontFamily.Default renders as SF Pro (glyph-level);
+  component gallery visual QA vs §5.7 wireframes.
