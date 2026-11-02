@@ -10,7 +10,7 @@ import kotlin.math.abs
  * Input is the date-sorted list from [dev.swipe.data.MediaLibrary.duplicateCandidates];
  * the grouper preserves that order and never sorts. A run grows while each candidate
  * matches its immediate predecessor — same width and height and within
- * [WINDOW_DUPLICATE_SECONDS] of it — so a burst of shots spanning more than 2 s in
+ * [WINDOW_DUPLICATE_MS] of it — so a burst of shots spanning more than 2 s in
  * total still forms one group (chaining). Only runs of at least two members are
  * emitted; singletons and candidates without a creation date drop out.
  */
