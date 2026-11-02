@@ -49,6 +49,24 @@ class DuplicateGrouperTest {
         assertEquals(listOf("shot-1", "shot-2", "shot-3"), DuplicateGrouper.group(candidates))
     }
 
+    @Test
+    fun `FR-6 duplicates group items exactly 2 s apart`() {
+        // The 2 s window is inclusive ("within 2 s", FR-6): 2000 ms groups, 2001 ms splits.
+        val grouped =
+            listOf(
+                key("pair-a", 0L, 4032, 3024),
+                key("pair-b", 2_000L, 4032, 3024),
+            )
+        assertEquals(listOf("pair-a", "pair-b"), DuplicateGrouper.group(grouped))
+
+        val split =
+            listOf(
+                key("near-a", 0L, 4032, 3024),
+                key("near-b", 2_001L, 4032, 3024),
+            )
+        assertEquals(emptyList(), DuplicateGrouper.group(split))
+    }
+
     private fun key(
         id: String,
         createdAtEpochMs: Long,

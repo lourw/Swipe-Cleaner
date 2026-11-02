@@ -12,7 +12,8 @@ import kotlin.math.abs
  * matches its immediate predecessor — same width and height and within
  * [WINDOW_DUPLICATE_MS] of it — so a burst of shots spanning more than 2 s in
  * total still forms one group (chaining). Only runs of at least two members are
- * emitted; singletons and candidates without a creation date drop out.
+ * emitted; singletons and candidates without a creation date drop out. Behavior on
+ * input that is not date-sorted is undefined (the §6.4 contract guarantees sorted).
  */
 object DuplicateGrouper {
     /** FR-6: likely duplicates are taken within 2 s of their predecessor. */

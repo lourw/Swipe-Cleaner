@@ -55,6 +55,22 @@ class BuildDeckUseCaseTest {
         }
 
     @Test
+    fun `FR-9 deck is empty when every item is decided`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    listOf(photo("a", 0L), photo("b", 1L)),
+                )
+            val store = FakeDecisionStore()
+            store.record("a", Decision.KEEP, "old-session")
+            store.record("b", Decision.DELETE, "old-session")
+
+            val deck = BuildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(emptyList(), deck)
+        }
+
+    @Test
     fun `6-5 shuffle is stable for the same seed`() =
         runTest {
             val library = FakeMediaLibrary((0L until 10L).map { photo("p$it", it) })
