@@ -452,11 +452,11 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 
 ### 6.5 Deck pipeline
 
-1. `BuildDeckUseCase(source, typeFilter)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), subtracts `decidedIds()`, then orders them:
-   - Shuffle: a seeded shuffle, with the seed stored on the session so the order survives process death.
-   - Long videos: duration descending.
-   - Likely duplicates: grouped, with members next to each other.
-   - Everything else: creation date descending.
+1. `BuildDeckUseCase(source, typeFilter, seed)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), subtracts `decidedIds()`, then orders them:
+   - Shuffle: a seeded shuffle (`Random(seed)`), with the seed stored on the session so the order survives process death.
+   - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
+   - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
+   - Everything else: creation date descending (the library returns that order).
 2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20.
 3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
 4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top.
