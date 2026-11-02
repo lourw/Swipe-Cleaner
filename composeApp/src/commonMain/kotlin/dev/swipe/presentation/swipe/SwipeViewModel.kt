@@ -105,6 +105,12 @@ class SwipeViewModel(
      * The decision path (FR-12–14, §6.5 step 5): (a) persist first; (b) on success
      * only, advance, save the resume position (FR-20), and emit; (c) on failure keep
      * the index and revert the card (NFR-7).
+     *
+     * Concurrent taps (the buttons are always enabled): both intents capture the same
+     * card before either write returns and the upsert keeps the decision durable, so
+     * after the write each attempt re-checks that the deck head is still the card it
+     * recorded — the loser discards its advance. A double tap can never skip an
+     * undecided card (NFR-7).
      */
     private fun decide(decision: Decision) {
         val sessionId = sessionId ?: return // init has not finished; there is no card yet
@@ -125,6 +131,13 @@ class SwipeViewModel(
                 }
                 return@launch
             }
+            // Stale-advance guard: the deck head moved while this write was in flight,
+            // so another intent already advanced past [id]; drop this advance (the
+            // decision itself stays durable).
+            // Stale-advance guard: the deck head moved while this write was in flight,
+            // so another intent already advanced past [id]; drop this advance (the
+            // decision itself stays durable).
+            if (deck.getOrNull(index) != id) return@launch
             index += 1
             // The resume position is a best-effort hint (FR-20): the decision itself is
             // already durable, so a failed position write must not revert the card.

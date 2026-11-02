@@ -178,6 +178,35 @@ class SwipeViewModelTest {
         }
 
     @Test
+    fun `NFR-7 rapid double tap does not skip an undecided card`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+
+            f.viewModel.uiState.test {
+                assertEquals("asset-1", awaitDeckReady().current?.id)
+
+                // Two taps dispatched back-to-back, before either write completes:
+                // both capture asset-1, but only one advance may happen.
+                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(SwipeIntent.Keep)
+                advanceUntilIdle()
+
+                // Exactly one emission: the stale advance is discarded, and asset-2 —
+                // the card a double tap used to skip — is current and undecided.
+                val after = awaitItem()
+                assertEquals("asset-2", after.current?.id)
+                assertEquals(1, after.progress.reviewed)
+                expectNoEvents()
+            }
+            // Both writes targeted asset-1 (the idempotent upsert), nothing for asset-2.
+            assertEquals(2, f.store.recordCalls.count { it.first == "asset-1" })
+            assertTrue(f.store.recordCalls.none { it.first == "asset-2" })
+            // The resume position moved by exactly one (FR-20).
+            assertEquals(listOf("session-1" to 1), f.sessionStore.updatePositionCalls)
+        }
+
+    @Test
     fun `FR-19 progress counts reviewed over total`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
