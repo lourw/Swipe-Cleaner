@@ -480,9 +480,15 @@ data class SwipeUiState(
     val muted: Boolean,
     val toast: ToastMessage?,
     val finished: SessionSummary?,
+    val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
 )
 sealed interface SwipeIntent { Keep; Delete; Skip; Undo; ToggleMute; ConfirmFavoriteDelete; DismissToast }
 ```
+
+`toast` carries a `ToastMessage` — a sealed type whose first variant is `SaveFailed`
+(NFR-7); WP-2.2 adds "Undone" (FR-15) and the favorite confirm (FR-22). One-shot UI
+events ride on state fields the composable watches for changes — `revertToken` for the
+failed-save return; WP-2.2 documents the full events policy there.
 
 The drag offset and animation state stay inside the `SwipeCard` composable, as local UI state. The ViewModel only receives committed intents.
 
