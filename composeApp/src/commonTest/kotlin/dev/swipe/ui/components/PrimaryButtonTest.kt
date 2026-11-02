@@ -1,12 +1,16 @@
+// The Compose multiplatform UI test API is experimental; opt in once per file.
+@file:OptIn(ExperimentalComposeUiApi::class, ExperimentalTestApi::class)
+
 package dev.swipe.ui.components
 
-import androidx.compose.ui.semantics.Disabled
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.fetchSemanticsNode
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +22,7 @@ import kotlin.test.assertTrue
  */
 class PrimaryButtonTest {
     @Test
-    fun `§5.7 pressing the primary button fires its action`() =
+    fun `5-7 pressing the primary button fires its action`() =
         runComposeUiTest {
             var clicks = 0
             setContent { PrimaryButton(label = "Review", onClick = { clicks++ }) }
@@ -27,17 +31,17 @@ class PrimaryButtonTest {
         }
 
     @Test
-    fun `§5.7 disabled primary button ignores taps and marks Disabled`() =
+    fun `5-7 disabled primary button ignores taps and marks Disabled`() =
         runComposeUiTest {
             var clicks = 0
             setContent { PrimaryButton(label = "Review", enabled = false, onClick = { clicks++ }) }
             val node = onNodeWithText("Review").performClick().fetchSemanticsNode()
             assertEquals(0, clicks)
-            assertTrue(node.config.contains(Disabled))
+            assertTrue(node.config.contains(SemanticsProperties.Disabled))
         }
 
     @Test
-    fun `§5.7 primary button exposes button role and description`() =
+    fun `5-7 primary button exposes button role and description`() =
         runComposeUiTest {
             setContent {
                 SwipeTheme {
@@ -47,5 +51,17 @@ class PrimaryButtonTest {
             val node = onNodeWithText("Review").fetchSemanticsNode()
             assertEquals(Role.Button, node.config[SemanticsProperties.Role])
             assertEquals(listOf("Review queue"), node.config[SemanticsProperties.ContentDescription])
+        }
+
+    @Test
+    fun `NFR-8 primary button exposes its label to accessibility`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    PrimaryButton(label = "Review", onClick = {})
+                }
+            }
+            val node = onNodeWithContentDescription("Review").fetchSemanticsNode()
+            assertEquals(Role.Button, node.config[SemanticsProperties.Role])
         }
 }

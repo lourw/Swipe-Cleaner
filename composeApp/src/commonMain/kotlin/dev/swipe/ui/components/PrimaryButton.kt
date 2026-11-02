@@ -9,7 +9,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -19,8 +18,8 @@ import dev.swipe.ui.theme.SwipeTheme
 
 /**
  * The §5.7 `PrimaryButton`: a 52 dp full-round pill, `accent` fill, `headline`
- * label in the card-foreground color. Set [container] to override the fill
- * (e.g. `SwipeTheme.colors.delete` for the destructive variant).
+ * label in the card-foreground color. The destructive variant (§5.3
+ * "destructive CTA") sets [destructive] to use the `delete` fill.
  */
 @Composable
 fun PrimaryButton(
@@ -28,11 +27,16 @@ fun PrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    container: Color = SwipeTheme.colors.accent,
-    contentColor: Color = SwipeTheme.colors.textPrimary,
+    destructive: Boolean = false,
     contentDescription: String? = null,
 ) {
     val tokens = SwipeTheme.componentSizes
+    val container =
+        if (destructive) {
+            SwipeTheme.colors.delete
+        } else {
+            SwipeTheme.colors.accent
+        }
     Box(
         contentAlignment = Alignment.Center,
         modifier =
@@ -59,9 +63,9 @@ fun PrimaryButton(
             style =
                 SwipeTheme.typography.headline.let {
                     if (enabled) {
-                        it.copy(color = contentColor)
+                        it.copy(color = SwipeTheme.colors.textPrimary)
                     } else {
-                        it.copy(color = contentColor.copy(alpha = tokens.disabledAlpha))
+                        it.copy(color = SwipeTheme.colors.textPrimary.copy(alpha = tokens.disabledAlpha))
                     }
                 },
         )

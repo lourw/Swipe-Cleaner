@@ -1,12 +1,16 @@
+// The Compose multiplatform UI test API is experimental; opt in once per file.
+@file:OptIn(ExperimentalComposeUiApi::class, ExperimentalTestApi::class)
+
 package dev.swipe.ui.components
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.fetchSemanticsNode
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.runComposeUiTest
-import androidx.compose.ui.test.runOnIdle
+import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,7 +23,7 @@ class SegmentedControlTest {
     private val videos = "Videos"
 
     @Test
-    fun `§5.7 segments expose role and selection state`() =
+    fun `5-7 segments expose role and selection state`() =
         runComposeUiTest {
             setContent {
                 SwipeTheme {
@@ -39,21 +43,25 @@ class SegmentedControlTest {
         }
 
     @Test
-    fun `§5.7 tapping a segment selects it and reports the value`() =
+    fun `5-7 tapping a segment selects it and reports the value`() =
         runComposeUiTest {
-            var selected = photos
+            // Snapshot state so the recomposition after the tap refreshes the
+            // `selected` semantics; a plain var would update the value but
+            // never re-render.
+            val selected = mutableStateOf(photos)
             setContent {
                 SwipeTheme {
                     SegmentedControl(
                         options = listOf(photos, videos),
-                        selected = selected,
+                        selected = selected.value,
                         labelOf = { it },
-                        onSelect = { tapped -> selected = tapped },
+                        onSelect = { tapped -> selected.value = tapped },
                     )
                 }
             }
             onNodeWithText(videos).performClick()
-            runOnIdle { assertEquals(videos, selected) }
+            waitForIdle()
+            assertEquals(videos, selected.value)
             assertTrue(onNodeWithText(videos).fetchSemanticsNode().config[SemanticsProperties.Selected])
         }
 }

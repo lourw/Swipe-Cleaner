@@ -22,9 +22,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeTheme
 
-/** Tone of a [Banner] row; only the leading bar and the action color change (§5.7). */
-enum class BannerTone { Info, Warning, Error }
-
 /**
  * The §5.7 `Banner`: a `surfaceRaised` row with a 4 dp leading tone bar,
  * `callout` body text, an optional trailing action in the `accent` color, and
@@ -44,7 +41,6 @@ fun Banner(
         when (tone) {
             BannerTone.Info -> colors.accent
             BannerTone.Warning -> colors.warning
-            BannerTone.Error -> colors.delete
         }
     Row(
         verticalAlignment = Alignment.CenterVertically,

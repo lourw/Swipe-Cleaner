@@ -2,7 +2,7 @@
 
 ## Material Symbols icons
 
-The app icon set in `composeApp/src/composeResources/drawable/` consists of
+The app icon set in `composeApp/src/commonMain/composeResources/drawable/` consists of
 [Material Symbols](https://fonts.google.com/icons) glyphs in the **Rounded** style at weight 400.
 
 - Name: Material Symbols (icon font converted to Android vector drawables)

@@ -10,20 +10,20 @@ class QueueBadgeTest {
     private val sizes = SwipeComponentSizes()
 
     @Test
-    fun `§5.7 badge shows the count below the max unchanged`() {
+    fun `5-7 badge shows exact count up to 99`() {
         assertEquals("0", badgeLabel(0, sizes.badgeMaxShown))
         assertEquals("42", badgeLabel(42, sizes.badgeMaxShown))
         assertEquals("99", badgeLabel(99, sizes.badgeMaxShown))
     }
 
     @Test
-    fun `§5.7 badge caps at 99+ above the max`() {
+    fun `5-7 badge shows 99+ above 99`() {
         assertEquals("99+", badgeLabel(100, sizes.badgeMaxShown))
         assertEquals("99+", badgeLabel(1234, sizes.badgeMaxShown))
     }
 
     @Test
-    fun `§5.7 badge description ends with a queue noun`() {
+    fun `5-7 badge description ends with a queue noun`() {
         assertTrue(badgeDescription(7, sizes.badgeMaxShown).endsWith("queued"))
     }
 }

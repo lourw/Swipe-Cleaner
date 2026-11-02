@@ -1,5 +1,6 @@
 package dev.swipe.ui.components
 
+import dev.swipe.ui.theme.CARD_SHADOW_ALPHA
 import dev.swipe.ui.theme.SwipeComponentSizes
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,40 +10,72 @@ class ComponentSizesTest {
     private val sizes = SwipeComponentSizes()
 
     @Test
-    fun `§5.7 primary button pill is 52dp`() {
+    fun `5-7 primary button pill is 52dp`() {
         assertEquals(BUTTON_HEIGHT, sizes.primaryButtonHeight.value)
     }
 
     @Test
-    fun `§5.7 badge minimum is 20dp and caps display at 99`() {
+    fun `5-7 badge minimum is 20dp and caps display at 99`() {
         assertEquals(BADGE_SIZE, sizes.badgeMinSize.value)
         assertEquals(99, sizes.badgeMaxShown)
     }
 
     @Test
-    fun `§5.7 banner keeps a 4dp leading tone bar and 44dp min height`() {
+    fun `5-7 banner keeps a 4dp leading tone bar and 44dp min height`() {
         assertEquals(BANNER_BAR, sizes.bannerLeadingBarWidth.value)
         assertEquals(TOUCH_TARGET_MIN, sizes.bannerMinHeight.value)
     }
 
     @Test
-    fun `§5.3 system_default icon is 17sp`() {
+    fun `5-3 system_default icon is 17sp`() {
         assertEquals(SYSTEM_ICON_SIZE, sizes.systemDefaultIconSize.value)
     }
 
     @Test
-    fun `§5.7 disabled alpha applied to disabled component content`() {
+    fun `5-7 disabled alpha applied to disabled component content`() {
         assertEquals(0.4f, sizes.disabledAlpha)
     }
 
     @Test
-    fun `§5.3 verdict-tinted fills use 16% alpha`() {
+    fun `5-3 verdict-tinted fills use 16 percent alpha`() {
         assertEquals(0.16f, sizes.tintedFillAlpha)
     }
 
     @Test
-    fun `§5.7 toast fills 90 percent of its track`() {
+    fun `5-7 toast fills 90 percent of its track`() {
         assertEquals(0.9f, sizes.toastWidthFraction)
+    }
+
+    /** Pins every component number from the REQUIREMENTS §5.7 table. */
+    @Test
+    fun `5-7 component sizes match REQUIREMENTS`() {
+        // ActionBar
+        assertEquals(64f, sizes.actionButtonLarge.value)
+        assertEquals(48f, sizes.actionButtonSkip.value)
+        assertEquals(40f, sizes.actionButtonUndo.value)
+        assertEquals(24f, sizes.actionBarGap.value)
+        // TopBar
+        assertEquals(44f, sizes.topBarHeight.value)
+        assertEquals(2f, sizes.progressLineThickness.value)
+        // VerdictStamp
+        assertEquals(3f, sizes.stampStrokeWidth.value)
+        // SwipeCard
+        assertEquals(8f, sizes.cardInset.value)
+        assertEquals(96f, sizes.cardScrimHeight.value)
+        assertEquals(24f, sizes.cardShadowBlur.value)
+        assertEquals(0.40f, CARD_SHADOW_ALPHA)
+        // SourceRow
+        assertEquals(64f, sizes.sourceRowHeight.value)
+        assertEquals(40f, sizes.sourceRowThumbnail.value)
+        // PrimaryButton
+        assertEquals(52f, sizes.primaryButtonHeight.value)
+        // QueueBadge
+        assertEquals(20f, sizes.badgeMinSize.value)
+        // GridTile
+        assertEquals(2f, sizes.gridGap.value)
+        assertEquals(3f, sizes.tileRingWidth.value)
+        // Banner
+        assertEquals(4f, sizes.bannerLeadingBarWidth.value)
     }
 }
 
