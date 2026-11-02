@@ -61,7 +61,7 @@ xcrun simctl addmedia booted <files...>                # seed the photo library 
 
 Or open `iosApp/iosApp.xcodeproj` in Xcode and press Run. On a device, set `TEAM_ID` and `BUNDLE_ID` in `Local.xcconfig` first.
 
-Run `scripts/validate.sh` before declaring a task done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. Don't add lint baselines or bare `@Suppress`. If a command above stops working, fix it here in the same change.
+Run `scripts/validate.sh` before declaring a code change done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. **Skip validation for docs-only changes**, meaning the diff touches only markdown or other docs files (`*.md`, `docs/`). If a diff mixes docs and code, validate it. Don't add lint baselines or bare `@Suppress`. If a command above stops working, fix it here in the same change.
 
 ## Hard rules
 
@@ -78,7 +78,7 @@ Run `scripts/validate.sh` before declaring a task done, plus any extra checks fo
 
 - **Never commit directly to `main`.** Start every feature, fix, or doc change on a branch from an up-to-date `main`, for example `git checkout -b m1-library-access`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`.
 - **Commit as you go.** Make small commits, each one with a working build, rather than one large commit at the end.
-- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes on the branch. Then:
+- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes on the branch. Docs-only branches skip validation and can be merged directly. Then:
 
   ```bash
   git checkout main

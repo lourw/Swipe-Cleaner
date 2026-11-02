@@ -585,7 +585,7 @@ Seed the simulator by dragging photos and videos into the Photos app, or by usin
 
 ### 8.4 Validating a change
 
-**`scripts/validate.sh` is the definition of done.** It runs the steps below in order and stops at the first failure. A change isn't complete until it passes.
+**`scripts/validate.sh` is the definition of done.** It runs the steps below in order and stops at the first failure. A code change isn't complete until it passes. Docs-only changes (markdown or `docs/` files only) skip it.
 
 | # | Step | Command |
 | --- | --- | --- |
