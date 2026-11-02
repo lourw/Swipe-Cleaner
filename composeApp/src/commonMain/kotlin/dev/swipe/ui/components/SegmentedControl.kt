@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,9 +21,10 @@ import dev.swipe.ui.theme.SwipeTheme
 
 /**
  * A pill segmented control for the M1 media-type filter (REQUIREMENTS §5.7):
- * full-round segments on a `surface` track; the selected segment fills with
- * `accent` and draws its label in the card-foreground color. Segments are
- * selectable tabs with `selected` semantics; each is at least 44 dp tall.
+ * full-round track and segments — buttons are fully round (§5.5) — on a
+ * `surface` track; the selected segment fills with `accent` and draws its
+ * label in the card-foreground color. Segments are selectable tabs with
+ * `selected` semantics; each is at least 44 dp tall.
  */
 @Composable
 fun <T> SegmentedControl(
@@ -37,7 +38,7 @@ fun <T> SegmentedControl(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
             modifier
-                .background(SwipeTheme.colors.surface, RoundedCornerShape(SwipeTheme.radii.tile))
+                .background(SwipeTheme.colors.surface, CircleShape)
                 .padding(SwipeTheme.spacing.xxs),
     ) {
         options.forEach { option ->
@@ -83,7 +84,7 @@ private fun Segment(
                         } else {
                             Color.Transparent
                         },
-                        RoundedCornerShape(SwipeTheme.radii.tile),
+                        CircleShape,
                     ).padding(horizontal = SwipeTheme.spacing.m),
         ) {
             BasicText(

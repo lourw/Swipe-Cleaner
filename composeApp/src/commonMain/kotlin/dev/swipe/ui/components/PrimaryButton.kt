@@ -18,7 +18,9 @@ import dev.swipe.ui.theme.SwipeTheme
 
 /**
  * The §5.7 `PrimaryButton`: a 52 dp full-round pill, `accent` fill, `headline`
- * label in the card-foreground color. The destructive variant (§5.3
+ * label in the card-foreground color. §5.7 asks for "full width minus gutters"
+ * — callers pass `Modifier.fillMaxWidth()` inside a screen padded by
+ * `SwipeTheme.spacing.gutter`. The destructive variant (§5.3
  * "destructive CTA") sets [destructive] to use the `delete` fill.
  */
 @Composable

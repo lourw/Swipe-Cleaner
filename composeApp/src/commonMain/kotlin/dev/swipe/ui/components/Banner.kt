@@ -17,21 +17,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeTheme
 
 /**
- * The §5.7 `Banner`: a `surfaceRaised` row with a 4 dp leading tone bar,
- * `callout` body text, an optional trailing action in the `accent` color, and
- * a ≥44 dp touch target (§5.5). Announced as a polite live region.
+ * The §5.7 `Banner`: a `surfaceRaised` row with a 4 dp leading tone bar —
+ * `warning` by default, the tone §5.7 specifies — `callout` body text, an
+ * optional trailing action in the `accent` color, and a ≥44 dp touch target
+ * (§5.5). Announced as a polite live region.
  */
 @Composable
 fun Banner(
     text: String,
     modifier: Modifier = Modifier,
-    tone: BannerTone = BannerTone.Info,
+    tone: BannerTone = BannerTone.Warning,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
@@ -77,7 +80,10 @@ fun Banner(
                     Modifier
                         .clickable(onClick = onAction)
                         .padding(SwipeTheme.spacing.s)
-                        .semantics { this.contentDescription = actionLabel },
+                        .semantics {
+                            role = Role.Button
+                            this.contentDescription = actionLabel
+                        },
             )
         }
     }

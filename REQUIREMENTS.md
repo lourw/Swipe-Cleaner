@@ -206,7 +206,7 @@ Other gestures on the card:
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
 | `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. |
-| `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white. The destructive variant uses a `delete` fill. |
+| `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
 | `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s. Used for "Undone" and the favorite confirm. |

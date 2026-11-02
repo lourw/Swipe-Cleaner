@@ -20,10 +20,10 @@ import org.jetbrains.compose.resources.DrawableResource
 /**
  * The §5.7 circular icon button: a full-round icon inside [size] (Skip 48 dp,
  * Keep/Delete 64 dp in the action bar; 40 dp for Undo). The clickable area is
- * always at least [SwipeSizes.minTouchTarget] wide and tall (§5.5), so the
- * 40 dp Undo variant keeps a compliant touch target. The [container] fill
- * stays transparent for nav-bar use and is set to a tinted verdict color by
- * the action bar (§5.7).
+ * always at least [dev.swipe.ui.theme.SwipeSizes.minTouchTarget] wide and tall
+ * (§5.5), so the 40 dp Undo variant keeps a compliant touch target. The
+ * [container] fill stays transparent for nav-bar use and is set to a tinted
+ * verdict color by the action bar (§5.7).
  */
 @Composable
 fun CircleIconButton(
