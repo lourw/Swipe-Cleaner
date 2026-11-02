@@ -43,9 +43,10 @@ import kotlinx.coroutines.launch
  * WP-2.2. `Clock` is not injected here: nothing in the core timestamps anything
  * (the stores stamp their own rows), so it joins this constructor with its first use
  * in WP-2.2.
+ *
+ * This is a plain DI constructor wiring every collaborator of the §6.5 pipeline
+ * through Koin; a parameter bag would only hide the graph.
  */
-// DI constructor wiring every collaborator of the §6.5 pipeline through Koin; a
-// parameter bag would only hide the graph. This is the rule's intended exemption.
 @Suppress("LongParameterList")
 class SwipeViewModel(
     private val source: DeckSource,
@@ -113,7 +114,9 @@ class SwipeViewModel(
                 recordDecision(id, decision, sessionId)
             } catch (cancellation: CancellationException) {
                 throw cancellation // ViewModel teardown, not a failed save
-            } catch (failure: Exception) {
+            } catch (_: Exception) {
+                // Any store failure reverts the card (NFR-7); it surfaces as the
+                // SaveFailed toast, and there is no logging (NFR-6).
                 _uiState.update {
                     it.copy(
                         toast = ToastMessage.SaveFailed,
