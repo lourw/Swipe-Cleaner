@@ -14,6 +14,8 @@ import platform.Foundation.NSUserDefaults
 class NSUserDefaultsSettingsStore : SettingsStore {
     private val defaults = NSUserDefaults.standardUserDefaults
 
+    // MUST stay above the StateFlow initializers below: registerDefaults has to run
+    // before the first boolForKey read or the §6.4 defaults are silently dropped.
     init {
         defaults.registerDefaults(
             mapOf(

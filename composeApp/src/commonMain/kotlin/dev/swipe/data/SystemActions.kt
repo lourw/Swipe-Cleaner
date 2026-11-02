@@ -8,10 +8,16 @@ import kotlin.time.Instant
  * state and signing (REQUIREMENTS §6.4 additions; implemented in `iosMain/platform/`).
  */
 interface SystemActions {
-    /** Open this app's page in the Settings app (FR-3). */
+    /**
+     * Open this app's page in the Settings app (FR-3).
+     * Must be called on the main thread (UIKit access in the iOS implementation).
+     */
     fun openSettings()
 
-    /** Present the limited-library picker so the user can add items (FR-2). */
+    /**
+     * Present the limited-library picker so the user can add items (FR-2).
+     * Must be called on the main thread (UIKit access in the iOS implementation).
+     */
     fun presentLimitedLibraryPicker()
 
     /**
