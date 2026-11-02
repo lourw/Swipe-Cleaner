@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded (https://fonts.google.com/icons), (c) Google LLC,
+     Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+     Converted from svg/400/rounded (marella/material-symbols mirror); see docs/third-party.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M6.28 20q-2.2 0 -3.74 -1.54T1 14.72q0 -1.95 1.25 -3.42t3.17 -1.77q0.5 -2.42 2.35 -3.96T12.05 4.03q2.8 0 4.72 2.04T18.7 10.95v24.6q1.8 -0.05 3.05 1.16T23 15.78q0 1.73 -1.25 2.98t-2.98 1.25H6.28Zm0 -1.5h12.5q1.12 0 1.93 -0.8t0.8 -1.93q0 -1.12 -0.8 -1.93t-1.93 -0.8h-1.57v21.9q0 -2.27 -1.52 -3.85t-3.73 -1.57q-2.2 0 -3.74 1.57T6.67 10.95h-0.47q-1.55 0 -2.62 1.09T2.5 14.72q0 1.57 1.1 2.67t2.67 1.1Zm5.72 -6.5Z" />
+</vector>
