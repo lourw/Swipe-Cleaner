@@ -31,6 +31,11 @@ data class BitmapCacheKey(
  * no library) and over confinement because the access pattern is genuinely multi-threaded.
  * [onEvict] runs *after* the lock is released, so a slow release never blocks other
  * callers.
+ *
+ * **Ownership.** A value handed out by [get] or stored by [put] belongs to the cache: it
+ * is closed only via [onEvict] (or a replaced [put]). Callers must treat emitted bitmaps
+ * as borrowed and must not close them; keep at most one concurrent collector per key so
+ * an in-flight render can never hold the eviction victim.
  */
 class BitmapLruCache<V>(
     private val capacity: Int = DEFAULT_CAPACITY,

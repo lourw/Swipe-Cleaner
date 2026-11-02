@@ -70,8 +70,10 @@ import kotlin.math.roundToInt
  * (`BitmapLruCache`, capacity 5); evicted bitmaps are closed by the cache's `onEvict`.
  * `targetPx` is capped at the screen's pixel size (main screen bounds × scale): decoding
  * more pixels than the display can show would spend memory and CPU for nothing (NFR-2,
- * R1). The app is portrait-only (§6.8), so the portrait bounds are the cap; [UIScreen] is
- * read lazily, first from a UI-driven `image` call.
+ * R1). The app is portrait-only (§6.8) and single-window, so the portrait bounds are
+ * constant after launch; [UIScreen] is read lazily (synchronized) from whichever thread
+ * first requests an image, which is safe for these launch-frozen values even though
+ * UIKit nominally prefers the main thread.
  */
 class PhotoKitMediaLoader(
     private val settings: SettingsStore,
@@ -109,13 +111,18 @@ class PhotoKitMediaLoader(
 
             val results = Channel<RawDelivery>(Channel.UNLIMITED)
             val options = requestOptions(networkAllowed)
+            // PhotoKit calls run on Dispatchers.Default (AGENTS.md); the call is async and
+            // cheap, but the collector is the composition (main). requestId is still
+            // assigned before awaitClose exists, so cancellation stays race-free.
             val requestId =
-                manager.requestImageForAsset(asset, size.toCGSize(), PHImageContentModeAspectFit, options) { image, info ->
-                    // Main queue: never decode here (NFR-2). A cancelled delivery is the
-                    // collector leaving — ignore it (§6.8).
-                    val values = info.orEmpty()
-                    if (values.flag(PHImageCancelledKey)) return@requestImageForAsset
-                    results.trySend(RawDelivery(image, values))
+                withContext(ioDispatcher) {
+                    manager.requestImageForAsset(asset, size.toCGSize(), PHImageContentModeAspectFit, options) { image, info ->
+                        // Main queue: never decode here (NFR-2). A cancelled delivery is the
+                        // collector leaving — ignore it (§6.8).
+                        val values = info.orEmpty()
+                        if (values.flag(PHImageCancelledKey)) return@requestImageForAsset
+                        results.trySend(RawDelivery(image, values))
+                    }
                 }
 
             // Decoder loop: keeps the degraded → full delivery order NFR-1 promises, and it
@@ -131,6 +138,8 @@ class PhotoKitMediaLoader(
                     val isCloud = delivery.info.flag(PHImageResultIsInCloudKey)
                     val decoded = delivery.image?.let { raw -> runCatching { raw.decodeToBitmap() }.getOrNull() }
                     if (decoded != null) {
+                        // Only full-size decodes enter the LRU (NFR-3 budgets full-screen
+                        // bitmaps); small degraded deliveries are left to Skia's finalizer.
                         if (!isDegraded) cache.put(key, decoded)
                         send(LoadedImage(decoded, isDegraded = isDegraded, isCloud = isCloud))
                     }
