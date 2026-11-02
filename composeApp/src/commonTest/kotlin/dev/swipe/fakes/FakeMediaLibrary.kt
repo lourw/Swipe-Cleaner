@@ -34,6 +34,8 @@ import kotlinx.datetime.toLocalDateTime
  * Calls are recorded (`assetIdsCalls`, `deleteCalls`, …). Each `failNext…` switch throws
  * once. [nextDeleteResult] is returned by every `delete` until changed; on
  * [DeleteResult.Deleted] the assets leave the library, so a later FR-28 prune sees them gone.
+ * [access] can be reassigned to simulate a permission change (FR-3 re-check), and
+ * [nextRequestAuthorizationResult] lets the prompt answer differently from [access] (FR-1).
  */
 class FakeMediaLibrary(
     items: List<MediaItem>,
@@ -41,8 +43,8 @@ class FakeMediaLibrary(
     private val albums: Map<String, Set<String>> = emptyMap(),
     /** Asset ids PhotoKit would report as selfies (FR-6). */
     private val selfieIds: Set<String> = emptySet(),
-    /** What [authorization] reports (FR-1, FR-2, FR-3). */
-    private val access: LibraryAccess = LibraryAccess.FULL,
+    /** What [authorization] reports; reassign to simulate a Settings change (FR-1–3). */
+    var access: LibraryAccess = LibraryAccess.FULL,
 ) : MediaLibrary {
     /** Current library contents; a [DeleteResult.Deleted] removes ids from it (FR-26). */
     val items = items.toMutableList()
@@ -66,6 +68,13 @@ class FakeMediaLibrary(
     /** Returned by every [delete] until changed; defaults to success. */
     var nextDeleteResult: DeleteResult = DeleteResult.Deleted
 
+    /**
+     * When non-null, the next [requestAuthorization] answers with this instead of [access],
+     * [access] adopts that decision, and the switch resets — models the prompt deciding
+     * now (FR-1).
+     */
+    var nextRequestAuthorizationResult: LibraryAccess? = null
+
     private val changesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 64)
 
     override suspend fun authorization(): LibraryAccess {
@@ -82,6 +91,12 @@ class FakeMediaLibrary(
         failNextRequestAuthorization?.let {
             failNextRequestAuthorization = null
             throw it
+        }
+        nextRequestAuthorizationResult?.let {
+            nextRequestAuthorizationResult = null
+            // The prompt decision is the library's state from now on, as with PhotoKit.
+            access = it
+            return it
         }
         return access
     }
