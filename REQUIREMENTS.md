@@ -684,7 +684,7 @@ Use `scripts/validate.sh --full` before merging to `main`, and after any change 
 
 | ID | Risk | Mitigation |
 | --- | --- | --- |
-| R1 | Compose MP on iOS janks during a drag while images decode | Decode off the main thread, cap the bitmap size to the screen, profile with Instruments in M1. |
+| R1 | Compose MP on iOS janks during a drag while images decode | Decode off the main thread, cap the bitmap size to the screen, profile with Instruments in M1. **Programmatic check passed (M1, WP-1.9):** on the iPhone 17 simulator with a 119-asset library, 60 concurrent full-size decodes all ran off the main thread (0 on main), and the asset list for 119 assets took 50 ms (< 250 ms NFR-1 budget). Visual confirmation pending 👤: drag smoothness on a real device with Instruments (NFR-1). |
 | R2 | Video interop (`UIKitView`) clips badly or ignores card rotation and gestures | **Confirmed (M1 spike, branch `spike-video-interop`):** rounded clipping works, but `graphicsLayer` rotation/translation are ignored — the player view stays axis-aligned at its layout rect. The fallback is needed: show the poster frame while dragging and the live player only when the card is at rest (WP-4.1). |
 | R3 | No public API for asset file size (`PHAssetResource` "fileSize" is undocumented KVC) | Storage estimate is optional (open question). Never block a feature on it. |
 | R4 | The 7-day free signing expiry interrupts use | Documented re-sign step. Switch to a paid account if this gets annoying. |
