@@ -35,7 +35,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | --- | --- | --- |
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
 | B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | ALL MERGED: 1.3 (3fdac74) · 1.6 (6581385) · 1.4 (b6be2e9) · 1.5 (9fecd2d) |
-| C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | 1.7 in progress; then 1.8 |
+| C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | 1.7 MERGED (6d7f466); 1.8 next |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | pending |
@@ -48,6 +48,32 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.7 (m1-onboarding-permission) — verified APPROVE-WITH-MINOR, findings 1–2 fixed, merged 6d7f466
+- Routes.kt (11 `@Serializable` routes; Onboarding/Denied/Home registered, rest are stubs),
+  PermissionViewModel + UiState/Intent (DENIED always blocks; NOT_DETERMINED → Onboarding;
+  RequestAccess → route by outcome; ON_RESUME Recheck), Onboarding/Denied screens,
+  LimitedAccessBanner, placeholder HomeScreen ("Start shuffle" no-op), type-safe NavHost in
+  App.kt, `-gallery` launch arg, FakeMediaLibrary `access` settable + one-shot
+  `nextRequestAuthorizationResult`. 79 tests green; `validate.sh --full` passed on branch.
+- Review finding fixed (6d7f466): NavHost graph was rebuilt on every state change
+  (navigation-compose 2.10 resets back stack; popUpTo resolved against new graph).
+  Now `startDestination` = first non-null route, transitions are imperative
+  `navigate(...) { popUpTo(initialRoute) { inclusive = true } }`, FR-2 count collected
+  inside `HomeContainer`. Test `FR-1 back cannot return to onboarding once home is reached`
+  pins the guarantee via `popBackStack() == false`.
+- Carried into later briefs:
+  - WP-1.9: keep the NavHost builder lambda capture-free (collect flows inside destination
+    composables); wire "Start shuffle" → `Swipe` route; transitions must stay imperative
+    against the fixed `initialRoute`.
+  - WP-3.2: FR-2 banner count refreshes on resume only; add `changes()`-driven refresh.
+  - Note: AppSmokeTest uses `App(gallery = true)`; default `App()` + Koin path only exercised
+    on real launch — a fakes-based smoke test is a good follow-up.
+  - Note: FR-2 spec string ends "Manage."; rendered as Banner action label without the period
+    (§5.7 pattern). Spec owner may want the literal — left as-is.
+- Open 👤: reset-simulator walk (Allow Full → Home; Limit Access → banner w/ count;
+  Don't Allow → Denied + Open Settings opens Settings); §5.8 screen-map + VoiceOver check;
+  gallery screenshots via `xcrun simctl launch booted dev.swipe.cleaner -gallery`.
 
 ### WP-1.5 (m1-image-pipeline) — verified APPROVE-WITH-MINOR, findings fixed, merged 9fecd2d
 - BitmapLruCache (mutex, K/N eviction-crash fix), PhotoKitMediaLoader (opportunistic/fast/
