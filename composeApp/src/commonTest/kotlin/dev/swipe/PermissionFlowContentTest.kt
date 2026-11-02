@@ -3,6 +3,7 @@
 
 package dev.swipe
 
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
@@ -10,11 +11,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
+import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
 import dev.swipe.presentation.permission.PermissionUiState
+import dev.swipe.ui.navigation.Swipe
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -131,5 +136,40 @@ class PermissionFlowContentTest {
             assertFalse(controller.popBackStack())
             onNodeWithText("Start shuffle").assertExists()
             onNodeWithText("Allow access").assertDoesNotExist()
+        }
+
+    /**
+     * WP-1.9: Home's "Shuffle everything" navigates to the Swipe route with
+     * deck source `All` (serialized per the route contract) and the ALL type
+     * filter. The destination is stubbed so the deck pipeline (Koin) stays out
+     * of the navigation test.
+     */
+    @Test
+    fun `FR-4 home shuffle navigates to the swipe deck with the All source`() =
+        runComposeUiTest {
+            var routed: Swipe? = null
+            setContent {
+                PermissionFlowContent(
+                    state =
+                        MutableStateFlow(
+                            PermissionUiState(
+                                startScreen = PermissionScreen.HOME,
+                                access = LibraryAccess.FULL,
+                            ),
+                        ),
+                    onIntent = {},
+                    swipeDestination = { route ->
+                        routed = route
+                        BasicText("deck-destination")
+                    },
+                )
+            }
+            onNodeWithText("Start shuffle").performClick()
+            waitForIdle()
+
+            onNodeWithText("deck-destination").assertExists()
+            val route = requireNotNull(routed)
+            assertEquals(DeckSource.All, Json.decodeFromString(DeckSource.serializer(), route.sourceJson))
+            assertEquals(MediaTypeFilter.ALL.name, route.typeFilter)
         }
 }
