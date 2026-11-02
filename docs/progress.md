@@ -1,0 +1,45 @@
+# Implementation progress (working notes)
+
+Living scratchpad for the main agent while implementing plan.md. Updated at each merge.
+Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
+
+## Environment notes
+
+- `xcode-select` points at CommandLineTools. Everything xcode/simctl/gradle needs
+  `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (validate.sh does this itself).
+- JDK 21 active (temurin 21.0.12.1). Simulators available: iPhone 17 (2BE890EF...), iPhone 17 Pro, etc. iOS 26.5.
+- Baseline `scripts/validate.sh` on main: PASSED (2026-11-01).
+- Worktrees live in `/Users/lourw/personal/swipe-app-wt/wp-<id>` (outside repo). Remove each after merge:
+  `git worktree remove ../swipe-app-wt/wp-<id>`.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+
+## Workflow per WP (from AGENTS.md + plan.md §0)
+
+1. `git worktree add ../swipe-app-wt/wp-N -b <branch> main` (after deps merged).
+2. Dispatch implementer subagent (brief: read AGENTS.md + plan §0 + the WP + cited REQUIREMENTS §s; work only in that worktree; DEVELOPER_DIR export; validate; commit per §0; report §0.9; do NOT merge).
+3. Main agent reviews diff; verification subagent for high-risk WPs (2.x gestures, 3.x delete path).
+4. Merge `--ff-only` into main (rebase first if main moved), remove worktree, tick tracker here + plan.md.
+
+## Wave plan
+
+| Wave | WPs | Status |
+| --- | --- | --- |
+| A | 1.1 domain+fakes · 1.2 theme+components | dispatching |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | pending |
+| C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
+| D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
+| E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
+| F | 2.3 Swipe screen assembly (2.1,2.2) | pending |
+| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | pending |
+| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | pending |
+| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
+| J | 6.2 Accessibility (6.1) | pending |
+| K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
+
+## WP status log
+
+(append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+## Open 👤 human checkpoints
+
+(accrue here; device-only checks the agents can't do)
