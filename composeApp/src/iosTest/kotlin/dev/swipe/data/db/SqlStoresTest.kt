@@ -12,13 +12,18 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Stats
 import dev.swipe.fakes.FakeClock
 import dev.swipe.platform.DatabaseDriverFactory
+import kotlinx.cinterop.refTo
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fwrite
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -74,6 +79,27 @@ class SqlStoresTest {
             assertEquals(MediaTypeFilter.PHOTOS, open?.typeFilter)
             assertEquals(12_345L, open?.seed)
             assertEquals(7, open?.position)
+            deleteTempDatabase(name)
+        }
+
+    @Test
+    fun `FR-20 a corrupt database is moved aside and a fresh one opens`() =
+        runTest {
+            val name = "fr20-corrupt-${Uuid.random()}.db"
+            val path = NSTemporaryDirectory() + name
+            val manager = NSFileManager.defaultManager
+            val garbage = "not a sqlite database, just noise for the corrupt-file test".repeat(8).encodeToByteArray()
+            val handle = fopen(path, "wb")
+            assertTrue(handle != null)
+            assertTrue(fwrite(garbage.refTo(0), 1UL, garbage.size.toULong(), handle) == garbage.size.toULong())
+            fclose(handle)
+
+            val driver = DatabaseDriverFactory().createIn(NSTemporaryDirectory(), name)
+            // The fresh database opens with the current schema and no decisions...
+            assertEquals(emptyList(), SwipeDatabase(driver).decisionQueries.decidedIds().executeAsList())
+            // ...and the corrupt file was moved aside instead of crash-looping.
+            assertTrue(manager.fileExistsAtPath("$path$CORRUPT_SUFFIX"))
+            driver.close()
             deleteTempDatabase(name)
         }
 
@@ -207,10 +233,14 @@ class SqlStoresTest {
         }
 }
 
-/** Removes the temp database and its WAL sidecars written by [DatabaseDriverFactory]. */
+/** Removes the temp database and its sidecars written by [DatabaseDriverFactory]. */
 private fun deleteTempDatabase(name: String) {
     val manager = NSFileManager.defaultManager
     for (suffix in listOf("", "-wal", "-shm")) {
-        manager.removeItemAtPath(NSTemporaryDirectory() + name + suffix, error = null)
+        for (corrupt in listOf("", CORRUPT_SUFFIX)) {
+            manager.removeItemAtPath(NSTemporaryDirectory() + name + suffix + corrupt, error = null)
+        }
     }
 }
+
+private const val CORRUPT_SUFFIX = ".corrupt"
