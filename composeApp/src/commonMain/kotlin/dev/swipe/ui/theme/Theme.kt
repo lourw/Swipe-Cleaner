@@ -10,6 +10,7 @@ private val LocalSwipeTypography = staticCompositionLocalOf { DefaultSwipeTypogr
 private val LocalSwipeSpacing = staticCompositionLocalOf { SwipeSpacing() }
 private val LocalSwipeRadii = staticCompositionLocalOf { SwipeRadii() }
 private val LocalSwipeSizes = staticCompositionLocalOf { SwipeSizes() }
+private val LocalSwipeComponentSizes = staticCompositionLocalOf { SwipeComponentSizes() }
 
 /** Provides the design tokens (REQUIREMENTS §5.2). v1 is dark only. */
 @Composable
@@ -20,6 +21,7 @@ fun SwipeTheme(content: @Composable () -> Unit) {
         LocalSwipeSpacing provides SwipeSpacing(),
         LocalSwipeRadii provides SwipeRadii(),
         LocalSwipeSizes provides SwipeSizes(),
+        LocalSwipeComponentSizes provides SwipeComponentSizes(),
         content = content,
     )
 }
@@ -45,4 +47,9 @@ object SwipeTheme {
     val sizes: SwipeSizes
         @Composable @ReadOnlyComposable
         get() = LocalSwipeSizes.current
+
+    /** Component-specific sizes (§5.7), e.g. `SwipeTheme.componentSizes.primaryButtonHeight`. */
+    val componentSizes: SwipeComponentSizes
+        @Composable @ReadOnlyComposable
+        get() = LocalSwipeComponentSizes.current
 }

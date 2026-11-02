@@ -2,7 +2,9 @@ package dev.swipe.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** Spacing scale from REQUIREMENTS §5.5. */
 @Immutable
@@ -17,7 +19,7 @@ data class SwipeSpacing(
     val gutter: Dp = 16.dp,
 )
 
-/** Corner radii from REQUIREMENTS §5.5 and §5.7. Buttons are fully round, so they have no token. */
+/** Corner radii from REQUIREMENTS §5.5 and §5.7. Buttons are fully round, so they have no radius token. */
 @Immutable
 data class SwipeRadii(
     val card: Dp = 24.dp,
@@ -27,7 +29,7 @@ data class SwipeRadii(
     val stamp: Dp = 8.dp,
 )
 
-/** Shared sizes from REQUIREMENTS §5.5. Component-specific sizes live with their components' specs. */
+/** Shared sizes from REQUIREMENTS §5.5. Component-specific values live in [SwipeComponentSizes]. */
 @Immutable
 data class SwipeSizes(
     val minTouchTarget: Dp = 44.dp,
@@ -35,3 +37,39 @@ data class SwipeSizes(
     val icon: Dp = 24.dp,
     val actionBarIcon: Dp = 28.dp,
 )
+
+/**
+ * Component-specific sizes from REQUIREMENTS §5.7 for the WP-1.2 base
+ * components. Shapes are built in the components from `SwipeTheme.radii`
+ * tokens (pill/circle buttons per §5.5); only raw numbers that have no other
+ * token live here.
+ */
+@Immutable
+data class SwipeComponentSizes(
+    // Icons: §5.3 `system_default` is a 17 pt SF Symbol; generic in-row icons are 20 dp (§5.7 rows).
+    val systemDefaultIconSize: TextUnit = 17.sp,
+    val rowIcon: Dp = 20.dp,
+    // PrimaryButton (§5.7): 52 dp pill.
+    val primaryButtonHeight: Dp = 52.dp,
+    // Toast (§5.7): 90% of available width, 3 s auto-dismiss handled in the component.
+    val toastWidthFraction: Float = 0.9f,
+    val toastPaddingVertical: Dp = 12.dp,
+    // Banner (§5.7): 44 dp min row, 4 dp leading tone bar.
+    val bannerMinHeight: Dp = 44.dp,
+    val bannerLeadingBarWidth: Dp = 4.dp,
+    // QueueBadge (§5.7): min 20 dp pill, shows 99+ above 99.
+    val badgeMinSize: Dp = 20.dp,
+    val badgeMaxShown: Int = 99,
+    // Segmented control (§5.7 filter control).
+    val segmentHeight: Dp = 36.dp,
+    // Alpha for disabled content (§5.7 disabled states).
+    val disabledAlpha: Float = DisabledAlpha,
+    /** Alpha for tone-tinted fills that are not verdict colors (§5.3 uses 16% for verdicts). */
+    val tintedFillAlpha: Float = TintedFillAlpha,
+)
+
+/** Disabled content opacity (§5.7). */
+const val DisabledAlpha = 0.4f
+
+/** Verdict-tinted fill opacity (§5.3), mirrored here for non-verdict tones. */
+const val TintedFillAlpha = 0.16f
