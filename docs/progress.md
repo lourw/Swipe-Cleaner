@@ -36,7 +36,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
 | B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | ALL MERGED: 1.3 (3fdac74) · 1.6 (6581385) · 1.4 (b6be2e9) · 1.5 (9fecd2d) |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | BOTH MERGED: 1.7 (6d7f466) · 1.8 (3bebbf5) |
-| D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
+| D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | pending |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | pending |
@@ -48,6 +48,31 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.9 (m1-deck-screen) — verified APPROVE-WITH-MINOR, findings 1–5 fixed, merged 8b17605 — **M1 code-complete**
+- SwipeScreen (top card + next peek, Keep/Delete/Skip CircleIconButtons, empty state),
+  `rememberMediaImage(id, targetPx)` (produceState keyed on id+targetPx+loader → one collector
+  per key, cancel on dispose), `MediaLoader.FULL_TARGET_PX` shared by cards+prefetch (§6.4
+  spec'd), Home "Start shuffle" → Swipe route (typeFilter route arg is String, unknown→ALL;
+  navigation 2.10 can't do enum NavTypes). Real DI bug fixed: `single { Clock.System }`
+  registered the companion subtype → `single<Clock>`; DiSmokeTest (iosTest) resolves the graph
+  incl. the params-ful SwipeViewModel definition. `onCleared()` cancels the warm prefetch window.
+- Spikes: **R2** — AVPlayerLayer in UIKitView ignores graphicsLayer rotation/translation
+  (clips fine, stays axis-aligned) → **fallback needed**: poster while dragging, live player at
+  rest (WP-4.1). Recorded in §10; throwaway branch `spike-video-interop` kept for 👤 visual
+  confirmation. **R1** — 119-asset sim library, 60 concurrent full-size decodes, 0 on main;
+  asset listing 50 ms. FR-20/FR-9 kill/relaunch persistence verified textually (8 decisions,
+  queue=3 read back). 98 tests green; `validate.sh --full` passed.
+- Carried into later briefs:
+  - WP-4.1: R2 fallback design; confirm spike visually first (run `spike-video-interop`).
+  - WP-2.2: full ToastMessage events policy; `Clock` constructor arg; `start()` error handling.
+  - Note: prefetch warms PhotoKit's internal cache, not the app LRU (LRU fills on first card
+    decode from the warm cache).
+  - Note: duplicated "Stale-advance guard" comment block in SwipeViewModel.decide() (from
+    3bebbf5) — one-line cleanup PR later.
+- Open 👤: seeded-simulator walkthrough (launch → Home → Shuffle shows real photos; buttons
+  record; kill/relaunch keeps decisions); §5.8/§5.7 visual QA of deck screen; device NFR-1
+  (degraded < 100 ms under drag, Instruments); R2 visual confirmation.
 
 ### WP-1.8 (m1-swipe-viewmodel-core) — verified APPROVE-WITH-MINOR, finding 1 fixed, merged 3bebbf5
 - SwipeViewModel core (§6.5): session+seed on init, BuildDeckUseCase, metadata pages of 20
