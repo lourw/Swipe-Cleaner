@@ -82,7 +82,13 @@ class FakeSessionStore(
         sessions[id]?.let { sessions[id] = it.copy(endedAt = clock.now()) }
     }
 
-    override suspend fun openSession(): SessionRecord? = sessions.values.filter { it.endedAt == null }.maxByOrNull { it.startedAt }
+    // Stable ascending sort: ties on a fixed clock resolve to the most recently
+    // created session (map iteration is insertion order), matching FR-10 intent.
+    override suspend fun openSession(): SessionRecord? =
+        sessions.values
+            .filter { it.endedAt == null }
+            .sortedBy { it.startedAt }
+            .lastOrNull()
 
     override suspend fun skippedIds(sessionId: String): Set<String> = skips.idsOf(sessionId)
 

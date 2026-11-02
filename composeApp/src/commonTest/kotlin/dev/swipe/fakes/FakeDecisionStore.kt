@@ -102,6 +102,8 @@ class FakeDecisionStore(
         rows.map { current ->
             current
                 .filter { it.decision == Decision.DELETE }
+                // Reversed first so fixed-clock ties come back newest-recorded first (FR-23).
+                .reversed()
                 .sortedByDescending { it.decidedAt }
                 .map { it.id }
         }
