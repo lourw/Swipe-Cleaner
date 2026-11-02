@@ -6,6 +6,7 @@ import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import app.cash.sqldelight.driver.native.wrapConnection
 import co.touchlab.sqliter.DatabaseConfiguration
 import dev.swipe.db.SwipeDatabase
+import kotlinx.coroutines.runBlocking
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
@@ -44,6 +45,9 @@ class DatabaseDriverFactory {
                     extendedConfig = DatabaseConfiguration.Extended(basePath = basePath),
                 ),
             )
+        // SQLDelight connects lazily; run one query so the file and schema materialise
+        // from launch (§7, FR-20) and schema errors surface at startup, not mid-swipe.
+        runBlocking { SwipeDatabase(driver).decisionQueries.decidedIds().executeAsList() }
         excludeFromBackup("$basePath/$name")
         return driver
     }
