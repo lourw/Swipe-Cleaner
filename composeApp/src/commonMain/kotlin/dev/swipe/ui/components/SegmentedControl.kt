@@ -58,37 +58,46 @@ private fun Segment(
 ) {
     val tokens = SwipeTheme.componentSizes
     val colors = SwipeTheme.colors
+    // The clickable node spans the 44 dp touch target (§5.5); the pill fill
+    // stays at the slimmer visual height inside it.
     Box(
         contentAlignment = Alignment.Center,
         modifier =
             Modifier
-                .heightIn(min = tokens.segmentHeight)
-                .background(
-                    if (selected) {
-                        colors.accent
-                    } else {
-                        Color.Transparent
-                    },
-                    RoundedCornerShape(SwipeTheme.radii.tile),
-                ).clickable(onClick = onClick)
-                .padding(horizontal = SwipeTheme.spacing.m)
+                .heightIn(min = SwipeTheme.sizes.minTouchTarget)
+                .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Tab
                     this.selected = selected
                     this.contentDescription = label
                 },
     ) {
-        BasicText(
-            text = label,
-            style =
-                SwipeTheme.typography.callout.copy(
-                    color =
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier =
+                Modifier
+                    .heightIn(min = tokens.segmentHeight)
+                    .background(
                         if (selected) {
-                            colors.textPrimary
+                            colors.accent
                         } else {
-                            colors.textSecondary
+                            Color.Transparent
                         },
-                ),
-        )
+                        RoundedCornerShape(SwipeTheme.radii.tile),
+                    ).padding(horizontal = SwipeTheme.spacing.m),
+        ) {
+            BasicText(
+                text = label,
+                style =
+                    SwipeTheme.typography.callout.copy(
+                        color =
+                            if (selected) {
+                                colors.textPrimary
+                            } else {
+                                colors.textSecondary
+                            },
+                    ),
+            )
+        }
     }
 }

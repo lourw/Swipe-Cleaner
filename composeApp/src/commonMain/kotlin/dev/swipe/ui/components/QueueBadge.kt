@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeComponentSizes
 import dev.swipe.ui.theme.SwipeTheme
+import dev.swipe.ui.theme.TABULAR_FIGURES
 
 /**
  * The §5.7 `QueueBadge`: a `delete` pill, at least 20 dp, `caption`-sized
@@ -36,7 +37,11 @@ fun QueueBadge(
     ) {
         BasicText(
             text = badgeLabel(count, tokens.badgeMaxShown),
-            style = SwipeTheme.typography.caption.copy(color = SwipeTheme.colors.textPrimary),
+            style =
+                SwipeTheme.typography.caption.copy(
+                    color = SwipeTheme.colors.textPrimary,
+                    fontFeatureSettings = TABULAR_FIGURES,
+                ),
         )
     }
 }

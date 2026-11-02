@@ -13,13 +13,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import dev.swipe.ui.theme.SwipeTheme
 import org.jetbrains.compose.resources.DrawableResource
 
 /**
- * The §5.7 circular icon button: a full-round ≥44 dp touch target (§5.5) with
- * an icon inside. The [container] fill stays transparent for nav-bar use and
- * is set to a tinted verdict color by the action bar (§5.7).
+ * The §5.7 circular icon button: a full-round icon inside [size] (Skip 48 dp,
+ * Keep/Delete 64 dp in the action bar; 40 dp for Undo). The clickable area is
+ * always at least [SwipeSizes.minTouchTarget] wide and tall (§5.5), so the
+ * 40 dp Undo variant keeps a compliant touch target. The [container] fill
+ * stays transparent for nav-bar use and is set to a tinted verdict color by
+ * the action bar (§5.7).
  */
 @Composable
 fun CircleIconButton(
@@ -27,28 +31,36 @@ fun CircleIconButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    size: Dp = SwipeTheme.sizes.minTouchTarget,
     container: Color = Color.Transparent,
     contentColor: Color = SwipeTheme.colors.textPrimary,
-    iconSize: androidx.compose.ui.unit.Dp = SwipeTheme.sizes.icon,
+    iconSize: Dp = SwipeTheme.sizes.icon,
 ) {
-    val tokens = SwipeTheme.componentSizes
+    val minTouch = SwipeTheme.sizes.minTouchTarget
     Box(
         contentAlignment = Alignment.Center,
         modifier =
             modifier
-                .size(SwipeTheme.sizes.minTouchTarget)
-                .background(container, CircleShape)
+                .size(if (size > minTouch) size else minTouch)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     this.contentDescription = label
                 },
     ) {
-        SwipeIcon(
-            resource = resource,
-            size = iconSize,
-            tint = contentColor,
-            contentDescription = null,
-        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier =
+                Modifier
+                    .size(size)
+                    .background(container, CircleShape),
+        ) {
+            SwipeIcon(
+                resource = resource,
+                size = iconSize,
+                tint = contentColor,
+                contentDescription = null,
+            )
+        }
     }
 }
