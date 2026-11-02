@@ -202,6 +202,14 @@ class SwipeViewModel(
     /** The card at [i], or null past the deck's end or before its metadata arrives. */
     private fun cardAt(i: Int): CardState? = deck.getOrNull(i)?.let { metadata[it] }?.let(CardState::from)
 
+    /** §6.5 step 3: leaving the deck cancels the still-warm prefetch window. */
+    public override fun onCleared() {
+        if (prefetched.isNotEmpty()) {
+            mediaLoader.cancelPrefetch(prefetched, PREFETCH_TARGET_PX)
+            prefetched = emptyList()
+        }
+    }
+
     private companion object {
         /** §6.5 step 2: metadata pages of 20 ids. */
         const val METADATA_PAGE_SIZE = 20

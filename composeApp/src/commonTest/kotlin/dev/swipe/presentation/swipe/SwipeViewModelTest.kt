@@ -300,6 +300,20 @@ class SwipeViewModelTest {
             )
         }
 
+    @Test
+    fun `6-5 leaving the deck cancels the still-warm prefetch window`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(6)
+
+            f.viewModel.uiState.test {
+                awaitDeckReady()
+            }
+            // The warm window is asset-1 … asset-4 (§6.5 step 3).
+            f.viewModel.onCleared()
+            assertEquals(listOf(listOf("asset-1", "asset-2", "asset-3", "asset-4")), f.loader.cancelPrefetchCalls)
+        }
+
     /**
      * Wraps a [DecisionStore] and records the value of [reviewedNow] at the moment
      * [record] is called — the strict "persisted before the index changes" probe
