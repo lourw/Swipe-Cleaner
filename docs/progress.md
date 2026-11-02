@@ -36,7 +36,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | Wave | WPs | Status |
 | --- | --- | --- |
 | A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
-| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 MERGED (3fdac74); next 1.6, then 1.4 → 1.5 |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 MERGED (3fdac74) · 1.6 MERGED (6581385); next 1.4, then 1.5 |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
@@ -50,6 +50,15 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.6 (m1-deck-usecases) — verified APPROVE-WITH-MINOR, findings fixed, merged 6581385
+- BuildDeckUseCase / RecordDecisionUseCase / UndoDecisionUseCase / DuplicateGrouper; §6.5
+  documents pre-sorted LONG_VIDEOS + duplicate path. 2 s boundary (inclusive) and all-decided
+  empty deck pinned by tests.
+- Carried into later briefs:
+  - WP-1.8: bind the three use cases in Koin (left unbound on purpose).
+  - WP-1.4/5.1: real PhotoKit must honor the §6.5 contracts (duration-desc for LONG_VIDEOS,
+    date-desc `duplicateCandidates`) that FakeMediaLibrary mirrors.
 
 ### WP-1.3 (m1-persistence) — verified APPROVE-WITH-MINOR, findings 1–3 fixed, merged 3fdac74
 - Schema v1 + `1.db` snapshot, SqlDecisionStore/SqlSessionStore, DatabaseDriverFactory
