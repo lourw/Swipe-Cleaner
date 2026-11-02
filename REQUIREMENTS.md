@@ -147,6 +147,8 @@ Tinted fills use the verdict color at 16% alpha, for example the Keep button bac
 
 Use `FontFamily.Default`, which should render as SF Pro on iOS. Confirm this in M1. If it doesn't, bundle Inter and use that instead.
 
+> WP-1.2 note: components use `FontFamily.Default` only — no font asset is bundled. The SF Pro rendering is pending visual confirmation on device/simulator (👤 M1 checkpoint).
+
 | Token | Size / line (sp) | Weight | Use |
 | --- | --- | --- | --- |
 | `display` | 34 / 41 | Bold | Summary numbers, Home title |
