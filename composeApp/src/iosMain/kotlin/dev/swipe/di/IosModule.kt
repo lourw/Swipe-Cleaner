@@ -1,8 +1,14 @@
 package dev.swipe.di
 
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
+import dev.swipe.data.MediaLibrary
+import dev.swipe.data.SettingsStore
+import dev.swipe.data.SystemActions
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.platform.DatabaseDriverFactory
+import dev.swipe.platform.IosSystemActions
+import dev.swipe.platform.NSUserDefaultsSettingsStore
+import dev.swipe.platform.PhotoKitMediaLibrary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -27,4 +33,9 @@ val iosModule: Module =
                 .async { DatabaseDriverFactory().create() }
         }
         single { SwipeDatabase(runBlocking { get<Deferred<NativeSqliteDriver>>().await() }) }
+
+        // Platform bridges (WP-1.4): PhotoKit reads, system actions, and settings.
+        single<MediaLibrary> { PhotoKitMediaLibrary() }
+        single<SystemActions> { IosSystemActions() }
+        single<SettingsStore> { NSUserDefaultsSettingsStore() }
     }
