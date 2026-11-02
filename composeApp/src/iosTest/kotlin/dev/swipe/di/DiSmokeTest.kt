@@ -9,11 +9,11 @@ import dev.swipe.data.SystemActions
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
-import kotlin.test.AfterTest
-import kotlin.test.Test
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.mp.KoinPlatform
+import kotlin.test.AfterTest
+import kotlin.test.Test
 import kotlin.time.Clock
 
 /**
