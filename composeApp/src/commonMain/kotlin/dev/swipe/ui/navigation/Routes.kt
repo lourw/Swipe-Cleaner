@@ -7,7 +7,6 @@
 
 package dev.swipe.ui.navigation
 
-import dev.swipe.domain.model.MediaTypeFilter
 import kotlinx.serialization.Serializable
 
 /** First-launch explanation, then the `PHAccessLevel.readWrite` request (FR-1). */
@@ -37,12 +36,15 @@ data object SmartFilters
 /**
  * The swipe deck (WP-1.9). [sourceJson] is the session's `DeckSource` serialized as JSON
  * (§7) — kept as a string so the route stays small and readable in logs.
- * [typeFilter] is the Home media-type toggle applied on top of the source (FR-5).
+ * [typeFilter] is the Home media-type toggle applied on top of the source (FR-5),
+ * carried as a [dev.swipe.domain.model.MediaTypeFilter] *name*: the navigation
+ * library cannot resolve a `NavType` for an enum argument on a type-safe route,
+ * so destinations decode it defensively (unknown names fall back to `ALL`).
  */
 @Serializable
 data class Swipe(
     val sourceJson: String,
-    val typeFilter: MediaTypeFilter = MediaTypeFilter.ALL,
+    val typeFilter: String = "ALL",
 )
 
 /** Session summary when the deck runs out (FR-21, WP-2.2). */

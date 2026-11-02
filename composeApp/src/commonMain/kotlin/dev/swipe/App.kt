@@ -15,20 +15,32 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import dev.swipe.data.MediaLoader
+import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
 import dev.swipe.presentation.permission.PermissionUiState
 import dev.swipe.presentation.permission.PermissionViewModel
+import dev.swipe.presentation.swipe.SwipeIntent
+import dev.swipe.presentation.swipe.SwipeViewModel
 import dev.swipe.ui.components.ComponentGallery
 import dev.swipe.ui.navigation.Denied
 import dev.swipe.ui.navigation.Home
 import dev.swipe.ui.navigation.Onboarding
+import dev.swipe.ui.navigation.Swipe
 import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
 import dev.swipe.ui.screens.onboarding.OnboardingScreen
+import dev.swipe.ui.screens.swipe.SwipeScreen
+import dev.swipe.ui.screens.swipe.decodeTypeFilter
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.Json
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 /**
  * Root composable (REQUIREMENTS §5.8 screen map). Wraps the permission-driven
@@ -88,6 +100,7 @@ internal fun PermissionFlowContent(
     onIntent: (PermissionIntent) -> Unit,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route) },
 ) {
     val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
@@ -117,15 +130,68 @@ internal fun PermissionFlowContent(
             DeniedScreen(onOpenSettings = { onIntent(PermissionIntent.OpenSettings) })
         }
         composable<Home> {
-            // "Start shuffle" starts the deck in WP-1.9; the other routes in
-            // the §5.8 screen map are declared in Routes.kt and get their
+            // The remaining §5.8 routes are declared in Routes.kt and get their
             // composable() entries from the work packages that own them.
             HomeContainer(
                 state = state,
+                onStartShuffle = { navController.navigate(ShuffleAllSwipe) },
                 onManageLimitedAccess = { onIntent(PermissionIntent.ManageLimitedAccess) },
             )
         }
+        composable<Swipe> { entry ->
+            swipeDestination(entry.toRoute<Swipe>())
+        }
     }
+}
+
+/**
+ * The Swipe route for Home's "Shuffle everything" (FR-4): deck source `All`
+ * serialized per the route contract, with the default ALL type filter (FR-5's
+ * toggle arrives in WP-5.2). A constant, so it is built once and the NavHost
+ * builder lambda captures nothing that changes.
+ */
+private val ShuffleAllSwipe =
+    Swipe(
+        sourceJson = Json.encodeToString(DeckSource.serializer(), DeckSource.All),
+        typeFilter = MediaTypeFilter.ALL.name,
+    )
+
+/**
+ * The real Swipe destination: decodes the route's [DeckSource] JSON and hands
+ * to the Koin-backed [SwipeScreen]. Swappable in [PermissionFlowContent] so
+ * navigation tests never build the deck pipeline.
+ */
+@Composable
+private fun SwipeDestination(route: Swipe) {
+    val source =
+        remember(route.sourceJson) {
+            Json.decodeFromString(DeckSource.serializer(), route.sourceJson)
+        }
+    SwipeContainer(source = source, typeFilter = decodeTypeFilter(route.typeFilter))
+}
+
+/**
+ * Wires [SwipeViewModel] (resolved with the route's source and filter) and the
+ * injected [MediaLoader] to [SwipeScreen]. State is collected inside this
+ * destination composable, never in the NavHost builder (WP-1.7 rule).
+ */
+@Composable
+private fun SwipeContainer(
+    source: DeckSource,
+    typeFilter: MediaTypeFilter,
+    mediaLoader: MediaLoader = koinInject(),
+) {
+    val viewModel: SwipeViewModel =
+        koinViewModel(
+            parameters = { parametersOf(source, typeFilter) },
+        )
+    val onIntent: (SwipeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
+    val state by viewModel.uiState.collectAsState()
+    SwipeScreen(
+        state = state,
+        onIntent = onIntent,
+        mediaLoader = mediaLoader,
+    )
 }
 
 /**
@@ -136,11 +202,12 @@ internal fun PermissionFlowContent(
 @Composable
 private fun HomeContainer(
     state: StateFlow<PermissionUiState>,
+    onStartShuffle: () -> Unit,
     onManageLimitedAccess: () -> Unit,
 ) {
     val ui by state.collectAsState()
     HomeScreen(
-        onStartShuffle = {},
+        onStartShuffle = onStartShuffle,
         limitedItemCount = ui.limitedCount,
         onManageLimitedAccess = onManageLimitedAccess,
     )
