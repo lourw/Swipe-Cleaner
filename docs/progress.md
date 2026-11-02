@@ -21,6 +21,9 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 
 ## Workflow per WP (from AGENTS.md + plan.md §0)
 
+0. Before dispatching: `ps aux | grep opencode` and check worktree mtimes — on 2026-11-01 a stale
+   duplicate session was found editing wp-1-2 concurrently (killed with user approval). Never
+   dispatch into a worktree another live session may hold.
 1. `git worktree add ../swipe-app-wt/wp-N -b <branch> main` (after deps merged).
 2. Dispatch implementer subagent (brief: read AGENTS.md + plan §0 + the WP + cited REQUIREMENTS §s; work only in that worktree; DEVELOPER_DIR export; validate; commit per §0; report §0.9; do NOT merge).
 3. Main agent reviews diff; verification subagent for high-risk WPs (2.x gestures, 3.x delete path).
@@ -32,8 +35,8 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 
 | Wave | WPs | Status |
 | --- | --- | --- |
-| A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff); 1.2 next (serial) |
-| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | queued (serial) |
+| A | 1.1 domain+fakes · 1.2 theme+components | 1.1 MERGED (faaccff) · 1.2 MERGED (c3088cb) |
+| B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | 1.3 in progress; then 1.6 → 1.4 → 1.5 |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | pending |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | pending |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
@@ -47,6 +50,17 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-1.2 (m1-components-base) — verified APPROVE-WITH-MINOR, all findings fixed, merged c3088cb
+- Icons live in `commonMain/composeResources` (generated accessor is `Res`, not `R`).
+- Deviations: Toast injectable-clock requirement met via `autoDismissDelay` param + Compose
+  virtual time; PrimaryButton/QueueBadge "white" text = `textPrimary` (noted in §5.7).
+- Carried into later briefs:
+  - WP-6.2: several components set `contentDescription` duplicating readable child text
+    (PrimaryButton/Toast/Banner/SegmentedControl) → possible double announcement in VoiceOver.
+  - Debug gallery shows a non-spec `BannerTone.Info` variant next to the spec `Warning` default.
+  - Gallery entry point: `App(gallery = true)` exists but no caller; whoever wires debug
+    navigation (WP-1.3+) may also capture the 👤 gallery screenshots then.
 
 ### WP-1.1 (m1-domain-and-fakes) — verified APPROVE-WITH-MINOR, fixing + re-validating
 - Findings 1–2 fixed in fakes directly (openSession/deleteQueue fixed-clock tie-breaks).
