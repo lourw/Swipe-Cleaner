@@ -74,6 +74,18 @@ Run `scripts/validate.sh` before declaring a task done, plus any extra checks fo
 7. **No network or analytics code**, apart from PhotoKit's own iCloud downloads (NFR-6).
 8. **Signing stays local.** Don't commit an Apple `DEVELOPMENT_TEAM` or personal bundle ID. They belong in `iosApp/Configuration/Local.xcconfig`, which is gitignored.
 
+## Git workflow
+
+- **Never commit directly to `main`.** Start every feature, fix, or doc change on a branch from an up-to-date `main`, for example `git checkout -b m1-library-access`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`.
+- **Commit as you go.** Make small commits, each one with a working build, rather than one large commit at the end.
+- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes on the branch. Then:
+
+  ```bash
+  git checkout main
+  git merge --ff-only <branch>     # if main has moved on: git rebase main <branch>, re-validate, then merge
+  git branch -d <branch>
+  ```
+
 ## Conventions
 
 - Reference requirement IDs in commit messages and test names, for example `FR-15 undo restores last card`.
