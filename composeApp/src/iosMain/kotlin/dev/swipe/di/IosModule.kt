@@ -1,14 +1,19 @@
 package dev.swipe.di
 
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asSkiaBitmap
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.MediaLoader
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
+import dev.swipe.data.image.BitmapLruCache
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.platform.DatabaseDriverFactory
 import dev.swipe.platform.IosSystemActions
 import dev.swipe.platform.NSUserDefaultsSettingsStore
 import dev.swipe.platform.PhotoKitMediaLibrary
+import dev.swipe.platform.PhotoKitMediaLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -38,4 +43,10 @@ val iosModule: Module =
         single<MediaLibrary> { PhotoKitMediaLibrary() }
         single<SystemActions> { IosSystemActions() }
         single<SettingsStore> { NSUserDefaultsSettingsStore() }
+
+        // Image pipeline (WP-1.5): the decoded-bitmap cache is a singleton so all loaders
+        // share the one NFR-3 budget of 5, and evicted bitmaps release their native pixels
+        // on the way out (asSkiaBitmap().close() is the Compose MP release path).
+        single { BitmapLruCache<ImageBitmap>(onEvict = { _, bitmap -> bitmap.asSkiaBitmap().close() }) }
+        single<MediaLoader> { PhotoKitMediaLoader(settings = get(), cache = get()) }
     }
