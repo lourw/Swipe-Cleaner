@@ -166,7 +166,8 @@ internal fun PermissionFlowContent(
 
 /**
  * Home, single-top, with everything above it popped: the Close button's
- * destination from the deck (FR-17) and the summary's "Back home" (FR-21).
+ * destination from the deck (FR-20, §6.5 resume) and the summary's
+ * "Back home" (FR-21).
  * From a deep link with no Home on the stack this just creates it.
  */
 private fun NavHostController.backToHome() {
@@ -238,7 +239,10 @@ private fun SwipeContainer(
         )
     val onIntent: (SwipeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
-    val reduceMotion by systemActions.isReduceMotionEnabled().collectAsState(initial = false)
+    // remember: the flow re-registers a NSNotification observer per call, so
+    // building it inline would churn the subscription on every recomposition.
+    val reduceMotionFlow = remember(systemActions) { systemActions.isReduceMotionEnabled() }
+    val reduceMotion by reduceMotionFlow.collectAsState(initial = false)
     val finished = state.finished
     LaunchedEffect(finished) {
         if (finished != null) {

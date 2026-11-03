@@ -5,7 +5,7 @@ haptics, or the iOS dialogs, so these checks run by hand. Work the sections in
 order; each check is `☐ pass / fail` — file an issue (or fix it) for every fail.
 
 **Where to run.** The simulator is enough for flow checks, but gestures, motion,
-and haptics must be run **on a physical device** (§682: the simulator has no
+and haptics must be run **on a physical device** (§8.4: the simulator has no
 haptics and no 120 Hz). Rows that need a device are marked 👤.
 
 ## Setup
@@ -79,8 +79,8 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
 
 **Haptics (§5.6 row 12 — all 👤, device only)**
 
-16. ☐ A selection tick fires the moment the drag crosses a commit threshold in
-    either direction (and again on falling back below it).
+16. ☐ A selection tick fires the moment the drag crosses a commit threshold
+    (entering a verdict zone, either direction).
 17. ☐ Keep and Skip commits give a **light** impact; Delete gives a **medium**
     impact.
 18. ☐ (After WP-3.3: `notificationSuccess` after a batch delete — see Delete.)

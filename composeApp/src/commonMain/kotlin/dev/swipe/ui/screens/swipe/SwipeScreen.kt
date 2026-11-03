@@ -22,6 +22,8 @@ import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
 import dev.swipe.resources.Res
 import dev.swipe.resources.ic_favorite
+import dev.swipe.ui.components.DEFAULT_AUTO_DISMISS
+import dev.swipe.ui.components.NEVER_AUTO_DISMISS
 import dev.swipe.ui.components.Toast
 import dev.swipe.ui.components.swipe.SwipeVerdict
 import dev.swipe.ui.components.swipe.rememberSwipeCardState
@@ -40,7 +42,7 @@ fun decodeTypeFilter(name: String): MediaTypeFilter = MediaTypeFilter.entries.fi
 internal const val SWIPE_CARD_TEST_TAG = "swipe-card"
 
 /**
- * The Swipe screen (§5.4, WP-2.3): [TopBar] over the deck over the [ActionBar]
+ * The Swipe screen (§5.8, WP-2.3): [TopBar] over the deck over the [ActionBar]
  * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the [Toast] slot
  * above the bar (FR-15 "Undone", FR-22 favorite confirm, NFR-7 revert).
  *
@@ -150,6 +152,9 @@ private fun ToastSlot(
         text = toastText(message),
         icon = if (confirm) Res.drawable.ic_favorite else null,
         iconTint = SwipeTheme.colors.warning,
+        // §5.7: a confirm-style toast stays until the user acts or the deck
+        // moves on; a 3 s fuse would silently cancel the confirmation window.
+        autoDismissDelay = if (confirm) NEVER_AUTO_DISMISS else DEFAULT_AUTO_DISMISS,
         actionLabel = if (confirm) "Delete" else null,
         onAction =
             if (confirm) {

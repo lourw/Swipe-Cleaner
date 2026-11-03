@@ -209,7 +209,7 @@ Other gestures on the card:
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
-| `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s. Used for "Undone" and the favorite confirm. |
+| `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone" and the favorite confirm. |
 
 ### 5.8 Screens
 
