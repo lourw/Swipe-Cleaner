@@ -172,12 +172,15 @@ class PhotoKitMediaLibrary(
 
     /**
      * The library change observer (FR-28, §6.8): a cold Flow that registers a
-     * `PHPhotoLibraryChangeObserver` when the first collector arrives and
-     * unregisters it in `awaitClose`, so cancelling the collector detaches the
-     * observer (NFR-7). PhotoKit delivers `photoLibraryDidChange` on a queue of
-     * its own; every delivery emits one `Unit` and the Flow is conflated, so a
-     * busy library can never pile up work behind a slow consumer — each
-     * consumer re-reads what it needs (the queue prune, the limited count).
+     * `PHPhotoLibraryChangeObserver` on every collect and unregisters it in
+     * `awaitClose`, so cancelling the collector detaches the observer (NFR-7).
+     * PhotoKit delivers `photoLibraryDidChange` on a queue of its own; every
+     * delivery emits one `Unit` and the Flow is conflated, so a busy library
+     * can never pile up work behind a slow consumer — each consumer re-reads
+     * what it needs (the queue prune, the limited count). `trySend` drops a
+     * tick only when the channel buffer overflows a wedged consumer; the drop
+     * is harmless because consumers are re-read style and the next tick (or
+     * their next load) converges anyway.
      */
     override fun changes(): Flow<Unit> =
         callbackFlow {

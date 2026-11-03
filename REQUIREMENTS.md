@@ -533,7 +533,7 @@ was up are never deleted.
 ### 6.8 iOS platform notes
 
 - `Info.plist`: `NSPhotoLibraryUsageDescription` = "Swipe Cleaner shows your photos one at a time so you can keep or delete them."
-- Register `PHPhotoLibraryChangeObserver`, and on a change refresh counts and prune deleted IDs. The observer lives inside `MediaLibrary.changes()` — a conflated cold Flow that registers on the first collector and unregisters in `awaitClose`; consumers (the queue re-prune, the limited-count refresh) re-read what they need from each tick.
+- Register `PHPhotoLibraryChangeObserver`, and on a change refresh counts and prune deleted IDs. The observer lives inside `MediaLibrary.changes()` — a conflated cold Flow that registers an observer on each collect and unregisters it in `awaitClose`; consumers (the queue re-prune, the limited-count refresh) re-read what they need from each tick.
 - The `performChanges { deleteAssets }` completion handler maps to `DeleteResult` by plain values: success → `Deleted`; the error for a dismissed iOS dialog — domain `PHPhotosErrorDomain`, code 3072 (`PHPhotosErrorUserCancelled`) → `Cancelled` (FR-27); anything else → `Failed(localizedDescription)`. A batch whose ids fetch zero assets answers `Deleted` without a change request — no dialog for nothing to delete, which is also how a retried commit converges after a failed `markDeleted`.
 - Run PhotoKit fetches on `Dispatchers.Default`. Deliver image results onto a coroutine Flow, and cancel the `PHImageRequestID` when the collector is cancelled.
 - Keep the app portrait-only in v1.

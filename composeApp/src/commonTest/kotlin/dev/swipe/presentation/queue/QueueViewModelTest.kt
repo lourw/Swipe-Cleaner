@@ -15,6 +15,7 @@ import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLibrary
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -500,20 +501,27 @@ class QueueViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(2).start()
-            f.library.items.removeAll { it.id == "asset-1" } // gone, but the probe fails
-            f.library.failNextItems = IllegalStateException("PhotoKit busy")
 
             f.viewModel.events.test {
                 val eventTurbine = this
                 f.viewModel.uiState.test {
                     awaitQueueReady()
 
+                    // The load prune is done; NOW the asset vanishes and the
+                    // existence probe fails, so only a CHANGE prune can consume
+                    // the failure (setting it earlier lets the load prune eat it).
+                    f.library.items.removeAll { it.id == "asset-1" }
+                    f.library.failNextItems = IllegalStateException("PhotoKit busy")
                     f.library.notifyChange()
+                    advanceUntilIdle() // really run the failing change-prune
+
                     expectNoEvents() // FR-28 keeps pruning silent…
                     assertEquals(2, f.viewModel.uiState.value.items.size) // …and the row stays
+                    assertTrue(f.store.removeCalls.isEmpty()) // a failed probe writes nothing
 
                     // The next change retries and succeeds.
                     f.library.notifyChange()
+                    advanceUntilIdle()
                     val after = awaitItem()
                     assertEquals(listOf("asset-2"), after.items)
                 }
@@ -531,17 +539,26 @@ class QueueViewModelTest {
 
             // The commit owns the queue (FR-25): a change arriving while the
             // batch is between PhotoKit and markDeleted must not prune those
-            // rows away before they can be marked DELETED.
+            // rows away before they can be marked DELETED. The gate suspends
+            // the fake INSIDE delete, so `deleting` is genuinely held when the
+            // change lands — without the guard this prune would fire and the
+            // mid-flight removeCalls assertion below would fail.
+            val gate = CompletableDeferred<Unit>()
             f.library.nextDeleteResult = DeleteResult.Deleted
+            f.library.deleteGate = gate
+            f.library.items.removeAll { it.id == "asset-1" } // vanished externally
             f.viewModel.onIntent(QueueIntent.RequestDelete)
             f.viewModel.onIntent(QueueIntent.ConfirmDelete)
-            // The first change lands while deleting is already true.
+            advanceUntilIdle() // commit enters the gated delete…
+            assertEquals(1, f.library.deleteCalls.size) // …and is suspended in it
+
             f.library.notifyChange()
-            advanceUntilIdle()
-            // A late second change, after the commit settled, prunes normally —
-            // but the batch rows are DELETED by now, so nothing is left to prune.
-            f.library.notifyChange()
-            advanceUntilIdle()
+            advanceUntilIdle() // the collector wakes, sees deleting=true, skips
+            assertTrue(f.store.removeCalls.isEmpty())
+
+            gate.complete(Unit)
+            f.library.deleteGate = null
+            advanceUntilIdle() // commit finishes: PhotoKit done → markDeleted → Success
 
             val state = f.viewModel.uiState.value
             assertEquals(QueueDeleteResult.Deleted(2), state.result)

@@ -32,10 +32,12 @@ class PermissionViewModel(
     val uiState: StateFlow<PermissionUiState> = _uiState.asStateFlow()
 
     init {
-        checkAccess()
+        viewModelScope.launch { checkAccess() }
         // WP-3.2: limited-library edits (adding or removing items in the system
         // picker) fire `changes()`; re-running [checkAccess] refreshes the FR-2
-        // banner count without waiting for a resume.
+        // banner count without waiting for a resume. The collect body AWAITS the
+        // re-read, so conflation throttles bursts to at most one in-flight scan
+        // instead of stacking overlapping authorization + assetIds reads.
         viewModelScope.launch {
             mediaLibrary.changes().collect { checkAccess() }
         }
@@ -47,15 +49,13 @@ class PermissionViewModel(
             PermissionIntent.RequestAccess -> requestAccess()
             PermissionIntent.OpenSettings -> systemActions.openSettings()
             PermissionIntent.ManageLimitedAccess -> systemActions.presentLimitedLibraryPicker()
-            PermissionIntent.Recheck -> checkAccess()
+            PermissionIntent.Recheck -> viewModelScope.launch { checkAccess() }
         }
     }
 
     /** Re-reads the current authorization without prompting (FR-1, FR-3). */
-    private fun checkAccess() {
-        viewModelScope.launch {
-            publish(mediaLibrary.authorization())
-        }
+    private suspend fun checkAccess() {
+        publish(mediaLibrary.authorization())
     }
 
     /**

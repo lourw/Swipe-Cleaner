@@ -10,6 +10,7 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.model.matches
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.datetime.TimeZone
@@ -67,6 +68,12 @@ class FakeMediaLibrary(
 
     /** Returned by every [delete] until changed; defaults to success. */
     var nextDeleteResult: DeleteResult = DeleteResult.Deleted
+
+    /**
+     * When non-null, [delete] records the call and then suspends until this
+     * completes — lets tests hold a commit between PhotoKit and markDeleted.
+     */
+    var deleteGate: CompletableDeferred<Unit>? = null
 
     /**
      * When non-null, the next [requestAuthorization] answers with this instead of [access],
@@ -195,6 +202,7 @@ class FakeMediaLibrary(
 
     override suspend fun delete(ids: List<String>): DeleteResult {
         deleteCalls += ids
+        deleteGate?.await()
         val result = nextDeleteResult
         if (result == DeleteResult.Deleted) {
             items.removeAll { it.id in ids }
