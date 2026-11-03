@@ -19,19 +19,25 @@ class SwipeMathTest {
 
     @Test
     fun `5-6 rotation is clamped to 12 degrees`() {
-        val atThreshold = rotationFor(Offset(cardSize.width * COMMIT_FRACTION_HORIZONTAL, 0f), cardSize.width)
-        assertEquals(MAX_ROTATION_DEG, atThreshold, 1e-4f)
+        // §5.6: rotation = (dx / cardWidth) × 12° — 12° at a FULL card-width
+        // drag, linear in between, clamped beyond.
+        val fullWidth = rotationFor(Offset(cardSize.width, 0f), cardSize.width)
+        assertEquals(MAX_ROTATION_DEG, fullWidth, 1e-4f)
 
-        // Proportional halfway to the threshold.
-        val half = rotationFor(Offset(cardSize.width * COMMIT_FRACTION_HORIZONTAL / 2f, 0f), cardSize.width)
+        // Proportional: half a card width is half the rotation.
+        val half = rotationFor(Offset(cardSize.width / 2f, 0f), cardSize.width)
         assertEquals(MAX_ROTATION_DEG / 2f, half, 1e-4f)
 
-        // Dragging past the threshold never exceeds the cap.
-        val beyond = rotationFor(Offset(cardSize.width, 0f), cardSize.width)
+        // At the 35 % commit threshold the ramp is only 35 % of the cap.
+        val atThreshold = rotationFor(Offset(cardSize.width * COMMIT_FRACTION_HORIZONTAL, 0f), cardSize.width)
+        assertEquals(MAX_ROTATION_DEG * COMMIT_FRACTION_HORIZONTAL, atThreshold, 1e-4f)
+
+        // Dragging past a full card width never exceeds the cap.
+        val beyond = rotationFor(Offset(2f * cardSize.width, 0f), cardSize.width)
         assertEquals(MAX_ROTATION_DEG, beyond, 1e-4f)
 
         // Sign follows the direction; left drags rotate the other way.
-        val left = rotationFor(Offset(-cardSize.width * COMMIT_FRACTION_HORIZONTAL, 0f), cardSize.width)
+        val left = rotationFor(Offset(-cardSize.width, 0f), cardSize.width)
         assertEquals(-MAX_ROTATION_DEG, left, 1e-4f)
 
         // A purely vertical drag does not rotate.

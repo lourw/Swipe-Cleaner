@@ -11,17 +11,17 @@ import kotlin.math.min
 // the only place §5.6 values are written down.
 
 /**
- * Card rotation in degrees for [offset]: 0 at the center, growing linearly
- * with horizontal progress toward the commit threshold, capped at
- * [MAX_ROTATION_DEG] (§5.6 "Rotation: up to 12° at threshold, proportional
- * to drag"), signed positive right / negative left.
+ * Card rotation in degrees for [offset], exactly the §5.6 formula
+ * `rotation = (dx / cardWidth) × 12°` clamped to ±[MAX_ROTATION_DEG]: 0 at
+ * the center, 12° only at a full card-width drag (not at the commit
+ * threshold), positive right / negative left, pivot at the bottom center.
  */
 fun rotationFor(
     offset: Offset,
     cardWidthPx: Float,
 ): Float {
     if (cardWidthPx <= 0f) return 0f
-    val progress = min(abs(offset.x) / cardWidthPx / COMMIT_FRACTION_HORIZONTAL, 1f)
+    val progress = min(abs(offset.x) / cardWidthPx, 1f)
     val sign = if (offset.x < 0f) -1f else 1f
     return sign * progress * MAX_ROTATION_DEG
 }
