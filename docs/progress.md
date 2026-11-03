@@ -38,8 +38,8 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | BOTH MERGED: 1.7 (6d7f466) · 1.8 (3bebbf5) |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
-| F | 2.3 Swipe screen assembly (2.1,2.2) | next |
-| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | pending |
+| F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
+| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 next |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | pending |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
 | J | 6.2 Accessibility (6.1) | pending |
@@ -48,6 +48,33 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-2.3 (m2-swipe-screen) — verified APPROVE-WITH-MINOR, findings fixed, merged 8173e25 — **M2 code-complete**
+- SwipeScreen assembly: TopBar (progress `128 / 2,340` tnum+grouping, queue badge, close),
+  ActionBar (undo/delete/skip, tinted), CardMetadata (96 dp scrim, date, duration), EmptyState,
+  SummaryScreen (counts + queue-CTA iff N>0), Queue placeholder route, DeckMotion extracted
+  (detekt), IosHaptics (UIKit generators, gated on SettingsStore.haptics, Koin-bound),
+  docs/manual-test.md (every §5.6 row). SwipeCardState.flyOff takes reduceMotion (WP-2.1 carry).
+  Events collected from first composition; 146 tests green; validate --full passed.
+- Implementer invented FR-33 (spec ends FR-31) → renamed test to `5-8`, fixed FR-17→FR-20 and
+  §682→§8.4 citations (commit messages of two earlier commits still say FR-33; history not rewritten).
+- Spec edit (landed): §5.7 Toast — confirm-style toast (FR-22) does NOT auto-dismiss; wired via
+  NEVER_AUTO_DISMISS. Fixing a real UX flaw the verifier caught (3 s fuse cancelled the
+  confirmation window). Also: Reduce Motion callbackFlow was rebuilt per recomposition
+  (observer churn) — now remember()'d.
+- Deviations accepted: chrome components under `ui/screens/swipe/` (+ DeckMotion.kt) instead of
+  plan's `ui/components/` + `ui/screens/summary/` — screen-scoped, single consumer.
+- Carried into later briefs:
+  - WP-3.3: replace QueuePlaceholderScreen; `notificationSuccess` haptic after batch delete;
+    fill Delete section of manual-test.md.
+  - WP-4.2: supply `isCloudOnly` to CardMetadata (Live/favorite badges already render);
+    Live-Photo long-press (explicit no-op now); video scrubber in action-bar area; fill Video section.
+  - WP-6.1: Settings stub; haptics toggle already silences IosHaptics, no extra wiring.
+  - WP-6.2 polish queue: haptic fires on favorite-refused Delete (verdict haptic before VM
+    refusal); CardMotionEffects new-card-vs-ReturnCard ordering race (one-frame hiccup,
+    acknowledged in DeckMotion comment).
+- 👤 open (device): haptics feel + toggle-off; real finger drags vs §5.6 numbers; Reduce Motion
+  behavior; §5.8 visual QA (Swipe/Summary/Empty) — implementer had no vision, textual evidence only.
 
 ### WP-2.2 (m2-swipeviewmodel-full) — verified APPROVE-WITH-MINOR, finding 1 fixed, merged 6b5c800
 - Undo (FR-15): in-memory ArrayDeque cap 50, remove-before-retreat, single-flight, `ReturnCard`
