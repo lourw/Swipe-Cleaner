@@ -99,7 +99,7 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
     aspect-fill; another double-tap goes back.
 22. ☐ *Long-press*: no-op for now (Live Photo playback arrives in WP-4.2).
 
-**Decisions, toasts, and the session (FR-12…FR-15, FR-21, FR-22, NFR-7, FR-33)**
+**Decisions, toasts, and the session (FR-12…FR-15, FR-21, FR-22, NFR-7, §5.8)**
 
 23. ☐ Swipe / button decisions persist: kill the app mid-session and relaunch —
     it resumes at the same card with the same counts (FR-20).
@@ -117,9 +117,9 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
     — and the CTA is "Review N to delete" when N > 0 (opens the queue
     placeholder) or "Back home" when the queue is empty (FR-21).
 28. ☐ Starting a deck with no matching media shows "Nothing left here 🎉" +
-    "Try another source", which returns Home (FR-33).
+    "Try another source", which returns Home (§5.8 empty states).
 29. ☐ Close × returns Home **without clearing the session**; starting the same
-    source again resumes (FR-17).
+    source again resumes (FR-20, §6.5).
 
 ## Delete
 

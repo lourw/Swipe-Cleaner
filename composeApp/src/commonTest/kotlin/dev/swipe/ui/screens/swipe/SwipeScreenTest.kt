@@ -224,7 +224,7 @@ class SwipeScreenTest {
         }
 
     @Test
-    fun `FR-33 empty state replaces the deck and Closes through Home`() =
+    fun `5-8 empty state replaces the deck and Closes through Home`() =
         runComposeUiTest {
             var closed = 0
             setContent {
