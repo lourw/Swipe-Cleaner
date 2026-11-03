@@ -16,7 +16,12 @@ data class SessionRecord(
     val typeFilter: MediaTypeFilter,
     /** Seeded-shuffle seed; the same seed rebuilds the same order (§6.5 step 1). */
     val seed: Long,
-    /** Index of the next undecided card (FR-20). */
+    /**
+     * Cards this session has disposed (FR-20): a best-effort progress hint updated
+     * after every move. Resume recomputes everything by rebuilding the deck from
+     * [seed] and subtracting decided ids (§6.5 step 1), so the value itself is
+     * never read back.
+     */
     val position: Int,
     /** When the session started. */
     val startedAt: Instant,

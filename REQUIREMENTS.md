@@ -464,7 +464,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 ### 6.5 Deck pipeline
 
 1. `BuildDeckUseCase(source, typeFilter, seed)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), orders them, then subtracts `decidedIds()` (for duplicates: subtracted before grouping):
-   - Shuffle: a seeded shuffle (`Random(seed)`) applied to the **full id list before** decided ids are subtracted, with the seed stored on the session so the order survives process death. Subtracting after the shuffle keeps the order stable as rows accumulate, so a rebuild with the same seed reopens a resumed session on the same card (FR-20).
+   - Shuffle: a seeded shuffle (`Random(seed)`) applied to the **full id list before** decided ids are subtracted, with the seed stored on the session so the order survives process death. Subtracting after the shuffle keeps the order stable as rows accumulate, so a rebuild with the same seed reopens a resumed session on the same card (FR-20). Resume recomputes everything from that rebuild — `SessionRecord.position` stores cards disposed in the session, a progress hint whose value is never read back (FR-20).
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
    - Everything else: creation date descending (the library returns that order).
