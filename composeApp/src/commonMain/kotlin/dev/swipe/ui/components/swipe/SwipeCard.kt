@@ -92,14 +92,7 @@ fun SwipeCard(
                     state.density = density
                 }.semantics { set(RotationZSemanticsPropertyKey, appliedRotationZ) },
     ) {
-        // The glow sits behind the card, so the card travelling over it
-        // reveals the pooled color on the swipe side.
-        if (activeVerdict != null) {
-            EdgeGlow(
-                verdict = activeVerdict,
-                alpha = stampAlpha(activeVerdict, state.offset, cardSize),
-            )
-        }
+        SwipeBackdrop(activeVerdict, state.offset, cardSize)
         Box(
             modifier =
                 Modifier
@@ -135,35 +128,63 @@ fun SwipeCard(
                     },
         ) {
             content()
-            // §5.6/§5.7 verdict stamps ride on the card: KEEP top-left,
-            // DELETE top-right, SKIP bottom-center, each at its own
-            // [stampAlpha] — never gated on motion, so Reduce Motion still
-            // shows them. A stamp is mounted only while fading in.
-            val keepAlpha = stampAlpha(SwipeVerdict.KEEP, state.offset, cardSize)
-            if (keepAlpha > 0f) {
-                VerdictStamp(
-                    verdict = SwipeVerdict.KEEP,
-                    alpha = keepAlpha,
-                    modifier = Modifier.align(Alignment.TopStart).padding(SwipeTheme.spacing.m),
-                )
-            }
-            val deleteAlpha = stampAlpha(SwipeVerdict.DELETE, state.offset, cardSize)
-            if (deleteAlpha > 0f) {
-                VerdictStamp(
-                    verdict = SwipeVerdict.DELETE,
-                    alpha = deleteAlpha,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(SwipeTheme.spacing.m),
-                )
-            }
-            val skipAlpha = stampAlpha(SwipeVerdict.SKIP, state.offset, cardSize)
-            if (skipAlpha > 0f) {
-                VerdictStamp(
-                    verdict = SwipeVerdict.SKIP,
-                    alpha = skipAlpha,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(SwipeTheme.spacing.m),
-                )
-            }
+            VerdictStampOverlay(state.offset, cardSize)
         }
+    }
+}
+
+/**
+ * The verdict-tinted glow behind the card (FR-18): it sits under the card,
+ * so the card travelling over it reveals the pooled color on the swipe side.
+ */
+@Composable
+private fun BoxScope.SwipeBackdrop(
+    activeVerdict: SwipeVerdict?,
+    offset: Offset,
+    cardSize: Size,
+) {
+    if (activeVerdict != null) {
+        EdgeGlow(
+            verdict = activeVerdict,
+            alpha = stampAlpha(activeVerdict, offset, cardSize),
+        )
+    }
+}
+
+/**
+ * The verdict stamps riding on the card (§5.6/§5.7): KEEP top-left, DELETE
+ * top-right, SKIP bottom-center, each at its own [stampAlpha] — never gated
+ * on motion, so Reduce Motion still shows them. A stamp is mounted only
+ * while it is fading in.
+ */
+@Composable
+private fun BoxScope.VerdictStampOverlay(
+    offset: Offset,
+    cardSize: Size,
+) {
+    val keepAlpha = stampAlpha(SwipeVerdict.KEEP, offset, cardSize)
+    if (keepAlpha > 0f) {
+        VerdictStamp(
+            verdict = SwipeVerdict.KEEP,
+            alpha = keepAlpha,
+            modifier = Modifier.align(Alignment.TopStart).padding(SwipeTheme.spacing.m),
+        )
+    }
+    val deleteAlpha = stampAlpha(SwipeVerdict.DELETE, offset, cardSize)
+    if (deleteAlpha > 0f) {
+        VerdictStamp(
+            verdict = SwipeVerdict.DELETE,
+            alpha = deleteAlpha,
+            modifier = Modifier.align(Alignment.TopEnd).padding(SwipeTheme.spacing.m),
+        )
+    }
+    val skipAlpha = stampAlpha(SwipeVerdict.SKIP, offset, cardSize)
+    if (skipAlpha > 0f) {
+        VerdictStamp(
+            verdict = SwipeVerdict.SKIP,
+            alpha = skipAlpha,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(SwipeTheme.spacing.m),
+        )
     }
 }
 

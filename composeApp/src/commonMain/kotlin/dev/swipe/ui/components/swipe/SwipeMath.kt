@@ -121,10 +121,9 @@ fun flyOffTarget(
     fallbackDirection: Offset,
     cardSize: Size,
 ): Offset {
-    if (cardSize.width <= 0f || cardSize.height <= 0f) return offset
     val direction = if (offset != Offset.Zero) offset else fallbackDirection
     val length = direction.getDistance()
-    if (length <= 0f) return offset
+    if (cardSize.width <= 0f || cardSize.height <= 0f || length <= 0f) return offset
     val ux = direction.x / length
     val uy = direction.y / length
     val reach = max(abs(ux) / cardSize.width, abs(uy) / cardSize.height)
