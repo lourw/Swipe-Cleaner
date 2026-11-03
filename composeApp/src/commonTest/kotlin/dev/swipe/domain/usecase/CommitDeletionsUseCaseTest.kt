@@ -26,8 +26,8 @@ import kotlin.time.Instant
  * The queue rows are recorded one clock tick apart so the FR-23 newest-first order
  * is deterministic. `InAppDeleteConfirmation`'s constructor is `internal` (§6.7);
  * `commonTest` is an associated compilation of the same module, which is why these
- * tests can build the token — production code outside the module cannot (see the
- * type-level note in `QueueViewModelTest`'s NFR-5 test).
+ * tests can build the token — production code outside the module cannot, and the
+ * single-caller rule is additionally pinned by `scripts/check-rules.sh` guard #5.
  */
 class CommitDeletionsUseCaseTest {
     private val clock = FakeClock()

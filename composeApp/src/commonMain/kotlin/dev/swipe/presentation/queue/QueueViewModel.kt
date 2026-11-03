@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
  *
  * **Delete** (FR-25–27, NFR-5, §6.7): [QueueIntent.RequestDelete] only raises the
  * in-app confirm dialog; [QueueIntent.ConfirmDelete] is the *only* place an
- * [InAppDeleteConfirmation] is built — from `items` exactly as the user saw them —
+ * [InAppDeleteConfirmation] is built — from the whole queue at tap time (FR-25) —
  * and the only path into [CommitDeletionsUseCase]. While the commit runs,
  * [QueueUiState.deleting] blocks re-confirmation, so one batch is one
  * `MediaLibrary.delete` call (FR-25). Outcomes: success fires the
@@ -109,6 +109,7 @@ class QueueViewModel(
     /** FR-24: restore one item; the deleteQueue re-emit removes it from [QueueUiState.items]. */
     private fun restore(id: String) {
         val state = _uiState.value
+        if (id !in state.items) return // only queued ids exist for the user (mirrors open())
         if (state.deleting) return // no store writes while a commit owns the queue
         viewModelScope.launch {
             try {
@@ -138,9 +139,9 @@ class QueueViewModel(
 
     /**
      * The dialog's Delete: the sole construction site of [InAppDeleteConfirmation]
-     * (§6.7). The token carries `items` exactly as the user saw them;
+     * (§6.7). The token carries the whole queue as it stands at the tap (FR-25);
      * [CommitDeletionsUseCase] intersects it with the current queue and calls
-     * PhotoKit once (FR-25).
+     * PhotoKit once.
      */
     private fun confirmDelete() {
         val state = _uiState.value

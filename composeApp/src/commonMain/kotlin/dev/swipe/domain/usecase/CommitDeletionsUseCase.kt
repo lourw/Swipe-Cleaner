@@ -33,8 +33,9 @@ class InAppDeleteConfirmation
  *
  * Flow (§6.7):
  * 1. Re-read [DecisionStore.deleteQueue] and keep only ids present in **both** the
- *    [confirmation] and the current queue — an id queued after the dialog opened, or
- *    restored while it was up, was never confirmed and is never deleted (NFR-5).
+ *    [confirmation] and the current queue — an id restored or pruned while the
+ *    dialog was up is gone from the queue and is never deleted (NFR-5). The token
+ *    carries the whole queue as it stood when Delete was tapped (FR-25).
  * 2. Call [MediaLibrary.delete] exactly **once** with that list (FR-25: one PhotoKit
  *    change request for the whole batch, one iOS system dialog).
  * 3. Map the outcome:

@@ -525,10 +525,10 @@ Review queue ──► "Delete N" ──► in-app confirm dialog ──► Comm
 The in-app confirmation is enforced by construction, not convention: the use case
 takes an `InAppDeleteConfirmation` token whose constructor is `internal` with no
 public construction path, and `QueueViewModel`'s `ConfirmDelete` — the dialog's
-Delete tap — is the only code that builds one, from the queue exactly as the user
-saw it. The use case intersects the token with the current queue before calling
-PhotoKit once, so ids that left the queue while the dialog was up are never
-deleted.
+Delete tap — is the only code that builds one, from the whole queue as it stands
+when Delete is tapped (FR-25). The use case intersects the token with the current
+queue before calling PhotoKit once, so ids that left the queue while the dialog
+was up are never deleted.
 
 ### 6.8 iOS platform notes
 
@@ -586,6 +586,7 @@ CREATE TABLE session_skip (
 ```
 
 - Stats (reviewed, kept, deleted) are computed with `COUNT` queries; nothing is stored separately.
+- Two synthetic `session_id` values mark store writes that belong to no swipe session: `"restore"` (FR-24, queue restore recorded as KEEP) and `"prune"` (FR-28, silent removal of vanished ids).
 - The database file lives in the app's Application Support directory and is excluded from iCloud backup.
 - Schema changes use SQLDelight migrations (`1.sqm`, ...).
 

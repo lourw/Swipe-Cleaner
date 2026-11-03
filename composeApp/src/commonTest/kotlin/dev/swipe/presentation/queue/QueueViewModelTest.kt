@@ -167,6 +167,23 @@ class QueueViewModelTest {
         }
 
     @Test
+    fun `FR-24 restore of an id the queue never held records nothing`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2).start()
+
+            f.viewModel.uiState.test {
+                awaitQueueReady()
+
+                f.viewModel.onIntent(QueueIntent.Restore("not-queued"))
+                expectNoEvents()
+                // No KEEP row for an asset the user never queued (mirrors open()).
+                assertEquals(0, f.store.recordCalls.count { it.first == "not-queued" })
+                assertEquals(listOf("asset-2", "asset-1"), f.viewModel.uiState.value.items)
+            }
+        }
+
+    @Test
     fun `NFR-5 deleting with no in-app confirmation does nothing`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
