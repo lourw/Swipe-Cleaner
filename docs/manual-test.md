@@ -83,7 +83,8 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
     (entering a verdict zone, either direction).
 17. ☐ Keep and Skip commits give a **light** impact; Delete gives a **medium**
     impact.
-18. ☐ (After WP-3.3: `notificationSuccess` after a batch delete — see Delete.)
+18. ☐ 👤 `notificationSuccess` after a batch delete — see the Delete section,
+    row 13.
 
 **Reduce Motion (§5.6 row 13 — 👤)**
 
@@ -114,8 +115,8 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
     NFR-7.)
 27. ☐ Finish the deck: the last card leaves, the empty deck shows the session
     **Summary** — big counts with colored labels `Kept` / `Queued` / `Skipped`
-    — and the CTA is "Review N to delete" when N > 0 (opens the queue
-    placeholder) or "Back home" when the queue is empty (FR-21).
+    — and the CTA is "Review N to delete" when N > 0 (opens the review queue,
+    see the Delete section) or "Back home" when the queue is empty (FR-21).
 28. ☐ Starting a deck with no matching media shows "Nothing left here 🎉" +
     "Try another source", which returns Home (§5.8 empty states).
 29. ☐ Close × returns Home **without clearing the session**; starting the same
@@ -123,12 +124,54 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
 
 ## Delete
 
-> **Stub.** Filled by WP-3.3 (queue review + committed deletion).
+Step-by-step checks for the review queue and committed deletion (FR-23–28,
+NFR-5). Seed at least 5 photos and queue all of them (swipe left ×5), then
+open the queue from the badged queue button or the summary's
+"Review N to delete" CTA.
 
-Will cover: queue review UI, the in-app confirm → iOS dialog double-confirm
-(NFR-5), cancel at each level keeps the queue intact (FR-27), the error case
-(airplane mode + iCloud-only asset, or asset deleted elsewhere), Recently
-Deleted, and the 👤 `notificationSuccess` haptic.
+**Queue review (FR-23, FR-24)**
+
+1. ☐ The queue shows a 3-column square grid of the queued items, oldest
+   first, with the count in the header; scrolling a long queue stays smooth
+   (thumbnails pop in degraded-then-sharp, no full-screen stalls).
+2. ☐ Tapping a tile opens the full-screen item viewer; **Close** returns to
+   the grid with the same scroll position.
+3. ☐ In the viewer, **Restore** removes the item from the queue (the grid
+   re-renders with one fewer tile and the header count drops) and the item
+   stays in the library.
+4. ☐ VoiceOver (Settings → Accessibility): each tile announces its capture
+   date and type ("Photo, March 12, 2025"), the delete button its count
+   (NFR-8). 👤 for the full read-out.
+
+**The double confirm (NFR-5, FR-25)**
+
+5. ☐ **Delete N** opens an in-app dialog — "Delete N items?" with the caption
+   "They'll move to Recently Deleted for 30 days." Nothing is deleted yet:
+   the items are still in the Photos library.
+6. ☐ **Cancel** in the in-app dialog closes it; the queue is unchanged.
+7. ☐ **Delete** in the in-app dialog raises the **iOS system dialog**
+   ("Swipe Cleaner Would Like to Delete Photos and Videos" or similar).
+   **Don't Delete** there dismisses it and the queue is unchanged (FR-27).
+8. ☐ Confirming the iOS dialog deletes the batch: a success screen shows the
+   count, "Deleted", and **Back home**, which lands on Home. The queue is
+   empty afterwards; reopening it shows "Nothing left here 🎉" with a
+   "Back home" CTA (§5.8).
+9. ☐ Check the Photos app: the deleted items appear in **Albums → Recently
+   Deleted** (30-day retention) and are gone from the main library.
+
+**Errors and edge cases (FR-28)**
+
+10. ☐ Delete some queued items in the Photos app while the queue is open (or
+    from a second run) — they disappear from the queue on return without an
+    app restart, and the header count follows.
+11. ☐ Error path (if reproducible: airplane mode with an iCloud-only asset in
+    the batch): the iOS dialog's delete fails → a toast carrying the system's
+    error message and the queue is unchanged (FR-28). A failed Restore shows
+    "Couldn't restore — try again".
+12. ☐ Queue everything, delete the batch, then start a new deck over the same
+    source: deleted items never appear in the deck.
+13. ☐ 👤 `notificationSuccess` haptic fires once after a successful batch
+    delete (§5.6 row 12).
 
 ## Video
 
