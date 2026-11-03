@@ -566,6 +566,110 @@ class QueueViewModelTest {
             assertTrue(f.store.removeCalls.isEmpty())
         }
 
+    @Test
+    fun `FR-23 tiles carry queue-aligned metadata for the grid`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            // asset-2 is a 32-second video; the others stay photos.
+            for (i in f.library.items.indices) {
+                val item = f.library.items[i]
+                if (item.id == "asset-2") {
+                    f.library.items[i] = item.copy(type = MediaType.VIDEO, durationMs = 32_000L)
+                }
+            }
+            f.start()
+
+            f.viewModel.uiState.test {
+                val ready = awaitQueueReady()
+                // Same ids, same newest-first order, same length as the queue (FR-23).
+                assertEquals(ready.items, ready.tiles.map { tile -> tile.id })
+                val byId = ready.tiles.associateBy { it.id }
+                assertEquals(MediaType.PHOTO, byId.getValue("asset-3").type)
+                assertNull(byId.getValue("asset-3").durationMs)
+                assertEquals(MediaType.VIDEO, byId.getValue("asset-2").type)
+                assertEquals(32_000L, byId.getValue("asset-2").durationMs)
+                assertEquals(Instant.fromEpochMilliseconds(1000L), byId.getValue("asset-1").createdAt)
+            }
+        }
+
+    @Test
+    fun `6-5 tile metadata is fetched in pages of at most 20 ids`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(25).start()
+
+            f.viewModel.uiState.test {
+                val ready = awaitQueueReady()
+                assertEquals(25, ready.tiles.size)
+                // The load's metadata calls (prune probes and tile fetch alike)
+                // never exceed the §6.5 step 2 page cap.
+                assertTrue(f.library.itemsCalls.isNotEmpty())
+                assertTrue(f.library.itemsCalls.all { it.size <= 20 })
+
+                // A queue change re-fetches the remaining 24 ids in pages of 20 + 4
+                // (restore does not prune, so these calls are the tile fetch alone).
+                f.library.itemsCalls.clear()
+                f.viewModel.onIntent(QueueIntent.Restore("asset-25"))
+                val afterRestore = awaitStateThat { it.items.size == 24 }
+                // The publish rides the last page's completion, so every call
+                // has been recorded by now.
+                assertEquals(listOf(20, 4), f.library.itemsCalls.map { it.size })
+                assertEquals(24, afterRestore.tiles.size)
+            }
+        }
+
+    @Test
+    fun `6-7 a failed tile fetch keeps the queue visible without metadata`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2).start()
+
+            f.viewModel.uiState.test {
+                awaitQueueReady()
+                // The next queue change's metadata fetch fails: the rows stay,
+                // just metadata-less (the grid falls back to placeholders).
+                f.library.failNextItems = IllegalStateException("PhotoKit busy")
+                f.viewModel.onIntent(QueueIntent.Restore("asset-2"))
+
+                val after = awaitStateThat { it.items == listOf("asset-1") }
+                assertEquals(listOf("asset-1"), after.tiles.map { tile -> tile.id })
+                assertNull(after.tiles.single().type)
+                assertNull(after.tiles.single().createdAt)
+                assertNull(after.tiles.single().durationMs)
+            }
+        }
+
+    @Test
+    fun `6-7 a zero-count commit reports success without the haptic or the success screen`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2).start()
+
+            f.viewModel.events.test {
+                val eventTurbine = this
+                f.viewModel.uiState.test {
+                    awaitQueueReady()
+                    f.viewModel.onIntent(QueueIntent.RequestDelete)
+                    awaitItem()
+
+                    // Both items vanish while the dialog is up (deleted in the
+                    // Photos app): the confirmation token can carry nothing.
+                    f.store.remove("asset-2", "elsewhere")
+                    f.store.remove("asset-1", "elsewhere")
+                    f.viewModel.onIntent(QueueIntent.ConfirmDelete)
+                    val done = awaitStateThat { !it.deleting && it.result != null }
+
+                    // Success with nothing deleted: no PhotoKit call, no haptic,
+                    // no success screen — the empty state is the feedback (§6.7).
+                    assertEquals(QueueDeleteResult.Deleted(0), done.result)
+                    assertTrue(f.library.deleteCalls.isEmpty())
+                    assertTrue(f.haptics.events.isEmpty())
+                }
+                eventTurbine.expectNoEvents()
+            }
+        }
+
     /** Consume the initial (pre-queue) emission and return the first queue-built state. */
     private suspend fun ReceiveTurbine<QueueUiState>.awaitQueueReady(): QueueUiState {
         awaitItem()

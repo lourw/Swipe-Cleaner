@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
+import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.CommitOutcome
 import dev.swipe.domain.usecase.InAppDeleteConfirmation
@@ -25,10 +26,11 @@ import kotlinx.coroutines.launch
  * and the two-step batch delete.
  *
  * **Queue** (FR-23, FR-28): [items] mirrors [DecisionStore.deleteQueue] — newest
- * decision first — re-emitted live. On load [PruneQueueUseCase] first drops ids
- * PhotoKit no longer returns, silently, and every `MediaLibrary.changes()`
- * emission re-runs the prune (WP-3.2), so an asset deleted in the Photos app
- * disappears without an app restart.
+ * decision first — re-emitted live, with [QueueUiState.tiles] carrying the grid
+ * metadata fetched alongside every change in pages of 20 (§6.5 step 2). On load
+ * [PruneQueueUseCase] first drops ids PhotoKit no longer returns, silently, and
+ * every `MediaLibrary.changes()` emission re-runs the prune (WP-3.2), so an asset
+ * deleted in the Photos app disappears without an app restart.
  *
  * **Restore** (FR-24): [QueueIntent.Restore] records KEEP via
  * [RestoreFromQueueUseCase]; the queue flow drops the row, and an open viewer for
@@ -78,9 +80,27 @@ class QueueViewModel(
             } catch (_: Exception) {
                 // FR-28 keeps pruning silent; the next load retries.
             }
-            // FR-23: the newest-first order is the store's query, live.
+            // FR-23: the newest-first order is the store's query, live. The grid
+            // metadata is fetched BEFORE publishing so `items` and `tiles` change
+            // in one update: the screen can never render a count whose tiles are
+            // a step behind (NFR-8), and no half-updated state escapes the VM.
             decisions.deleteQueue().collect { ids ->
-                _uiState.update { it.copy(items = ids) }
+                val byId = tileMetadata(ids)
+                _uiState.update { state ->
+                    state.copy(
+                        items = ids,
+                        tiles =
+                            ids.map { id ->
+                                val item = byId[id]
+                                QueueTile(
+                                    id = id,
+                                    type = item?.type,
+                                    createdAt = item?.createdAt,
+                                    durationMs = item?.durationMs,
+                                )
+                            },
+                    )
+                }
             }
         }
         // FR-28 (WP-3.2): queued assets can vanish outside the app — deleted in
@@ -102,6 +122,23 @@ class QueueViewModel(
             }
         }
     }
+
+    /**
+     * FR-23 / NFR-8: metadata for [ids] in pages of 20 (§6.5 step 2, NFR-4 — the
+     * same cap as [PruneQueueUseCase]). A failed fetch is silent — tiles render
+     * without date/duration metadata rather than dropping rows — and the next
+     * queue change retries.
+     */
+    private suspend fun tileMetadata(ids: List<String>): Map<String, MediaItem> =
+        try {
+            ids.chunked(TILE_META_PAGE_SIZE)
+                .flatMap { page -> mediaLibrary.items(page) }
+                .associateBy { it.id }
+        } catch (cancellation: CancellationException) {
+            throw cancellation // ViewModel teardown, not a failed fetch
+        } catch (_: Exception) {
+            emptyMap() // metadata-less tiles; the grid still shows the queue
+        }
 
     /** The one entry point for user actions (AGENTS.md ViewModel convention). */
     fun onIntent(intent: QueueIntent) {
@@ -184,7 +221,14 @@ class QueueViewModel(
             when (outcome) {
                 is CommitOutcome.Success -> {
                     // FR-26: haptic, state, then the navigation event (§5.6, §6.4).
-                    haptics.notificationSuccess()
+                    // A zero-count success — every id pruned while the dialog was
+                    // up, so PhotoKit was never asked for anything — reports
+                    // neither haptic nor success screen: there is nothing new to
+                    // celebrate, and the queue's own empty state is the feedback.
+                    val deletedSomething = outcome.deleted > 0
+                    if (deletedSomething) {
+                        haptics.notificationSuccess()
+                    }
                     _uiState.update {
                         it.copy(
                             deleting = false,
@@ -192,7 +236,9 @@ class QueueViewModel(
                             result = QueueDeleteResult.Deleted(outcome.deleted),
                         )
                     }
-                    eventChannel.trySend(QueueEvent.ShowDeleteSuccess(outcome.deleted))
+                    if (deletedSomething) {
+                        eventChannel.trySend(QueueEvent.ShowDeleteSuccess(outcome.deleted))
+                    }
                 }
 
                 CommitOutcome.Cancelled -> {
@@ -218,5 +264,10 @@ class QueueViewModel(
         val state = _uiState.value
         if (state.deleting) return // the iOS dialog, not this one, owns the cancel now
         _uiState.update { it.copy(confirming = false) }
+    }
+
+    private companion object {
+        /** Max ids per `MediaLibrary.items` call (§6.5 step 2, same cap as the prune). */
+        const val TILE_META_PAGE_SIZE = 20
     }
 }
