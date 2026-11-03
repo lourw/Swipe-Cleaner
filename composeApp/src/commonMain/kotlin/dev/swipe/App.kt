@@ -25,9 +25,12 @@ import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
 import dev.swipe.presentation.permission.PermissionUiState
 import dev.swipe.presentation.permission.PermissionViewModel
+import dev.swipe.presentation.queue.QueueIntent
+import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeViewModel
 import dev.swipe.ui.components.ComponentGallery
+import dev.swipe.ui.navigation.DeleteSuccess
 import dev.swipe.ui.navigation.Denied
 import dev.swipe.ui.navigation.Home
 import dev.swipe.ui.navigation.Onboarding
@@ -37,7 +40,8 @@ import dev.swipe.ui.navigation.Swipe
 import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
 import dev.swipe.ui.screens.onboarding.OnboardingScreen
-import dev.swipe.ui.screens.queue.QueuePlaceholderScreen
+import dev.swipe.ui.screens.queue.QueueScreen
+import dev.swipe.ui.screens.summary.DeleteSuccessScreen
 import dev.swipe.ui.screens.swipe.SummaryScreen
 import dev.swipe.ui.screens.swipe.SwipeScreen
 import dev.swipe.ui.screens.swipe.decodeTypeFilter
@@ -107,6 +111,7 @@ internal fun PermissionFlowContent(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route, navController) },
+    queueDestination: @Composable () -> Unit = { QueueContainer(navController) },
 ) {
     val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
@@ -158,8 +163,14 @@ internal fun PermissionFlowContent(
             )
         }
         composable<Queue> {
-            // WP-3.3 replaces this placeholder with the full review queue.
-            QueuePlaceholderScreen(onBack = { navController.navigateUp() })
+            queueDestination()
+        }
+        composable<DeleteSuccess> { entry ->
+            val route = entry.toRoute<DeleteSuccess>()
+            DeleteSuccessScreen(
+                deleted = route.deleted,
+                onBackHome = { navController.backToHome() },
+            )
         }
     }
 }
@@ -260,6 +271,38 @@ private fun SwipeContainer(
         reduceMotion = reduceMotion,
         onClose = onClose,
         onOpenQueue = onOpenQueue,
+    )
+}
+
+/**
+ * Wires [QueueViewModel] and the injected [MediaLoader] to [QueueScreen]
+ * (FR-23–28). State is collected inside this destination composable, never
+ * in the NavHost builder (WP-1.7 rule). This is the only collector of the
+ * ViewModel's navigation events: [QueueEvent.ShowDeleteSuccess] replaces the
+ * queue route with the delete-success screen, so Back from the success
+ * screen cannot return to a stale queue (FR-26). The confirm dialog and
+ * toasts stay inside the screen; only navigation leaves through here.
+ */
+@Composable
+private fun QueueContainer(
+    navController: NavHostController,
+    mediaLoader: MediaLoader = koinInject(),
+) {
+    val viewModel: QueueViewModel = koinViewModel()
+    val onIntent: (QueueIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
+    val state by viewModel.uiState.collectAsState()
+    QueueScreen(
+        state = state,
+        events = viewModel.events,
+        onIntent = onIntent,
+        mediaLoader = mediaLoader,
+        onBack = { navController.navigateUp() },
+        onBackHome = { navController.backToHome() },
+        onShowDeleteSuccess = { deleted ->
+            navController.navigate(DeleteSuccess(deleted)) {
+                popUpTo(Queue::class) { inclusive = true }
+            }
+        },
     )
 }
 

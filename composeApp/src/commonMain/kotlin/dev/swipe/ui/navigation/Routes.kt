@@ -63,9 +63,16 @@ data class Summary(
 @Serializable
 data object Queue
 
-/** Success screen after the iOS delete dialog confirms (FR-26, WP-3.3). */
+/**
+ * Success screen after the iOS delete dialog confirms (FR-26, WP-3.3),
+ * carrying the committed count. `0` is legal — a delete whose items were
+ * already gone outside the app still succeeds, it just says "Deleted"
+ * without a number (§6.7).
+ */
 @Serializable
-data object DeleteSuccess
+data class DeleteSuccess(
+    val deleted: Int,
+)
 
 /** Settings (FR-29–31, WP-6.1). */
 @Serializable

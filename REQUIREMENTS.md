@@ -290,7 +290,7 @@ Home ──► Settings
 
 **Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home").
 
-**Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home.
+**Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home. On the review queue the CTA reads "Back home" instead — there is no other source to try from there (WP-3.3).
 
 ---
 
@@ -397,9 +397,11 @@ interface MediaLoader {
     /**
      * Emits a fast degraded image, then the full-quality one (NFR-1); closes after the full-quality
      * result. `targetPx` is an upper bound — the loader caps it at the screen's pixel size, so a
-     * request never decodes more pixels than the display can show (NFR-2, R1). Full-size (non-degraded)
-     * decodes go through an LRU of 5 keyed by `(id, targetPx)` (NFR-3, §6.5 step 3); a cached decode
-     * at the same key is emitted directly, without a second PhotoKit request.
+     * request never decodes more pixels than the display can show (NFR-2, R1). Full-screen-sized
+     * (non-degraded) decodes go through an LRU of 5 keyed by `(id, targetPx)` (NFR-3, §6.5 step 3);
+     * a cached decode at the same key is emitted directly, without a second PhotoKit request.
+     * Requests for a smaller target — grid thumbnails — bypass the LRU entirely, so scrolling a
+     * grid never evicts the deck's cached full-screen decodes (NFR-3, WP-3.3).
      */
     fun image(id: String, targetPx: IntSize): Flow<LoadedImage>   // LoadedImage(bitmap, isDegraded, isCloud) — isCloud drives the cloud badge (R6)
     fun prefetch(ids: List<String>, targetPx: IntSize)
@@ -530,12 +532,18 @@ when Delete is tapped (FR-25). The use case intersects the token with the curren
 queue before calling PhotoKit once, so ids that left the queue while the dialog
 was up are never deleted.
 
+A commit that ends up deleting nothing — every id was already gone outside the
+app, pruned while the dialog was up (FR-28) — still succeeds, but quietly: the
+success screen is for a count, so with a zero count the queue simply re-renders
+into its own empty state (WP-3.3). The `DeleteSuccess` route therefore always
+carries a positive count.
+
 ### 6.8 iOS platform notes
 
 - `Info.plist`: `NSPhotoLibraryUsageDescription` = "Swipe Cleaner shows your photos one at a time so you can keep or delete them."
 - Register `PHPhotoLibraryChangeObserver`, and on a change refresh counts and prune deleted IDs. The observer lives inside `MediaLibrary.changes()` — a conflated cold Flow that registers an observer on each collect and unregisters it in `awaitClose`; consumers (the queue re-prune, the limited-count refresh) re-read what they need from each tick.
 - The `performChanges { deleteAssets }` completion handler maps to `DeleteResult` by plain values: success → `Deleted`; the error for a dismissed iOS dialog — domain `PHPhotosErrorDomain`, code 3072 (`PHPhotosErrorUserCancelled`) → `Cancelled` (FR-27); anything else → `Failed(localizedDescription)`. A batch whose ids fetch zero assets answers `Deleted` without a change request — no dialog for nothing to delete, which is also how a retried commit converges after a failed `markDeleted`.
-- Run PhotoKit fetches on `Dispatchers.Default`. Deliver image results onto a coroutine Flow, and cancel the `PHImageRequestID` when the collector is cancelled.
+- Run PhotoKit fetches on `Dispatchers.Default`. Deliver image results onto a coroutine Flow, and cancel the `PHImageRequestID` when the collector is cancelled. Grid tiles rely on this: unmounting a scrolled-away tile cancels its thumbnail request (WP-3.3).
 - Keep the app portrait-only in v1.
 
 ## 7. Data model and persistence

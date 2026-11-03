@@ -4,6 +4,7 @@
 package dev.swipe
 
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +18,8 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
 import dev.swipe.presentation.permission.PermissionUiState
+import dev.swipe.ui.navigation.DeleteSuccess
+import dev.swipe.ui.navigation.Summary
 import dev.swipe.ui.navigation.Swipe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
@@ -171,5 +174,71 @@ class PermissionFlowContentTest {
             val route = requireNotNull(routed)
             assertEquals(DeckSource.All, Json.decodeFromString(DeckSource.serializer(), route.sourceJson))
             assertEquals(MediaTypeFilter.ALL.name, route.typeFilter)
+        }
+
+    /**
+     * WP-3.3: the summary's "Review N to delete" CTA navigates to the review
+     * queue (FR-23). The queue destination is stubbed so the queue pipeline
+     * (Koin, the store) stays out of the navigation test.
+     */
+    @Test
+    fun `FR-23 summary review CTA opens the review queue`() =
+        runComposeUiTest {
+            setContent {
+                val navController = rememberNavController()
+                LaunchedEffect(navController) {
+                    navController.navigate(Summary(kept = 0, queued = 3, skipped = 0))
+                }
+                PermissionFlowContent(
+                    state =
+                        MutableStateFlow(
+                            PermissionUiState(
+                                startScreen = PermissionScreen.HOME,
+                                access = LibraryAccess.FULL,
+                            ),
+                        ),
+                    onIntent = {},
+                    navController = navController,
+                    queueDestination = { BasicText("queue-stub") },
+                )
+            }
+            waitForIdle()
+            onNodeWithText("Review 3 to delete").performClick()
+            waitForIdle()
+            onNodeWithText("queue-stub").assertExists()
+        }
+
+    /**
+     * WP-3.3: the DeleteSuccess route carries the committed count (FR-26) and
+     * "Back home" returns to Home.
+     */
+    @Test
+    fun `FR-26 delete success shows the count and back home returns home`() =
+        runComposeUiTest {
+            setContent {
+                val navController = rememberNavController()
+                LaunchedEffect(navController) {
+                    navController.navigate(DeleteSuccess(deleted = 7))
+                }
+                PermissionFlowContent(
+                    state =
+                        MutableStateFlow(
+                            PermissionUiState(
+                                startScreen = PermissionScreen.HOME,
+                                access = LibraryAccess.FULL,
+                            ),
+                        ),
+                    onIntent = {},
+                    navController = navController,
+                )
+            }
+            waitForIdle()
+            // The screen renders the count and the "Deleted" label as two
+            // text nodes (a `display` number next to a colored label).
+            onNodeWithText("7").assertExists()
+            onNodeWithText("Deleted").assertExists()
+            onNodeWithText("Back home").performClick()
+            waitForIdle()
+            onNodeWithText("Start shuffle").assertExists()
         }
 }
