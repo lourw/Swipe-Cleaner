@@ -6,6 +6,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import dev.swipe.data.DecisionStore
+import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.SessionStore
@@ -50,6 +51,7 @@ class DiSmokeTest {
         koin.get<MediaLoader>()
         koin.get<SettingsStore>()
         koin.get<SystemActions>()
+        koin.get<Haptics>()
         koin.get<BuildDeckUseCase>()
         koin.get<RecordDecisionUseCase>()
         koin.get<UndoDecisionUseCase>()
