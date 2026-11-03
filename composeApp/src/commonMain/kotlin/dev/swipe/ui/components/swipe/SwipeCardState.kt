@@ -20,12 +20,12 @@ import androidx.compose.ui.geometry.Size
 
 /**
  * Hoisted gesture state of a [SwipeCard]: the current drag [offset], the
- * flight/return/snap animations, and the nudge used by the action buttons
- * (§5.6). All durations, springs, and travel distances come from
+ * flight/return/snap animations, and the button-path commit (§5.6). All
+ * durations, springs, and travel distances come from
  * [SwipeSpec.kt](SwipeSpec.kt).
  *
  * The card itself only renders this state; callers hold it to drive undo
- * (`returnFrom`) and button nudges from outside the gesture.
+ * (`returnFrom`) and the button path (`flyOff`) from outside the gesture.
  */
 @Stable
 class SwipeCardState internal constructor(
@@ -60,9 +60,10 @@ class SwipeCardState internal constructor(
     /**
      * Throw the card off-screen along its current drag line in
      * [FLY_OFF_MS] (§5.6); with [reduceMotion] it crossfades out over
-     * [REDUCE_MOTION_CROSSFADE_MS] instead.
+     * [REDUCE_MOTION_CROSSFADE_MS] instead. The gesture path: the verdict
+     * must already be committed.
      */
-    suspend fun flyOff(reduceMotion: Boolean = false) {
+    internal suspend fun flyOffCommitted(reduceMotion: Boolean = false) {
         val verdict = committedVerdict ?: return
         if (reduceMotion) {
             alphaAnim.animateTo(0f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
@@ -72,6 +73,23 @@ class SwipeCardState internal constructor(
                 animationSpec = tween(FLY_OFF_MS, easing = FastOutLinearInEasing),
             )
         }
+    }
+
+    /**
+     * The button path (§5.6 "Button-triggered action — Same fly-off, with a
+     * synthetic 30 dp nudge first (80 ms) so the motion reads"): commit
+     * [verdict], push the card [NUDGE_DP] toward it over [NUDGE_MS], then run
+     * the normal [FLY_OFF_MS] fly-off. Returns once the card is off-screen
+     * with [committedVerdict] set; the caller then does what a gesture commit
+     * does — dismiss the item and advance the deck. Ignored while dragging
+     * or if a verdict is already committed.
+     */
+    suspend fun flyOff(verdict: SwipeVerdict) {
+        if (dragging || committedVerdict != null) return
+        committedVerdict = verdict
+        val nudgePx = NUDGE_DP.value * density
+        offsetAnim.animateTo(directionToward(verdict) * nudgePx, tween(NUDGE_MS, easing = FastOutLinearInEasing))
+        flyOffCommitted(reduceMotion = false)
     }
 
     /**
@@ -115,22 +133,16 @@ class SwipeCardState internal constructor(
     }
 
     /**
-     * The action buttons push the card [NUDGE_DP] toward the verdict and
-     * back over [NUDGE_MS] (§5.6 "tapping a button nudges the card") so the
-     * button feels like the gesture it replaces.
+     * The action buttons push the card [NUDGE_DP] toward [verdict] as the
+     * first move of [flyOff] (§5.6); the unit axes are just direction, the
+     * distance and duration come from the spec constants.
      */
-    suspend fun nudge(verdict: SwipeVerdict) {
-        if (dragging || committedVerdict != null) return
-        val nudgePx = NUDGE_DP.value * density
-        val peak =
-            when (verdict) {
-                SwipeVerdict.KEEP -> Offset(nudgePx, 0f)
-                SwipeVerdict.DELETE -> Offset(-nudgePx, 0f)
-                SwipeVerdict.SKIP -> Offset(0f, -nudgePx)
-            }
-        offsetAnim.animateTo(peak, tween(NUDGE_MS / 2, easing = FastOutLinearInEasing))
-        offsetAnim.animateTo(Offset.Zero, tween(NUDGE_MS / 2, easing = FastOutSlowInEasing))
-    }
+    private fun directionToward(verdict: SwipeVerdict): Offset =
+        when (verdict) {
+            SwipeVerdict.KEEP -> Offset(1f, 0f)
+            SwipeVerdict.DELETE -> Offset(-1f, 0f)
+            SwipeVerdict.SKIP -> Offset(0f, -1f)
+        }
 
     internal suspend fun snapTo(offset: Offset) = offsetAnim.snapTo(offset)
 }

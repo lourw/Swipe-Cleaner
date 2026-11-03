@@ -167,7 +167,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
             if (verdict != null) {
                 state.committedVerdict = verdict
                 scope.launch {
-                    state.flyOff(reduceMotion)
+                    state.flyOffCommitted(reduceMotion)
                     onDismiss(verdict)
                 }
             } else {

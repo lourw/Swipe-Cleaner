@@ -5,6 +5,7 @@ package dev.swipe.ui.components.swipe
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -18,6 +19,8 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.launch
 
 /**
  * The §5.6 gesture end to end on the real [SwipeCard]: drags past each
@@ -134,6 +137,39 @@ class SwipeCardTest {
             assertNull(dismissed)
             // Never crossed the 35 % threshold, so no haptic either.
             assertEquals(0, crossings)
+        }
+
+    @Test
+    fun `5-6 button fly-off nudges then commits`() =
+        runComposeUiTest {
+            var cardState: SwipeCardState? = null
+            var commitViaButton: ((SwipeVerdict) -> Unit)? = null
+            // Drive frames by hand to check the nudge and the flight apart.
+            mainClock.autoAdvance = false
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val state = rememberSwipeCardState()
+                    val scope = rememberCoroutineScope()
+                    cardState = state
+                    commitViaButton = { verdict -> scope.launch { state.flyOff(verdict) } }
+                    SwipeCard(
+                        onDismiss = {},
+                        state = state,
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        content = {},
+                    )
+                }
+            }
+            val width = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size.width
+            commitViaButton!!(SwipeVerdict.KEEP)
+            // Mid-nudge (§5.6: 30 dp over 80 ms): moving right, still on screen.
+            mainClock.advanceTimeBy(NUDGE_MS / 2L)
+            assertTrue((cardState?.offset?.x ?: 0f) > 0f)
+            assertTrue((cardState?.offset?.x ?: Float.MAX_VALUE) < width)
+            // Then the normal fly-off clears the screen; the verdict is committed.
+            mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
+            assertEquals(SwipeVerdict.KEEP, cardState?.committedVerdict)
+            assertTrue((cardState?.offset?.x ?: 0f) >= width)
         }
 
     @Test

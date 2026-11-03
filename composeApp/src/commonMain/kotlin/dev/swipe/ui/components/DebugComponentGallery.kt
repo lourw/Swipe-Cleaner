@@ -215,8 +215,10 @@ private fun GalleryHeading(text: String) {
 /**
  * WP-2.1 demo: a small deck of placeholder cards driven by the real
  * [SwipeCard] gesture — drag right/left/up, fling, snap back, the
- * underneath card tracking the drag, button nudges, and undo returning the
- * last card from its edge.
+ * underneath card tracking the drag with its VerdictStamp overlay, the
+ * action buttons committing through `flyOff` (30 dp nudge + fly-off,
+ * §5.6), and undo returning the last card from its edge. The deck wraps
+ * so the demo never runs out of cards.
  */
 @Composable
 private fun GallerySwipeCardSection() {
@@ -227,6 +229,23 @@ private fun GallerySwipeCardSection() {
     var history by remember { mutableStateOf(listOf<SwipeVerdict>()) }
     var fillMode by remember { mutableStateOf(false) }
 
+    // One dismiss path for gestures and buttons alike: record, advance the
+    // deck (wrapping so the demo card reappears), reset the slot at rest.
+    val dismiss: (SwipeVerdict) -> Unit = { verdict ->
+        lastVerdict = verdict
+        history += verdict
+        topIndex = (topIndex + 1) % DEMO_DECK_SIZE
+        scope.launch { cardState.resetForNext() }
+    }
+    // §5.6 button-triggered action: nudge + fly-off, then the same commit.
+    val commitFromButton: (SwipeVerdict) -> Unit = { verdict ->
+        scope.launch {
+            if (cardState.dragging || cardState.committedVerdict != null) return@launch
+            cardState.flyOff(verdict)
+            dismiss(verdict)
+        }
+    }
+
     Column {
         GalleryHeading("8 · SwipeCard")
         GallerySwipeDeck(
@@ -234,18 +253,13 @@ private fun GallerySwipeCardSection() {
             topIndex = topIndex,
             fillMode = fillMode,
             onDoubleTap = { fillMode = !fillMode },
-            onDismiss = { verdict ->
-                lastVerdict = verdict
-                history += verdict
-                topIndex += 1
-                scope.launch { cardState.resetForNext() }
-            },
+            onDismiss = dismiss,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.l)) {
             CircleIconButton(
                 Res.drawable.ic_close,
-                label = "Nudge delete",
-                onClick = { scope.launch { cardState.nudge(SwipeVerdict.DELETE) } },
+                label = "Delete",
+                onClick = { commitFromButton(SwipeVerdict.DELETE) },
                 contentColor = SwipeTheme.colors.delete,
             )
             CircleIconButton(
@@ -253,23 +267,23 @@ private fun GallerySwipeCardSection() {
                 label = "Undo",
                 onClick = {
                     val verdict = history.lastOrNull()
-                    if (verdict != null && topIndex > 0) {
+                    if (verdict != null) {
                         history = history.dropLast(1)
-                        topIndex -= 1
+                        topIndex = (topIndex - 1 + DEMO_DECK_SIZE) % DEMO_DECK_SIZE
                         scope.launch { cardState.returnFrom(verdict) }
                     }
                 },
             )
             CircleIconButton(
                 Res.drawable.ic_check,
-                label = "Nudge keep",
-                onClick = { scope.launch { cardState.nudge(SwipeVerdict.KEEP) } },
+                label = "Keep",
+                onClick = { commitFromButton(SwipeVerdict.KEEP) },
                 contentColor = SwipeTheme.colors.keep,
             )
             CircleIconButton(
                 Res.drawable.ic_arrow_upward,
-                label = "Nudge skip",
-                onClick = { scope.launch { cardState.nudge(SwipeVerdict.SKIP) } },
+                label = "Skip",
+                onClick = { commitFromButton(SwipeVerdict.SKIP) },
                 contentColor = SwipeTheme.colors.skip,
             )
         }
