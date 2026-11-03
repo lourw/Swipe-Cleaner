@@ -11,7 +11,6 @@ import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
-import dev.swipe.domain.model.SessionRecord
 import dev.swipe.domain.model.SessionSummary
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
@@ -162,9 +161,17 @@ class SwipeViewModel(
     }
 
     /**
-     * §6.5 step 1, resume or start fresh. A failure here (session open, deck build,
-     * first metadata page) leaves the screen empty with [ToastMessage.StartFailed] —
-     * there is nothing to revert, and the deck can be retried by reopening.
+     * §6.5 step 1, resume or start fresh, then first page, prefetch, first emit. A
+     * failure anywhere in the start path (session open, deck build, first metadata
+     * page) leaves the screen empty with [ToastMessage.StartFailed] — there is
+     * nothing to revert, and the deck can be retried by reopening.
+     *
+     * Resume (FR-20): [SessionStore.openSession] matching this screen's source and
+     * filter resumes that session — the stored seed rebuilds the same shuffle order
+     * (it survives process death), the stored keeps and this session's skips stay
+     * excluded so the screen reopens on the same card, and their count becomes the
+     * [reviewedBase]. Anything else (no open session, mismatched source or filter)
+     * creates a fresh session row with the stored seed.
      */
     private suspend fun start() {
         try {
@@ -172,45 +179,26 @@ class SwipeViewModel(
                 sessionStore
                     .openSession()
                     ?.takeIf { it.source == source && it.typeFilter == typeFilter }
-            if (resumable != null) resume(resumable) else startFresh()
+            if (resumable != null) {
+                sessionId = resumable.id
+                val skipped = sessionStore.skippedIds(resumable.id)
+                deck = buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped }
+                val counts = decisions.sessionCounts(resumable.id)
+                reviewedBase = counts.kept + counts.queued + skipped.size
+                index = 0
+            } else {
+                val seed = seedProvider()
+                sessionId = sessionStore.create(source, typeFilter, seed)
+                deck = buildDeck(source, typeFilter, seed)
+            }
+            ensureMetadataLoaded()
+            refreshPrefetch()
+            publish()
         } catch (cancellation: CancellationException) {
             throw cancellation // ViewModel teardown, not a failed start
         } catch (_: Exception) {
             _uiState.update { it.copy(toast = ToastMessage.StartFailed) }
         }
-    }
-
-    /** New session row with the stored seed (§6.5 step 1), deck, first page, prefetch, emit. */
-    private suspend fun startFresh() {
-        val seed = seedProvider()
-        sessionId = sessionStore.create(source, typeFilter, seed)
-        deck = buildDeck(source, typeFilter, seed)
-        afterDeckReady()
-    }
-
-    /**
-     * Resume (FR-20, §6.5 step 1): the stored seed rebuilds the same shuffle order
-     * (it survives process death). [BuildDeckUseCase] already subtracts every stored
-     * keep/delete row and this session's skips are filtered here, so the rebuilt deck
-     * is exactly what is left — the position lands back on the same card by starting
-     * at its head, and the stored rows become [reviewedBase] so the progress line
-     * keeps telling the truth (FR-19).
-     */
-    private suspend fun resume(record: SessionRecord) {
-        sessionId = record.id
-        val skipped = sessionStore.skippedIds(record.id)
-        deck = buildDeck(source, typeFilter, record.seed).filterNot { it in skipped }
-        val counts = decisions.sessionCounts(record.id)
-        reviewedBase = counts.kept + counts.queued + skipped.size
-        index = 0
-        afterDeckReady()
-    }
-
-    /** Shared tail of both start paths: first metadata page, prefetch, first emit. */
-    private suspend fun afterDeckReady() {
-        ensureMetadataLoaded()
-        refreshPrefetch()
-        publish()
     }
 
     /**
@@ -240,39 +228,44 @@ class SwipeViewModel(
                 it.copy(toast = ToastMessage.FavoriteConfirm, pendingFavoriteDelete = id)
             }
             eventChannel.trySend(SwipeEvent.ReturnCard(Decision.DELETE))
-            return
-        }
-        viewModelScope.launch {
-            try {
-                recordDecision(id, decision, sessionId)
-            } catch (cancellation: CancellationException) {
-                throw cancellation // ViewModel teardown, not a failed save
-            } catch (_: Exception) {
-                // Any store failure reverts the card (NFR-7); it surfaces as the
-                // SaveFailed toast, and there is no logging (NFR-6).
-                _uiState.update {
-                    it.copy(
-                        toast = ToastMessage.SaveFailed,
-                        revertToken = it.revertToken + 1,
-                    )
+        } else {
+            viewModelScope.launch {
+                val saved =
+                    try {
+                        recordDecision(id, decision, sessionId)
+                        true
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation // ViewModel teardown, not a failed save
+                    } catch (_: Exception) {
+                        // Any store failure reverts the card (NFR-7); it surfaces as the
+                        // SaveFailed toast, and there is no logging (NFR-6).
+                        false
+                    }
+                if (!saved) {
+                    _uiState.update {
+                        it.copy(
+                            toast = ToastMessage.SaveFailed,
+                            revertToken = it.revertToken + 1,
+                        )
+                    }
+                } else if (deck.getOrNull(index) == id) {
+                    // Stale-advance guard: only advance while the deck head is still the
+                    // card this write recorded; a race loser discards its advance (the
+                    // decision itself stays durable).
+                    // FR-15: the decision is durable, so it becomes an undo step now; the
+                    // oldest step falls off past the 50-cap.
+                    if (undoStack.size == UNDO_STACK_LIMIT) undoStack.removeFirst()
+                    undoStack.addLast(UndoEntry(id, decision, index))
+                    index += 1
+                    // The resume position is a best-effort hint (FR-20): the decision
+                    // itself is already durable, so a failed position write must not
+                    // revert the card.
+                    savePosition()
+                    if (index == deck.size) finish() else publish()
+                    ensureMetadataLoaded()
+                    refreshPrefetch()
                 }
-                return@launch
             }
-            // Stale-advance guard: the deck head moved while this write was in flight,
-            // so another intent already advanced past [id]; drop this advance (the
-            // decision itself stays durable).
-            if (deck.getOrNull(index) != id) return@launch
-            // FR-15: the decision is durable, so it becomes an undo step now; the
-            // oldest step falls off past the 50-cap.
-            if (undoStack.size == UNDO_STACK_LIMIT) undoStack.removeFirst()
-            undoStack.addLast(UndoEntry(id, decision, index))
-            index += 1
-            // The resume position is a best-effort hint (FR-20): the decision itself is
-            // already durable, so a failed position write must not revert the card.
-            savePosition()
-            if (index == deck.size) finish() else publish()
-            ensureMetadataLoaded()
-            refreshPrefetch()
         }
     }
 
