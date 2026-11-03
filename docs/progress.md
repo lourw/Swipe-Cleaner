@@ -49,6 +49,29 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
 
+### WP-3.2 (m3-photokit-delete) — verified APPROVE-WITH-MINOR, findings fixed, merged b239d2d
+- PhotoKitMediaLibrary.delete(): fetch by localIdentifier; zero fetched → Deleted WITHOUT
+  performChanges (retry-convergence path); one performChanges{deleteAssets} bridged with
+  suspendCancellableCoroutine; NSError mapping extracted to pure commonMain PhotoKitMapping
+  (PHPhotosErrorDomain/3072 → Cancelled, else Failed) — covered by `FR-27 the iOS cancel error
+  code maps to Cancelled`. changes() = per-collect conflated callbackFlow with a
+  PHPhotoLibraryChangeObserver NSObject, unregistered in awaitClose. Wired: QueueViewModel
+  re-prunes on changes() (skips while deleting) and PermissionViewModel refreshes the FR-2
+  banner. performChanges/deleteAssets only in PhotoKitMediaLibrary.kt (check-rules + verifier
+  grep confirm). Simulator-proven via a temporary probe (removed): Success(1) → asset
+  unfetchable → row DELETED → re-delete dialog-free → live changes() ticks.
+- Verifier caught TWO VACUOUS tests (mutation/probe-proven) — fixed and re-mutation-checked:
+  the during-commit skip test now gates the fake inside delete (disabling the guard fails
+  exactly it); the failing-change-prune test arms the failure after the load prune. F3:
+  PermissionViewModel now awaits checkAccess in the collect body (conflation throttles bursts
+  instead of stacking full library scans). F4/F5 doc nits landed.
+- 👤 open: iOS system dialog confirm/cancel on device + Recently Deleted check (goes into the
+  WP-3.3 manual checklist); during the probe the dialog was accepted by a real click at 13:32
+  — dialog behavior itself not yet verified systematically.
+- Carry-forward: changes() consumers must be idempotent re-read style (PhotoKit can tick while
+  its own delete dialog is up); the deleting-guard race is benign (worst case a vanished row
+  goes via prune instead of markDeleted).
+
 ### WP-3.1 (m3-commit-deletions) — verified APPROVE-WITH-MINOR (delete path, max scrutiny), findings fixed, merged 7d07bad
 - CommitDeletionsUseCase + InAppDeleteConfirmation (internal ctor; sole construction site =
   QueueViewModel.ConfirmDelete; intersection before the ONE delete call; Cancelled/Failed →
