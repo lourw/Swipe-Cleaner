@@ -131,7 +131,8 @@ class QueueViewModel(
      */
     private suspend fun tileMetadata(ids: List<String>): Map<String, MediaItem> =
         try {
-            ids.chunked(TILE_META_PAGE_SIZE)
+            ids
+                .chunked(TILE_META_PAGE_SIZE)
                 .flatMap { page -> mediaLibrary.items(page) }
                 .associateBy { it.id }
         } catch (cancellation: CancellationException) {
