@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -118,8 +120,37 @@ fun SwipeCard(
                             onDismiss = currentOnDismiss,
                         )
                     },
-            content = content,
-        )
+        ) {
+            content()
+            // §5.6/§5.7 verdict stamps ride on the card: KEEP top-left,
+            // DELETE top-right, SKIP bottom-center, each at its own
+            // [stampAlpha] — never gated on motion, so Reduce Motion still
+            // shows them. A stamp is mounted only while fading in.
+            val keepAlpha = stampAlpha(SwipeVerdict.KEEP, state.offset, cardSize)
+            if (keepAlpha > 0f) {
+                VerdictStamp(
+                    verdict = SwipeVerdict.KEEP,
+                    alpha = keepAlpha,
+                    modifier = Modifier.align(Alignment.TopStart).padding(SwipeTheme.spacing.m),
+                )
+            }
+            val deleteAlpha = stampAlpha(SwipeVerdict.DELETE, state.offset, cardSize)
+            if (deleteAlpha > 0f) {
+                VerdictStamp(
+                    verdict = SwipeVerdict.DELETE,
+                    alpha = deleteAlpha,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(SwipeTheme.spacing.m),
+                )
+            }
+            val skipAlpha = stampAlpha(SwipeVerdict.SKIP, state.offset, cardSize)
+            if (skipAlpha > 0f) {
+                VerdictStamp(
+                    verdict = SwipeVerdict.SKIP,
+                    alpha = skipAlpha,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(SwipeTheme.spacing.m),
+                )
+            }
+        }
     }
 }
 
