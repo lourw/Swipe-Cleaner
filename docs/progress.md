@@ -37,8 +37,8 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | B | 1.3 SQLDelight · 1.4 PhotoKit read · 1.5 image loader · 1.6 deck use cases | ALL MERGED: 1.3 (3fdac74) · 1.6 (6581385) · 1.4 (b6be2e9) · 1.5 (9fecd2d) |
 | C | 1.7 nav+onboarding (1.1,1.2,1.4) · 1.8 SwipeVM core (1.3,1.6) | BOTH MERGED: 1.7 (6d7f466) · 1.8 (3bebbf5) |
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
-| E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | pending |
-| F | 2.3 Swipe screen assembly (2.1,2.2) | pending |
+| E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
+| F | 2.3 Swipe screen assembly (2.1,2.2) | next |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | pending |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | pending |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
@@ -48,6 +48,33 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-2.2 (m2-swipeviewmodel-full) — verified APPROVE-WITH-MINOR, finding 1 fixed, merged 6b5c800
+- Undo (FR-15): in-memory ArrayDeque cap 50, remove-before-retreat, single-flight, `ReturnCard`
+  event; FR-22 favorite confirm bound to its card (pendingFavoriteDelete, sync clear on accept);
+  FR-16 mute; FR-21 sessionCounts (SQL, session-scoped) + finish() → SessionSummary + end();
+  FR-20 resume = same seed rebuild-and-subtract (§6.5: `position` is a write-only hint),
+  source/filter mismatch → fresh session. Events = UNLIMITED Channel (§6.6 policy; revertToken
+  is the sole state-field exception). Suite split: core / UndoTest / SessionTest + Fixtures.
+  WP-1.8 stale-comment carry-over resolved. Branch name deviated (missing hyphen) — cosmetic.
+- Spec edits (landed): §6.4 `remove(id, sessionId)` + `sessionCounts`; §6.5 shuffle-before-subtract,
+  resume semantics; §6.6 events policy + ToastMessage variants + pendingFavoriteDelete; FR-15
+  "stack is in-memory only" clause.
+- Follow-up queue (verifier notes, not blockers):
+  - Undo/decide cross-kind race (sub-write window): undo can rewind under a completing decide →
+    decided card re-shown (data durable, upsert-safe). Needs epoch/decide-in-flight guard,
+    mirrors WP-1.8 double-tap fix. Small WP.
+  - Resume `reviewedBase` from sessionCounts undercounts rows flipped DELETED mid-session →
+    **WP-3.1 must know** (commit flow interacts).
+  - Fresh empty deck never calls finish() → session row stays open, no summary. Manual-checklist item.
+  - `ConfirmFavoriteDelete` defensive branch: clear pendingFavoriteDelete on rejection (unreachable today).
+- Carried into WP-2.3 (brief must include):
+  - Collect `viewModel.events` from first composition (LaunchedEffect); UNLIMITED buffer replays
+    to a late collector → stale return animation.
+  - `revertToken` still live (failed-save revert); `ReturnCard` covers undo + favorite-refusal returns.
+  - `ToastMessage.FavoriteConfirm` → warning-style toast, "Delete" action → ConfirmFavoriteDelete,
+    timeout → DismissToast; "Undone" + "Couldn't save — try again" toasts.
+  - Undo is a no-op once summary shows (canUndo=false, stack cleared at finish()); Summary is terminal.
 
 ### WP-2.1 (m2-swipe-gestures) — first review REJECT (2 blockers), fixed; 2nd APPROVE-WITH-MINOR, fixed; merged e59a7cc
 - SwipeSpec.kt (every §5.6 number, only place — check-rules clean), SwipeMath pure fns
