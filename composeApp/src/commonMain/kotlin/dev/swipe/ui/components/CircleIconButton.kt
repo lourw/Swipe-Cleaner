@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -35,17 +36,28 @@ fun CircleIconButton(
     container: Color = Color.Transparent,
     contentColor: Color = SwipeTheme.colors.textPrimary,
     iconSize: Dp = SwipeTheme.sizes.icon,
+    enabled: Boolean = true,
 ) {
     val minTouch = SwipeTheme.sizes.minTouchTarget
+    val tokens = SwipeTheme.componentSizes
+    val tint =
+        if (enabled) {
+            contentColor
+        } else {
+            contentColor.copy(alpha = tokens.disabledAlpha)
+        }
     Box(
         contentAlignment = Alignment.Center,
         modifier =
             modifier
                 .size(if (size > minTouch) size else minTouch)
-                .clickable(onClick = onClick)
+                .clickable(enabled = enabled, onClick = onClick)
                 .semantics {
                     role = Role.Button
                     this.contentDescription = label
+                    if (!enabled) {
+                        disabled()
+                    }
                 },
     ) {
         Box(
@@ -53,12 +65,19 @@ fun CircleIconButton(
             modifier =
                 Modifier
                     .size(size)
-                    .background(container, CircleShape),
+                    .background(
+                        if (enabled) {
+                            container
+                        } else {
+                            container.copy(alpha = container.alpha * tokens.disabledAlpha)
+                        },
+                        CircleShape,
+                    ),
         ) {
             SwipeIcon(
                 resource = resource,
                 size = iconSize,
-                tint = contentColor,
+                tint = tint,
                 contentDescription = null,
             )
         }
