@@ -113,6 +113,9 @@ class SwipeViewModel(
     /** FR-15: successful decisions in order, newest last, capped at [UNDO_STACK_LIMIT]. */
     private val undoStack = ArrayDeque<UndoEntry>()
 
+    /** FR-15: the popped step whose removal is in flight; further Undo taps are ignored. */
+    private var undoInFlight: UndoEntry? = null
+
     init {
         // The queue badge tracks the shared delete queue live (FR-10, FR-23).
         viewModelScope.launch {
@@ -149,9 +152,15 @@ class SwipeViewModel(
             }
 
             SwipeIntent.ConfirmFavoriteDelete -> {
-                // FR-22: only meaningful while the confirm toast names a card; the
-                // confirmed path skips the ask again (that is what was confirmed).
-                if (_uiState.value.pendingFavoriteDelete != null) decide(Decision.DELETE, confirmed = true)
+                // FR-22: only meaningful while the confirm names a card that is still
+                // up. The pending id is cleared *synchronously* here, so a second tap
+                // during the write's suspension window finds nothing pending — the
+                // confirmed write can never target the next card.
+                val pending = _uiState.value.pendingFavoriteDelete
+                if (pending != null && deck.getOrNull(index) == pending) {
+                    _uiState.update { it.copy(toast = null, pendingFavoriteDelete = null) }
+                    decide(Decision.DELETE, confirmed = true)
+                }
             }
 
             SwipeIntent.DismissToast -> {
@@ -193,7 +202,9 @@ class SwipeViewModel(
             }
             ensureMetadataLoaded()
             refreshPrefetch()
-            publish()
+            // A resumed session that is already exhausted (every card disposed before
+            // process death, the summary never delivered) retries FR-21 right away.
+            if (deck.isEmpty() && reviewedBase > 0) finish() else publish()
         } catch (cancellation: CancellationException) {
             throw cancellation // ViewModel teardown, not a failed start
         } catch (_: Exception) {
@@ -275,32 +286,41 @@ class SwipeViewModel(
      * the card return with the "Undone" toast. A failed removal puts the step back on
      * the stack, leaves the state exactly as it was, and shows the error toast.
      *
-     * The popped step carries the index it belongs to: after a concurrent race the
-     * deck head may already be back there (double-tap Undo), and an entry whose index
-     * is no longer behind the head is discarded rather than moving the deck forward.
+     * The removal is single-flight via [undoInFlight]: while one is in progress,
+     * further Undo taps are ignored. That keeps the popped entry on top of every
+     * later push and the index monotonic between pop and completion, so a failed
+     * removal can always restore stack order with a plain re-add, and the entry's
+     * index is guaranteed to sit behind the deck head when the removal lands.
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
-        val entry = undoStack.removeLastOrNull() ?: return // stack empty (§6.6 canUndo)
+        // FR-15: single-flight, and a no-op on an empty stack (§6.6 canUndo).
+        val entry = if (undoInFlight == null) undoStack.removeLastOrNull() else null
+        entry ?: return
+        undoInFlight = entry
         viewModelScope.launch {
-            try {
-                undoDecision(entry.id, sessionId)
-            } catch (cancellation: CancellationException) {
-                throw cancellation // ViewModel teardown, not a failed removal
-            } catch (_: Exception) {
+            val removed =
+                try {
+                    undoDecision(entry.id, sessionId)
+                    true
+                } catch (cancellation: CancellationException) {
+                    throw cancellation // ViewModel teardown, not a failed removal
+                } catch (_: Exception) {
+                    false
+                }
+            undoInFlight = null
+            if (!removed) {
                 // The removal failed, so the decision is still stored: the step goes
-                // back on the stack and the deck does not move (FR-15, NFR-7 mirror).
-                if (undoStack.lastOrNull() != entry) undoStack.addLast(entry)
+                // back on the stack — nothing else could have been popped while it
+                // was in flight (single-flight), so re-adding restores the exact
+                // order — and the deck does not move (FR-15, NFR-7 mirror).
+                undoStack.addLast(entry)
                 _uiState.update { it.copy(toast = ToastMessage.SaveFailed) }
                 return@launch
             }
-            if (entry.index < index) {
-                index = entry.index
-            } else {
-                // Safety net (see the doc): the deck did not move, but a stored row
-                // is gone, so keep `reviewedBase + index` in step with the rows.
-                reviewedBase -= 1
-            }
+            // Single-flight guarantees `entry.index < index` here: the index only
+            // moves back through undo, and no other undo is in flight.
+            index = entry.index
             savePosition()
             publish(toast = ToastMessage.Undone)
             eventChannel.trySend(SwipeEvent.ReturnCard(entry.verdict))
@@ -324,8 +344,11 @@ class SwipeViewModel(
     /**
      * FR-21: the deck ran out. The counts come from the stored rows so they cover the
      * whole session across process death, the session row is ended, and the undo
-     * stack empties with it (the review run is over). A failed count query leaves the
-     * screen on the exhausted deck with the error toast rather than wrong numbers.
+     * stack empties with it (the review run is over). A failed count query still
+     * publishes the exhausted state — the card is already disposed, so leaving the
+     * old card on screen would lie — with [ToastMessage.SaveFailed] instead of a
+     * summary, and the session row stays open so resuming an exhausted session
+     * retries the summary ([start]).
      */
     private suspend fun finish() {
         val sessionId = sessionId ?: return
@@ -340,8 +363,7 @@ class SwipeViewModel(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                _uiState.update { it.copy(toast = ToastMessage.SaveFailed) }
-                return
+                null
             }
         undoStack.clear()
         _uiState.update {
@@ -351,9 +373,13 @@ class SwipeViewModel(
                 progress = Progress(reviewed = reviewedBase + index, total = deck.size + reviewedBase),
                 finished = summary,
                 canUndo = false,
-                toast = null,
+                toast = if (summary == null) ToastMessage.SaveFailed else null,
                 pendingFavoriteDelete = null,
             )
+        }
+        if (summary == null) {
+            // Counts unavailable: keep the row open so the next resume retries.
+            return
         }
         // Best effort: an un-stamped end leaves the row open, and a resumed exhausted
         // deck simply rebuilds empty — no decision is at stake.

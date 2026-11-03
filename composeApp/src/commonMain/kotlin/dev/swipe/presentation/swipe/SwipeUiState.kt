@@ -33,8 +33,9 @@ data class SwipeUiState(
     val revertToken: Long = 0L,
     /**
      * Id of the favorite whose Delete is awaiting confirmation ([ToastMessage.FavoriteConfirm],
-     * FR-22); null when none. Set instead of recording, cleared by
-     * [SwipeIntent.ConfirmFavoriteDelete]'s advance or [SwipeIntent.DismissToast].
+     * FR-22); null when none. Set instead of recording, cleared *synchronously* when
+     * [SwipeIntent.ConfirmFavoriteDelete] is accepted (so a second tap during the write
+     * finds nothing pending), by [SwipeIntent.DismissToast], and by any deck move.
      */
     val pendingFavoriteDelete: String? = null,
 )
