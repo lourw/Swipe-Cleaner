@@ -103,7 +103,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 | NFR-2 | Smoothness | Card drag runs at the display refresh rate (120 Hz on ProMotion) with no dropped frames from image decoding. |
 | NFR-3 | Memory | Under 300 MB resident. At most 5 decoded full-screen bitmaps in memory at once. |
 | NFR-4 | Startup | Cold start to an interactive Home in under 1.5 s with a library of 50k items. Use lazy fetches; never load the whole library into memory. |
-| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation. |
+| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). |
 | NFR-6 | Privacy | No network calls except PhotoKit's iCloud downloads. No analytics. All data stays on the device. |
 | NFR-7 | Durability | Decisions are written to SQLite before the UI advances. If that write fails, the swipe is reverted. |
 | NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. Honours Reduce Motion (see §5.6). |
@@ -513,7 +513,7 @@ The drag offset and animation state stay inside the `SwipeCard` composable, as l
 
 ```
 Swipe left ──► DecisionStore.record(DELETE)  (queued, item still in library)
-Review queue ──► "Delete N" ──► CommitDeletionsUseCase
+Review queue ──► "Delete N" ──► in-app confirm dialog ──► CommitDeletionsUseCase
      └─► MediaLibrary.delete(ids) ──► PHPhotoLibrary.performChanges { deleteAssets }
               ├─ success   ─► DecisionStore.markDeleted(ids) ─► Success screen
               ├─ cancelled ─► no-op (queue unchanged)
@@ -521,6 +521,14 @@ Review queue ──► "Delete N" ──► CommitDeletionsUseCase
 ```
 
 `CommitDeletionsUseCase` is the only caller of `MediaLibrary.delete` (NFR-5).
+
+The in-app confirmation is enforced by construction, not convention: the use case
+takes an `InAppDeleteConfirmation` token whose constructor is `internal` with no
+public construction path, and `QueueViewModel`'s `ConfirmDelete` — the dialog's
+Delete tap — is the only code that builds one, from the queue exactly as the user
+saw it. The use case intersects the token with the current queue before calling
+PhotoKit once, so ids that left the queue while the dialog was up are never
+deleted.
 
 ### 6.8 iOS platform notes
 
