@@ -5,9 +5,13 @@ import dev.swipe.data.SessionStore
 import dev.swipe.data.db.SqlDecisionStore
 import dev.swipe.data.db.SqlSessionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.CommitDeletionsUseCase
+import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.presentation.permission.PermissionViewModel
+import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -36,6 +40,13 @@ val commonModule: Module =
         single { RecordDecisionUseCase(decisions = get()) }
         single { UndoDecisionUseCase(decisions = get()) }
 
+        // Review-queue use cases (WP-3.1). CommitDeletionsUseCase is the only caller
+        // of MediaLibrary.delete (NFR-5); its confirmation token is constructible
+        // only inside QueueViewModel, after the in-app confirm (hard rule 1).
+        single { CommitDeletionsUseCase(library = get(), decisions = get()) }
+        single { PruneQueueUseCase(library = get(), decisions = get()) }
+        single { RestoreFromQueueUseCase(decisions = get()) }
+
         // The Swipe deck (WP-1.8). Source and filter are route parameters: WP-1.9
         // resolves it with `koinViewModel { parameters { parametersOf(source, typeFilter) } }`.
         viewModel { params ->
@@ -50,6 +61,18 @@ val commonModule: Module =
                 decisions = get(),
                 sessionStore = get(),
                 seedProvider = { Random.nextLong() },
+            )
+        }
+
+        // The Review Queue (WP-3.1). No route parameters: the queue is global state
+        // from DecisionStore.deleteQueue, and the Queue route carries no arguments.
+        viewModel {
+            QueueViewModel(
+                commitDeletions = get(),
+                pruneQueue = get(),
+                restoreFromQueue = get(),
+                decisions = get(),
+                haptics = get(),
             )
         }
     }

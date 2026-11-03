@@ -15,8 +15,12 @@ import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.CommitDeletionsUseCase
+import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
@@ -55,6 +59,32 @@ class DiSmokeTest {
         koin.get<BuildDeckUseCase>()
         koin.get<RecordDecisionUseCase>()
         koin.get<UndoDecisionUseCase>()
+        // WP-3.1: the review-queue trio. CommitDeletionsUseCase resolving through the
+        // real graph is the NFR-5 wiring check — it is the only MediaLibrary.delete
+        // caller, so a missing binding would break the delete path at runtime.
+        koin.get<CommitDeletionsUseCase>()
+        koin.get<PruneQueueUseCase>()
+        koin.get<RestoreFromQueueUseCase>()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Suppress("DEPRECATION") // v1 runComposeUiTest, consistent with the rest of the suite.
+    @Test
+    fun `queue view model definition resolves with no route parameters`() {
+        startKoin { modules(commonModule, iosModule) }
+        var resolved: QueueViewModel? = null
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalViewModelStoreOwner provides ThrowawayStoreOwner) {
+                    // The Queue route carries no parameters (WP-3.1), so this must
+                    // resolve with an empty parameter list. runComposeUiTest's virtual
+                    // clock starts paused, so the ViewModel's prune-and-collect init
+                    // stays suspended and never touches PhotoKit or the live driver.
+                    resolved = koinViewModel<QueueViewModel>()
+                }
+            }
+        }
+        assertTrue(resolved != null)
     }
 
     @OptIn(ExperimentalTestApi::class)
