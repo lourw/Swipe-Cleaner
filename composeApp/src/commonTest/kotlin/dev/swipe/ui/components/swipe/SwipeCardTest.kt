@@ -26,10 +26,11 @@ import kotlin.test.assertTrue
  * The §5.6 gesture end to end on the real [SwipeCard]: drags past each
  * direction's threshold commit on release with no fling (velocity pinned to
  * zero by [swipeWithVelocity]), a short drag snaps back, the button path
- * (`flyOff(verdict)`) nudges then commits, and Reduce Motion commits through
+ * (`flyOff(verdict)`) nudges then commits, Reduce Motion commits through
  * the 150 ms crossfade without ever rotating — read through the card's
  * [RotationZSemanticsPropertyKey] hook, since graphicsLayer transforms are
- * invisible to semantics otherwise.
+ * invisible to semantics otherwise — and the verdict stamp rides the drag,
+ * found through the tag [stampTestTag] leaves on its cleared node.
  */
 class SwipeCardTest {
     /** Drags the tagged card by fractions of its own size and releases at rest. */
@@ -249,6 +250,39 @@ class SwipeCardTest {
             mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS / 2L + 50L)
             assertEquals(SwipeVerdict.KEEP, dismissed)
             assertEquals(0f, appliedRotationZ())
+        }
+
+    @Test
+    fun `5-6 stamp appears when drag crosses into a verdict`() =
+        runComposeUiTest {
+            // Drive frames by hand so the mid-drag assert lands before release.
+            mainClock.autoAdvance = false
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    SwipeCard(
+                        onDismiss = {},
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        content = {},
+                    )
+                }
+            }
+            val size = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Half way to the 35 % threshold: stampAlpha ramps linearly from
+            // zero, so the KEEP stamp is mounted and fading in mid-drag.
+            onNodeWithTag(CARD_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * COMMIT_FRACTION_HORIZONTAL / 2f, start.y))
+            }
+            mainClock.advanceTimeBy(32L)
+            // The stamp's cleared semantics node rides the unmerged tree.
+            onNodeWithTag(stampTestTag(SwipeVerdict.KEEP), useUnmergedTree = true).assertExists()
+            // Below-threshold release springs the card back; the stamp's
+            // alpha reaches zero and it unmounts with it.
+            onNodeWithTag(CARD_TAG).performTouchInput { up() }
+            mainClock.advanceTimeBy(1000L)
+            waitForIdle()
+            onNodeWithTag(stampTestTag(SwipeVerdict.KEEP), useUnmergedTree = true).assertDoesNotExist()
         }
 
     private companion object {

@@ -28,8 +28,6 @@ import dev.swipe.ui.theme.SwipeTheme
 
 private enum class GalleryFilter { All, Photos, Videos }
 
-// Debug-gallery sizing only; not a REQUIREMENTS §5 value.
-
 /**
  * Debug-only catalogue of the WP-1.2 base components, for the human visual
  * checkpoint. Contains no placement logic — each section stacks vertically.

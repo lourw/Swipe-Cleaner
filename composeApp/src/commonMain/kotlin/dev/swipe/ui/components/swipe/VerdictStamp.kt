@@ -11,7 +11,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.testTag
 import dev.swipe.ui.theme.SwipeTheme
+
+/**
+ * The test tag of the stamp for [verdict]. Stamps are decorative duplicates
+ * of the drag itself, so their node stays cleared of screen-reader semantics;
+ * a bare test tag carries no announcement, so UI tests can assert a stamp
+ * is on screen mid-drag (it mounts only while its alpha is above zero)
+ * without adding noise for VoiceOver users.
+ */
+internal fun stampTestTag(verdict: SwipeVerdict) = "swipe_stamp_${verdict.name.lowercase()}"
 
 /**
  * The outlined KEEP / DELETE / SKIP label overlaid on a dragged
@@ -58,8 +68,9 @@ fun VerdictStamp(
                     vertical = SwipeTheme.spacing.xs,
                 )
                 // The stamp mirrors the drag; without this it would announce
-                // itself three times over during a swipe.
-                .clearAndSetSemantics { },
+                // itself three times over during a swipe. Only the test tag
+                // survives the clear — it is never announced.
+                .clearAndSetSemantics { testTag = stampTestTag(verdict) },
         contentAlignment = Alignment.Center,
     ) {
         BasicText(
