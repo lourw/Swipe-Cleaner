@@ -66,8 +66,12 @@ import kotlin.math.roundToInt
  * card) — far more than a card shows. Cancelling the collector cancels the
  * `PHImageRequestID` in `awaitClose`.
  *
- * **Memory (NFR-3).** Every full-size (non-degraded) decode goes through [cache]
+ * **Memory (NFR-3).** Every full-screen (non-degraded) decode goes through [cache]
  * (`BitmapLruCache`, capacity 5); evicted bitmaps are closed by the cache's `onEvict`.
+ * Small-target requests bypass the cache in both directions — their decodes are the
+ * queue grid's tiles (WP-3.3), and letting them evict (and close) a visible card's
+ * bitmap would crash the frame; the tile bitmaps are small enough for Skia's
+ * finalizer, exactly like the degraded deliveries.
  * `targetPx` is capped at the screen's pixel size (main screen bounds × scale): decoding
  * more pixels than the display can show would spend memory and CPU for nothing (NFR-2,
  * R1). The app is portrait-only (§6.8) and single-window, so the portrait bounds are
@@ -92,14 +96,22 @@ class PhotoKitMediaLoader(
         callbackFlow {
             val networkAllowed = settings.includeCloudOnly.first()
             val size = capToScreen(targetPx)
+            // The LRU budgets full-screen decodes only (NFR-3). A small-target
+            // request — the queue grid's tiles (WP-3.3) — bypasses the cache
+            // entirely: one screenful of tiles would evict, and CLOSE, the
+            // bitmaps a visible card is still drawing. Such a decode is small
+            // enough for Skia's finalizer, like the degraded deliveries.
+            val fullScreen = size == screenPixelSize
             val key = BitmapCacheKey(id, size)
 
             // A cached full-size decode at this exact key is the sharp result already (NFR-3):
             // emit it without touching PhotoKit. Its pixels are local, so isCloud is false.
-            cache.get(key)?.let { decoded ->
-                trySend(LoadedImage(decoded, isDegraded = false, isCloud = false))
-                close()
-                return@callbackFlow
+            if (fullScreen) {
+                cache.get(key)?.let { decoded ->
+                    trySend(LoadedImage(decoded, isDegraded = false, isCloud = false))
+                    close()
+                    return@callbackFlow
+                }
             }
 
             val asset = withContext(ioDispatcher) { PHAsset.fetchAssetsWithLocalIdentifiers(listOf(id), null).firstObject as? PHAsset }
@@ -138,9 +150,10 @@ class PhotoKitMediaLoader(
                     val isCloud = delivery.info.flag(PHImageResultIsInCloudKey)
                     val decoded = delivery.image?.let { raw -> runCatching { raw.decodeToBitmap() }.getOrNull() }
                     if (decoded != null) {
-                        // Only full-size decodes enter the LRU (NFR-3 budgets full-screen
-                        // bitmaps); small degraded deliveries are left to Skia's finalizer.
-                        if (!isDegraded) cache.put(key, decoded)
+                        // Only full-screen decodes enter the LRU (NFR-3 budgets full-screen
+                        // bitmaps); degraded and small-target deliveries are left to
+                        // Skia's finalizer.
+                        if (!isDegraded && fullScreen) cache.put(key, decoded)
                         send(LoadedImage(decoded, isDegraded = isDegraded, isCloud = isCloud))
                     }
                     complete = !isDegraded

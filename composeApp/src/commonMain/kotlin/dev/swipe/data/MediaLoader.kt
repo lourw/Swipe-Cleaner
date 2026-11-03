@@ -17,6 +17,10 @@ interface MediaLoader {
      * plus the degraded / iCloud flags the card needs for the placeholder and cloud badge
      * (NFR-1, R6). [targetPx] is an upper bound; the loader caps it at the screen pixel
      * size so a card never asks for more pixels than it can show (NFR-2, R1).
+     *
+     * Caching: requests capped to the full screen share the loader's small decode
+     * cache (NFR-3); smaller targets — grid tiles — bypass it entirely, so bulk
+     * thumbnail fetches can never evict a visible card's bitmap (§6.8).
      */
     fun image(
         id: String,
