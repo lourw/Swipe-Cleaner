@@ -47,9 +47,17 @@ data class Swipe(
     val typeFilter: String = "ALL",
 )
 
-/** Session summary when the deck runs out (FR-21, WP-2.2). */
+/**
+ * Session summary when the deck runs out (FR-21, WP-2.3). The counts ride the
+ * route so the summary survives process death and needs no ViewModel: they are
+ * final the moment the deck ends.
+ */
 @Serializable
-data object Summary
+data class Summary(
+    val kept: Int,
+    val queued: Int,
+    val skipped: Int,
+)
 
 /** To-Delete review queue (FR-23, WP-3.3). */
 @Serializable
