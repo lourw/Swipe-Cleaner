@@ -88,22 +88,27 @@ fun TopBar(
                 modifier = Modifier.semantics { contentDescription = progressDescription(progress) },
             )
         }
-        // §5.7: 2 dp progress line under the centered count.
+        ProgressLine(progress = progress)
+    }
+}
+
+/** §5.7: 2 dp progress line under the centered count. */
+@Composable
+private fun ProgressLine(progress: Progress) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(SwipeTheme.componentSizes.progressLineThickness)
+                .background(SwipeTheme.colors.border),
+    ) {
         Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .height(sizes.progressLineThickness)
-                    .background(colors.border),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth(progressFraction(progress))
-                        .height(sizes.progressLineThickness)
-                        .background(colors.accent),
-            )
-        }
+                    .fillMaxWidth(progressFraction(progress))
+                    .height(SwipeTheme.componentSizes.progressLineThickness)
+                    .background(SwipeTheme.colors.accent),
+        )
     }
 }
 
@@ -111,7 +116,7 @@ fun TopBar(
 fun progressLabel(progress: Progress): String = "${groupDigits(progress.reviewed)} / ${groupDigits(progress.total)}"
 
 /** Screen-reader copy for the centered count (the bare digits read as one number). */
-fun progressDescription(progress: Progress): String = "${progress.reviewed} of ${progress.total} reviewed"
+fun progressDescription(progress: Progress): String = "${groupDigits(progress.reviewed)} of ${groupDigits(progress.total)} reviewed"
 
 /** Fill of the progress line, 0 → 1; an empty deck is 0, never NaN. */
 fun progressFraction(progress: Progress): Float =
@@ -128,11 +133,14 @@ fun progressFraction(progress: Progress): Float =
  */
 fun groupDigits(value: Int): String {
     val digits = value.toString()
-    if (value < 0 || digits.length <= 3) return digits
+    if (value < 0 || digits.length <= GROUP_SIZE) return digits
     val builder = StringBuilder()
     digits.forEachIndexed { index, char ->
-        if (index > 0 && (digits.length - index) % 3 == 0) builder.append(',')
+        if (index > 0 && (digits.length - index) % GROUP_SIZE == 0) builder.append(',')
         builder.append(char)
     }
     return builder.toString()
 }
+
+/** Digits per `,` group in [groupDigits] (the spec's `128 / 2,340` shape). */
+private const val GROUP_SIZE = 3

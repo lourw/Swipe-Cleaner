@@ -92,7 +92,7 @@ fun metadataLine(card: CardState): String {
 /** `Mar 14, 2021` in the device's timezone (§5.7 example); English abbrevs. */
 fun formatCardDate(instant: Instant): String {
     val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    return "${MONTH_ABBREVIATIONS[local.month.ordinal]} ${local.day}, ${local.year}"
+    return "${monthAbbreviations[local.month.ordinal]} ${local.day}, ${local.year}"
 }
 
 /** `0:32`, or `1:02:03` past an hour (the §5.6/§5.7 duration shape). */
@@ -109,8 +109,18 @@ fun formatDuration(durationMs: Long): String {
     }
 }
 
-private val MONTH_ABBREVIATIONS =
+private val monthAbbreviations =
     listOf(
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     )

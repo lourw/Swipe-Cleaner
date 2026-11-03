@@ -1,33 +1,33 @@
 package dev.swipe.ui.screens.swipe
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.domain.model.MediaTypeFilter
-import dev.swipe.presentation.swipe.CardState
+import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
+import dev.swipe.presentation.swipe.ToastMessage
 import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_upward
-import dev.swipe.resources.ic_check
-import dev.swipe.resources.ic_close
-import dev.swipe.ui.components.CircleIconButton
-import dev.swipe.ui.components.media.rememberMediaImage
+import dev.swipe.resources.ic_favorite
+import dev.swipe.ui.components.Toast
+import dev.swipe.ui.components.swipe.SwipeVerdict
+import dev.swipe.ui.components.swipe.rememberSwipeCardState
 import dev.swipe.ui.theme.SwipeTheme
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 /**
  * Decodes the `Swipe` route's [MediaTypeFilter] name. Unknown or missing
@@ -36,148 +36,216 @@ import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
  */
 fun decodeTypeFilter(name: String): MediaTypeFilter = MediaTypeFilter.entries.firstOrNull { it.name == name } ?: MediaTypeFilter.ALL
 
+/** Tag the screen tests tap through for card gestures and card taps. */
+internal const val SWIPE_CARD_TEST_TAG = "swipe-card"
+
 /**
- * The M1 deck screen (WP-1.9): the top card over the next card, and the three
- * decision buttons wired straight to [SwipeIntent]s (FR-12–14). Gestures, the
- * TopBar, the metadata scrim, and the animated ActionBar arrive in WP-2.x; the
- * buttons here are the temporary input path and already use the §5.7 ActionBar
- * sizes, gap, and verdict tints so the final screen only adds, not restyles.
+ * The Swipe screen (§5.4, WP-2.3): [TopBar] over the deck over the [ActionBar]
+ * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the [Toast] slot
+ * above the bar (FR-15 "Undone", FR-22 favorite confirm, NFR-7 revert).
  *
- * Stateless by convention (AGENTS.md): one [SwipeUiState] in, committed
- * [SwipeIntent]s out. Pixels never enter the state — each card collects its own
- * image via [rememberMediaImage], degraded first (NFR-1), at
- * [MediaLoader.FULL_TARGET_PX] so the ViewModel's prefetch feeds the same cache
- * key (NFR-3).
+ * Stateless by convention (AGENTS.md): one [SwipeUiState] plus the ViewModel's
+ * one-shot [events] flow in, committed [SwipeIntent]s out. Transient drag and
+ * animation state stays here in the hoisted `SwipeCardState`
+ * (rememberSwipeCardState):
+ *
+ * - **Commit paths.** A gesture commit arrives at `SwipeCard`'s `onDismiss`
+ *   after its fly-off; an ActionBar button runs the §5.6 button path
+ *   (`SwipeCardState.flyOff` — nudge + fly-off, crossfade under Reduce
+ *   Motion) before committing. Both then fire the verdict's haptic
+ *   (`impactLight` for Keep/Skip, `impactMedium` for Delete, §5.6) and send
+ *   the intent — persist-before-advance stays in the ViewModel (NFR-7).
+ * - **Card return.** `SwipeEvent.ReturnCard` (undo, FR-15; favorite refusal,
+ *   FR-22) flies the card back in from the side it left, and a changed
+ *   [SwipeUiState.revertToken] (a failed decision write, NFR-7) reverts it
+ *   the same way (see `CardMotionEffects` in DeckMotion.kt).
+ * - **Card taps** (§5.6): a photo tap toggles the chrome (top bar and
+ *   metadata), a video tap toggles mute through [SwipeIntent.ToggleMute],
+ *   a double-tap toggles aspect-fit/fill locally, and a long-press is a
+ *   no-op until Live Photo playback (WP-4.2).
+ *
+ * With no card and no summary to show the screen renders the §5.8
+ * [EmptyState]; a moment of it during the deck's first load is accepted.
+ * Once [SwipeUiState.finished] is set the container navigates to the
+ * summary (FR-21), so this keeps the deck area empty meanwhile.
  */
 @Composable
 fun SwipeScreen(
     state: SwipeUiState,
+    events: Flow<SwipeEvent>,
     onIntent: (SwipeIntent) -> Unit,
     mediaLoader: MediaLoader,
+    haptics: Haptics,
+    reduceMotion: Boolean,
+    onClose: () -> Unit,
+    onOpenQueue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = SwipeTheme.colors
     val spacing = SwipeTheme.spacing
-    val componentSizes = SwipeTheme.componentSizes
 
     Column(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(colors.bg),
+                .background(SwipeTheme.colors.bg),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = componentSizes.cardInset,
-                        vertical = spacing.s,
-                    ),
-        ) {
-            // The next card sits under the top one (FR-11); until WP-2.1's drag
-            // the opaque top card simply covers it.
-            // Emission order = paint order: the next card first, the top card over it.
-            state.next?.let { card ->
-                DeckCard(
-                    card = card,
-                    loader = mediaLoader,
-                )
+        when {
+            state.finished != null -> {
+                // FR-21: the container navigates to the summary on `finished`;
+                // hold the background until the route swap lands.
             }
-            state.current?.let { card ->
-                DeckCard(
-                    card = card,
-                    loader = mediaLoader,
+
+            state.current == null -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    EmptyState(
+                        onTryAnotherSource = onClose,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    // A start failure (or the counts-unavailable finish,
+                    // WP-2.2) still surfaces here: the empty state carries no
+                    // action bar, so the §5.7 slot rides the bottom edge.
+                    state.toast?.let { message ->
+                        ToastSlot(
+                            message = message,
+                            onIntent = onIntent,
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(horizontal = spacing.gutter, vertical = spacing.s),
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                DeckContent(
+                    state = state,
+                    events = events,
+                    onIntent = onIntent,
+                    mediaLoader = mediaLoader,
+                    haptics = haptics,
+                    reduceMotion = reduceMotion,
+                    onClose = onClose,
+                    onOpenQueue = onOpenQueue,
                 )
             }
         }
-        // Temporary action bar (§5.7 order and sizes; Undo comes with WP-2.2).
-        ActionBar(onIntent = onIntent)
     }
 }
 
 /**
- * The three decision buttons in the §5.7 ActionBar order (Delete, Skip, Keep)
- * with its sizes, gap, and verdict tints. WP-2.2 turns this into the animated
- * ActionBar; keeping it separate so the swap touches one composable.
+ * The §5.7 [Toast] for the current [ToastMessage]: the FR-22 favorite confirm
+ * carries the warning-tinted heart and its "Delete" action, every other
+ * message rides alone; all of them dismiss through [SwipeIntent.DismissToast].
  */
 @Composable
-private fun ActionBar(onIntent: (SwipeIntent) -> Unit) {
-    val colors = SwipeTheme.colors
-    val spacing = SwipeTheme.spacing
-    val componentSizes = SwipeTheme.componentSizes
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = spacing.m),
-        horizontalArrangement = Arrangement.spacedBy(componentSizes.actionBarGap, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircleIconButton(
-            resource = Res.drawable.ic_close,
-            label = "Delete",
-            onClick = { onIntent(SwipeIntent.Delete) },
-            size = componentSizes.actionButtonLarge,
-            container = colors.delete.copy(alpha = VERDICT_TINT_ALPHA),
-            contentColor = colors.delete,
-            iconSize = SwipeTheme.sizes.actionBarIcon,
-        )
-        CircleIconButton(
-            resource = Res.drawable.ic_arrow_upward,
-            label = "Skip",
-            onClick = { onIntent(SwipeIntent.Skip) },
-            size = componentSizes.actionButtonSkip,
-            container = colors.surfaceRaised,
-            contentColor = colors.skip,
-            iconSize = SwipeTheme.sizes.actionBarIcon,
-        )
-        CircleIconButton(
-            resource = Res.drawable.ic_check,
-            label = "Keep",
-            onClick = { onIntent(SwipeIntent.Keep) },
-            size = componentSizes.actionButtonLarge,
-            container = colors.keep.copy(alpha = VERDICT_TINT_ALPHA),
-            contentColor = colors.keep,
-            iconSize = SwipeTheme.sizes.actionBarIcon,
-        )
-    }
-}
-
-/**
- * One card: radius 24 on `bg` with the media aspect-fit inside (§5.7
- * `SwipeCard`). The image is the loader's degraded-then-full pair (NFR-1);
- * while it is null the card is an empty rounded surface. The decorative image
- * stays out of accessibility — the decision buttons carry the VoiceOver labels
- * (NFR-8).
- */
-@Composable
-private fun DeckCard(
-    card: CardState,
-    loader: MediaLoader,
+private fun ToastSlot(
+    message: ToastMessage,
+    onIntent: (SwipeIntent) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val loaded =
-        rememberMediaImage(
-            id = card.id,
-            targetPx = MediaLoader.FULL_TARGET_PX,
-            loader = loader,
+    val confirm = message == ToastMessage.FavoriteConfirm
+    Toast(
+        text = toastText(message),
+        icon = if (confirm) Res.drawable.ic_favorite else null,
+        iconTint = SwipeTheme.colors.warning,
+        actionLabel = if (confirm) "Delete" else null,
+        onAction =
+            if (confirm) {
+                { onIntent(SwipeIntent.ConfirmFavoriteDelete) }
+            } else {
+                null
+            },
+        onDismiss = { onIntent(SwipeIntent.DismissToast) },
+        modifier = modifier,
+    )
+}
+
+/**
+ * The deck column: TopBar, the card stack, and the ActionBar, with the
+ * hoisted `SwipeCardState` driving every card animation.
+ */
+@Composable
+private fun DeckContent(
+    state: SwipeUiState,
+    events: Flow<SwipeEvent>,
+    onIntent: (SwipeIntent) -> Unit,
+    mediaLoader: MediaLoader,
+    haptics: Haptics,
+    reduceMotion: Boolean,
+    onClose: () -> Unit,
+    onOpenQueue: () -> Unit,
+) {
+    val cardState = rememberSwipeCardState()
+    val scope = rememberCoroutineScope()
+    var chromeVisible by remember(state.current?.id) { mutableStateOf(true) }
+    var fillMode by remember(state.current?.id) { mutableStateOf(false) }
+
+    // Shared commit for both paths: the §5.6 haptic, then the intent — the
+    // ViewModel persists before the deck advances (NFR-7).
+    val commit: (SwipeVerdict) -> Unit = { verdict ->
+        verdict.fireHaptic(haptics)
+        onIntent(verdict.toIntent())
+    }
+    // §5.6 button path: nudge + fly-off first so the motion reads, then the
+    // same commit a gesture makes.
+    val buttonCommit: (SwipeVerdict) -> Unit = { verdict ->
+        scope.launch {
+            cardState.flyOff(verdict, reduceMotion)
+            commit(verdict)
+        }
+    }
+
+    CardMotionEffects(cardState, events, state.revertToken, state.current?.id, reduceMotion)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopBar(
+            progress = state.progress,
+            queueCount = state.queueCount,
+            onClose = onClose,
+            onOpenQueue = onOpenQueue,
+            visible = chromeVisible,
         )
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(SwipeTheme.radii.card))
-                .background(SwipeTheme.colors.bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        loaded?.let { image ->
-            Image(
-                bitmap = image.bitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
+        state.current?.let { current ->
+            CardStack(
+                card = current,
+                next = state.next,
+                cardState = cardState,
+                mediaLoader = mediaLoader,
+                reduceMotion = reduceMotion,
+                chromeVisible = chromeVisible,
+                fillMode = fillMode,
+                onDismiss = commit,
+                onToggleChrome = { chromeVisible = !chromeVisible },
+                onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
+                onToggleFill = { fillMode = !fillMode },
+                onThresholdCrossed = { haptics.selection() },
             )
         }
+        // §5.7 Toast slot: above the action bar (FR-15, FR-22, NFR-7).
+        state.toast?.let { message ->
+            ToastSlot(
+                message = message,
+                onIntent = onIntent,
+                modifier = Modifier.padding(horizontal = SwipeTheme.spacing.gutter),
+            )
+        }
+        ActionBar(
+            canUndo = state.canUndo,
+            onKeep = { buttonCommit(SwipeVerdict.KEEP) },
+            onDelete = { buttonCommit(SwipeVerdict.DELETE) },
+            onSkip = { buttonCommit(SwipeVerdict.SKIP) },
+            onUndo = { onIntent(SwipeIntent.Undo) },
+        )
     }
 }
+
+/** Copy for each [ToastMessage]; only FR-22 and FR-15 strings are spec-fixed. */
+private fun toastText(message: ToastMessage): String =
+    when (message) {
+        ToastMessage.SaveFailed -> "Couldn't save — try again"
+        ToastMessage.Undone -> "Undone"
+        ToastMessage.FavoriteConfirm -> "This is a favorite — delete anyway?"
+        ToastMessage.StartFailed -> "Couldn't load your library — try again"
+    }

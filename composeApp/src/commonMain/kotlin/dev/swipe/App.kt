@@ -16,7 +16,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.permission.PermissionIntent
@@ -29,10 +31,14 @@ import dev.swipe.ui.components.ComponentGallery
 import dev.swipe.ui.navigation.Denied
 import dev.swipe.ui.navigation.Home
 import dev.swipe.ui.navigation.Onboarding
+import dev.swipe.ui.navigation.Queue
+import dev.swipe.ui.navigation.Summary
 import dev.swipe.ui.navigation.Swipe
 import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
 import dev.swipe.ui.screens.onboarding.OnboardingScreen
+import dev.swipe.ui.screens.queue.QueuePlaceholderScreen
+import dev.swipe.ui.screens.swipe.SummaryScreen
 import dev.swipe.ui.screens.swipe.SwipeScreen
 import dev.swipe.ui.screens.swipe.decodeTypeFilter
 import dev.swipe.ui.theme.SwipeTheme
@@ -100,7 +106,7 @@ internal fun PermissionFlowContent(
     onIntent: (PermissionIntent) -> Unit,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route) },
+    swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route, navController) },
 ) {
     val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
@@ -141,6 +147,32 @@ internal fun PermissionFlowContent(
         composable<Swipe> { entry ->
             swipeDestination(entry.toRoute<Swipe>())
         }
+        composable<Summary> { entry ->
+            val route = entry.toRoute<Summary>()
+            SummaryScreen(
+                kept = route.kept,
+                queued = route.queued,
+                skipped = route.skipped,
+                onBackHome = { navController.backToHome() },
+                onReviewQueue = { navController.navigate(Queue) },
+            )
+        }
+        composable<Queue> {
+            // WP-3.3 replaces this placeholder with the full review queue.
+            QueuePlaceholderScreen(onBack = { navController.navigateUp() })
+        }
+    }
+}
+
+/**
+ * Home, single-top, with everything above it popped: the Close button's
+ * destination from the deck (FR-17) and the summary's "Back home" (FR-21).
+ * From a deep link with no Home on the stack this just creates it.
+ */
+private fun NavHostController.backToHome() {
+    navigate(Home) {
+        popUpTo(Home::class) { inclusive = false }
+        launchSingleTop = true
     }
 }
 
@@ -162,24 +194,43 @@ private val ShuffleAllSwipe =
  * navigation tests never build the deck pipeline.
  */
 @Composable
-private fun SwipeDestination(route: Swipe) {
+private fun SwipeDestination(
+    route: Swipe,
+    navController: NavHostController,
+) {
     val source =
         remember(route.sourceJson) {
             Json.decodeFromString(DeckSource.serializer(), route.sourceJson)
         }
-    SwipeContainer(source = source, typeFilter = decodeTypeFilter(route.typeFilter))
+    SwipeContainer(
+        source = source,
+        typeFilter = decodeTypeFilter(route.typeFilter),
+        navController = navController,
+        onClose = { navController.backToHome() },
+        onOpenQueue = { navController.navigate(Queue) },
+    )
 }
 
 /**
  * Wires [SwipeViewModel] (resolved with the route's source and filter) and the
- * injected [MediaLoader] to [SwipeScreen]. State is collected inside this
- * destination composable, never in the NavHost builder (WP-1.7 rule).
+ * injected [MediaLoader], [SystemActions] (Reduce Motion, §5.6) and [Haptics]
+ * (§5.6) to [SwipeScreen]. State is collected inside this destination
+ * composable, never in the NavHost builder (WP-1.7 rule).
+ *
+ * FR-21: when the deck ends, the summary replaces the deck route — the deck
+ * leaves the back stack, so Back from the summary cannot resume a finished
+ * session. The counts ride the route (they are final the moment the deck ends).
  */
 @Composable
 private fun SwipeContainer(
     source: DeckSource,
     typeFilter: MediaTypeFilter,
+    navController: NavHostController,
+    onClose: () -> Unit,
+    onOpenQueue: () -> Unit,
     mediaLoader: MediaLoader = koinInject(),
+    systemActions: SystemActions = koinInject(),
+    haptics: Haptics = koinInject(),
 ) {
     val viewModel: SwipeViewModel =
         koinViewModel(
@@ -187,10 +238,24 @@ private fun SwipeContainer(
         )
     val onIntent: (SwipeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
+    val reduceMotion by systemActions.isReduceMotionEnabled().collectAsState(initial = false)
+    val finished = state.finished
+    LaunchedEffect(finished) {
+        if (finished != null) {
+            navController.navigate(Summary(kept = finished.kept, queued = finished.queued, skipped = finished.skipped)) {
+                popUpTo(Swipe::class) { inclusive = true }
+            }
+        }
+    }
     SwipeScreen(
         state = state,
+        events = viewModel.events,
         onIntent = onIntent,
         mediaLoader = mediaLoader,
+        haptics = haptics,
+        reduceMotion = reduceMotion,
+        onClose = onClose,
+        onOpenQueue = onOpenQueue,
     )
 }
 
