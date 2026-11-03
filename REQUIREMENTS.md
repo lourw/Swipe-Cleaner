@@ -463,8 +463,8 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 
 ### 6.5 Deck pipeline
 
-1. `BuildDeckUseCase(source, typeFilter, seed)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), subtracts `decidedIds()`, then orders them:
-   - Shuffle: a seeded shuffle (`Random(seed)`), with the seed stored on the session so the order survives process death.
+1. `BuildDeckUseCase(source, typeFilter, seed)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), orders them, then subtracts `decidedIds()` (for duplicates: subtracted before grouping):
+   - Shuffle: a seeded shuffle (`Random(seed)`) applied to the **full id list before** decided ids are subtracted, with the seed stored on the session so the order survives process death. Subtracting after the shuffle keeps the order stable as rows accumulate, so a rebuild with the same seed reopens a resumed session on the same card (FR-20).
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
    - Everything else: creation date descending (the library returns that order).
@@ -481,19 +481,31 @@ data class SwipeUiState(
     val next: CardState?,
     val progress: Progress,         // reviewed, total
     val queueCount: Int,
-    val canUndo: Boolean,
-    val muted: Boolean,
+    val canUndo: Boolean,           // the undo stack is non-empty (FR-15)
+    val muted: Boolean,             // videos start muted; ToggleMute flips it (FR-16)
     val toast: ToastMessage?,
-    val finished: SessionSummary?,
+    val finished: SessionSummary?,  // set once the deck runs out (FR-21)
     val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
+    val pendingFavoriteDelete: String?, // the favorite awaiting confirm, else null (FR-22)
 )
 sealed interface SwipeIntent { Keep; Delete; Skip; Undo; ToggleMute; ConfirmFavoriteDelete; DismissToast }
+sealed interface ToastMessage { SaveFailed; Undone; FavoriteConfirm; StartFailed }
+sealed interface SwipeEvent { data class ReturnCard(val decision: Decision) }
 ```
 
-`toast` carries a `ToastMessage` — a sealed type whose first variant is `SaveFailed`
-(NFR-7); WP-2.2 adds "Undone" (FR-15) and the favorite confirm (FR-22). One-shot UI
-events ride on state fields the composable watches for changes — `revertToken` for the
-failed-save return; WP-2.2 documents the full events policy there.
+`ToastMessage` variants: `SaveFailed` (NFR-7, the decision write failed and the card
+reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22, "delete anyway?" — while it is up
+`pendingFavoriteDelete` holds the id, and `ConfirmFavoriteDelete` records the DELETE that
+the first tap refused to record), and `StartFailed` (the session could not be opened or
+resumed; the screen stays empty instead of crashing).
+
+One-shot ViewModel → UI events ride a `Channel` exposed as `Flow<SwipeEvent>`, so each
+event is delivered to exactly one collector and never replays on recomposition — unlike a
+state field a late collector would read as still-pending. `ReturnCard(decision)` commands
+the card to come back with [decision]'s exit animation (undo succeeding, FR-15, and a
+Delete on a favorite being refused for confirmation, FR-22). `revertToken` stays the one
+exception: it predates the channel (WP-1.8) and the card keeps watching its increment.
+`SwipeEvent` carries the domain `Decision`, not a UI type (layering, §6.1).
 
 The drag offset and animation state stay inside the `SwipeCard` composable, as local UI state. The ViewModel only receives committed intents.
 
