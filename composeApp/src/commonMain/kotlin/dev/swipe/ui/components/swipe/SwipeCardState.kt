@@ -49,17 +49,21 @@ class SwipeCardState internal constructor(
     internal var cardSize: Size = Size.Zero
     internal var density: Float = 1f
 
-    /** Where the card must be for its edges to clear the screen. */
-    private fun exitTarget(verdict: SwipeVerdict): Offset =
+    /**
+     * Where the card must sit for its edges to clear the screen when it
+     * left toward [verdict] — the point undo flies it back in from (§5.6).
+     */
+    private fun undoEntryPoint(verdict: SwipeVerdict): Offset =
         when (verdict) {
-            SwipeVerdict.KEEP -> Offset(cardSize.width * FLY_OFF_TRAVEL, offsetAnim.value.y)
-            SwipeVerdict.DELETE -> Offset(-cardSize.width * FLY_OFF_TRAVEL, offsetAnim.value.y)
-            SwipeVerdict.SKIP -> Offset(offsetAnim.value.x, -cardSize.height * FLY_OFF_TRAVEL)
+            SwipeVerdict.KEEP -> Offset(cardSize.width * FLY_OFF_TRAVEL, 0f)
+            SwipeVerdict.DELETE -> Offset(-cardSize.width * FLY_OFF_TRAVEL, 0f)
+            SwipeVerdict.SKIP -> Offset(0f, -cardSize.height * FLY_OFF_TRAVEL)
         }
 
     /**
-     * Throw the card off-screen along its current drag line in
-     * [FLY_OFF_MS] (§5.6); with [reduceMotion] it crossfades out over
+     * Throw the card off-screen along its current drag line — the release
+     * direction extended until off-screen ([flyOffTarget], §5.6) — in
+     * [FLY_OFF_MS]; with [reduceMotion] it crossfades out over
      * [REDUCE_MOTION_CROSSFADE_MS] instead. The gesture path: the verdict
      * must already be committed.
      */
@@ -69,7 +73,7 @@ class SwipeCardState internal constructor(
             alphaAnim.animateTo(0f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
         } else {
             offsetAnim.animateTo(
-                targetValue = exitTarget(verdict),
+                targetValue = flyOffTarget(offsetAnim.value, directionToward(verdict), cardSize),
                 animationSpec = tween(FLY_OFF_MS, easing = FastOutLinearInEasing),
             )
         }
@@ -107,7 +111,7 @@ class SwipeCardState internal constructor(
             committedVerdict = null
             alphaAnim.animateTo(1f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
         } else {
-            offsetAnim.snapTo(exitTarget(verdict))
+            offsetAnim.snapTo(undoEntryPoint(verdict))
             alphaAnim.snapTo(1f)
             committedVerdict = null
             offsetAnim.animateTo(

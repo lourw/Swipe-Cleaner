@@ -3,6 +3,7 @@ package dev.swipe.ui.components.swipe
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 
 // Pure geometry for the swipe gesture (§5.6) — no Compose state, so the
@@ -61,10 +62,11 @@ private fun flingVerdict(
 ): SwipeVerdict? {
     val flingThreshold = FLING_VELOCITY_DP_S * density
     val horizontal = abs(velocityPxPerSec.x) >= abs(velocityPxPerSec.y)
+    // §5.6: a fling at or over 1000 dp/s commits, so the boundary counts.
     return when {
-        horizontal && velocityPxPerSec.x > flingThreshold -> SwipeVerdict.KEEP
-        horizontal && velocityPxPerSec.x < -flingThreshold -> SwipeVerdict.DELETE
-        !horizontal && velocityPxPerSec.y < -flingThreshold -> SwipeVerdict.SKIP
+        horizontal && velocityPxPerSec.x >= flingThreshold -> SwipeVerdict.KEEP
+        horizontal && velocityPxPerSec.x <= -flingThreshold -> SwipeVerdict.DELETE
+        !horizontal && velocityPxPerSec.y <= -flingThreshold -> SwipeVerdict.SKIP
         else -> null
     }
 }
@@ -72,25 +74,26 @@ private fun flingVerdict(
 /**
  * The verdict a release at [offset] alone would commit (no fling), or null
  * below all thresholds. Also what the stamps and edge glow preview while
- * dragging.
+ * dragging. §5.6: offset past or exactly at the direction threshold
+ * commits, so the boundary counts.
  */
 fun previewVerdict(
     offset: Offset,
     cardSize: Size,
 ): SwipeVerdict? =
     when {
-        offset.x > cardSize.width * COMMIT_FRACTION_HORIZONTAL -> SwipeVerdict.KEEP
-        offset.x < -(cardSize.width * COMMIT_FRACTION_HORIZONTAL) -> SwipeVerdict.DELETE
-        offset.y < -(cardSize.height * COMMIT_FRACTION_UP) -> SwipeVerdict.SKIP
+        offset.x >= cardSize.width * COMMIT_FRACTION_HORIZONTAL -> SwipeVerdict.KEEP
+        offset.x <= -(cardSize.width * COMMIT_FRACTION_HORIZONTAL) -> SwipeVerdict.DELETE
+        offset.y <= -(cardSize.height * COMMIT_FRACTION_UP) -> SwipeVerdict.SKIP
         else -> null
     }
 
 /**
- * The verdict a release commits, or null to snap back: a fling over
+ * The verdict a release commits, or null to snap back: a fling at or over
  * [FLING_VELOCITY_DP_S] decides by its dominant velocity axis, otherwise an
- * offset past the direction threshold decides (§5.6 "Commit thresholds:
- * 35 % width, 25 % height up — or a fling over 1000 dp/s in that
- * direction").
+ * offset at or past the direction threshold decides (§5.6 "Commit
+ * thresholds: 35 % width, 25 % height up — or a fling over 1000 dp/s in
+ * that direction").
  */
 fun verdictFor(
     offset: Offset,
@@ -100,6 +103,32 @@ fun verdictFor(
 ): SwipeVerdict? {
     if (cardSize.width <= 0f || cardSize.height <= 0f || density <= 0f) return null
     return flingVerdict(velocityPxPerSec, density) ?: previewVerdict(offset, cardSize)
+}
+
+/**
+ * The fly-off target for a commit (§5.6 "Fly-off on commit — continuing
+ * along the release direction until fully off-screen"): [offset] — the
+ * card's position at release — extended along its own direction until the
+ * card has cleared its resting bounds. The dominant axis travels
+ * [FLY_OFF_TRAVEL] card sizes (past 1.0, so an edge always clears) and the
+ * other axis moves along the same vector, keeping the exit direction
+ * exactly the drag direction. A zero [offset] carries no direction; the
+ * caller's [fallbackDirection] (the committed verdict's axis) is extended
+ * instead.
+ */
+fun flyOffTarget(
+    offset: Offset,
+    fallbackDirection: Offset,
+    cardSize: Size,
+): Offset {
+    if (cardSize.width <= 0f || cardSize.height <= 0f) return offset
+    val direction = if (offset != Offset.Zero) offset else fallbackDirection
+    val length = direction.getDistance()
+    if (length <= 0f) return offset
+    val ux = direction.x / length
+    val uy = direction.y / length
+    val reach = max(abs(ux) / cardSize.width, abs(uy) / cardSize.height)
+    return Offset(FLY_OFF_TRAVEL * ux / reach, FLY_OFF_TRAVEL * uy / reach)
 }
 
 /**

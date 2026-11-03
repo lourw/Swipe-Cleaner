@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Threshold and follow-along math from §5.6, checked against the named
@@ -55,6 +56,9 @@ class SwipeMathTest {
             SwipeVerdict.DELETE,
             verdictFor(Offset(-(edge + 1f), 0f), Offset.Zero, cardSize, density),
         )
+        // Exactly at the threshold commits too (§5.6: past/at).
+        assertEquals(SwipeVerdict.KEEP, verdictFor(Offset(edge, 0f), Offset.Zero, cardSize, density))
+        assertEquals(SwipeVerdict.DELETE, verdictFor(Offset(-edge, 0f), Offset.Zero, cardSize, density))
         // Just below the threshold with no fling: snap back.
         assertNull(verdictFor(Offset(edge - 1f, 0f), Offset.Zero, cardSize, density))
     }
@@ -66,6 +70,8 @@ class SwipeMathTest {
             SwipeVerdict.SKIP,
             verdictFor(Offset(0f, -(edge + 1f)), Offset.Zero, cardSize, density),
         )
+        // Exactly at the threshold commits too (§5.6: past/at).
+        assertEquals(SwipeVerdict.SKIP, verdictFor(Offset(0f, -edge), Offset.Zero, cardSize, density))
         assertNull(verdictFor(Offset(0f, -(edge - 1f)), Offset.Zero, cardSize, density))
         // Dragging down never commits SKIP.
         assertNull(verdictFor(Offset(0f, cardSize.height), Offset.Zero, cardSize, density))
@@ -82,8 +88,40 @@ class SwipeMathTest {
             SwipeVerdict.SKIP,
             verdictFor(Offset(0f, -cardSize.height * 0.05f), Offset(0f, -(flingThreshold + 1f)), cardSize, density),
         )
+        // Exactly at 1000 dp/s commits too (§5.6: "fling velocity ≥ 1000 dp/s").
+        assertEquals(SwipeVerdict.KEEP, verdictFor(smallOffset, Offset(flingThreshold, 0f), cardSize, density))
+        assertEquals(SwipeVerdict.DELETE, verdictFor(smallOffset, Offset(-flingThreshold, 0f), cardSize, density))
+        assertEquals(SwipeVerdict.SKIP, verdictFor(Offset.Zero, Offset(0f, -flingThreshold), cardSize, density))
         // Below the fling threshold and below the offset threshold: snap back.
         assertNull(verdictFor(smallOffset, Offset(flingThreshold - 1f, 0f), cardSize, density))
+    }
+
+    @Test
+    fun `5-6 fly-off target extends along the release direction`() {
+        // §5.6: "continuing along the release direction until fully
+        // off-screen". Here the 3:6 release clears both axes at once: the
+        // target is the offset extended to 1.5 card sizes on each axis.
+        val release = Offset(120f, -240f)
+        val target = flyOffTarget(release, Offset.Zero, cardSize)
+        assertEquals(cardSize.width * FLY_OFF_TRAVEL, target.x, 1e-2f)
+        assertEquals(-cardSize.height * FLY_OFF_TRAVEL, target.y, 1e-2f)
+
+        // A shallow diagonal keeps its slope — never axis-snapped.
+        val shallow = Offset(300f, -60f)
+        val shallowTarget = flyOffTarget(shallow, Offset.Zero, cardSize)
+        assertEquals(cardSize.width * FLY_OFF_TRAVEL, shallowTarget.x, 1e-2f)
+        assertEquals(shallow.x * shallowTarget.y - shallow.y * shallowTarget.x, 0f, 1f)
+        assertTrue(shallowTarget.y < 0f)
+
+        // A straight horizontal release flies straight out.
+        val straight = flyOffTarget(Offset(200f, 0f), Offset.Zero, cardSize)
+        assertEquals(cardSize.width * FLY_OFF_TRAVEL, straight.x, 1e-2f)
+        assertEquals(0f, straight.y, 1e-2f)
+
+        // A zero offset carries no direction: the fallback axis extends.
+        val fallback = flyOffTarget(Offset.Zero, Offset(-1f, 0f), cardSize)
+        assertEquals(-cardSize.width * FLY_OFF_TRAVEL, fallback.x, 1e-2f)
+        assertEquals(0f, fallback.y, 1e-2f)
     }
 
     @Test
