@@ -20,10 +20,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -128,20 +128,36 @@ class SwipeViewModel(
     /** The one entry point for user actions (AGENTS.md ViewModel convention). */
     fun onIntent(intent: SwipeIntent) {
         when (intent) {
-            SwipeIntent.Keep -> decide(Decision.KEEP)
-            SwipeIntent.Delete -> decide(Decision.DELETE)
-            SwipeIntent.Skip -> decide(Decision.SKIP)
-            SwipeIntent.Undo -> undo()
-            SwipeIntent.ToggleMute ->
+            SwipeIntent.Keep -> {
+                decide(Decision.KEEP)
+            }
+
+            SwipeIntent.Delete -> {
+                decide(Decision.DELETE)
+            }
+
+            SwipeIntent.Skip -> {
+                decide(Decision.SKIP)
+            }
+
+            SwipeIntent.Undo -> {
+                undo()
+            }
+
+            SwipeIntent.ToggleMute -> {
                 // FR-16: remembered for this ViewModel's lifetime (the session).
                 _uiState.update { it.copy(muted = !it.muted) }
+            }
+
             SwipeIntent.ConfirmFavoriteDelete -> {
                 // FR-22: only meaningful while the confirm toast names a card; the
                 // confirmed path skips the ask again (that is what was confirmed).
                 if (_uiState.value.pendingFavoriteDelete != null) decide(Decision.DELETE, confirmed = true)
             }
-            SwipeIntent.DismissToast ->
+
+            SwipeIntent.DismissToast -> {
                 _uiState.update { it.copy(toast = null, pendingFavoriteDelete = null) }
+            }
         }
     }
 

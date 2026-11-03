@@ -385,7 +385,12 @@ class SwipeViewModelTest {
             assertEquals("asset-6", s.current?.id)
             assertEquals(5, s.progress.reviewed)
             assertEquals(50, f.store.removeCalls.size)
-            assertEquals(setOf("asset-1", "asset-2", "asset-3", "asset-4", "asset-5"), f.store.entries.map { it.id }.toSet())
+            assertEquals(
+                setOf("asset-1", "asset-2", "asset-3", "asset-4", "asset-5"),
+                f.store.entries
+                    .map { it.id }
+                    .toSet(),
+            )
             assertFalse(s.canUndo)
         }
 
@@ -555,6 +560,7 @@ class SwipeViewModelTest {
             val store = FakeDecisionStore(clock, skips)
             val sessionStore = FakeSessionStore(clock, skips)
             val library = FakeMediaLibrary(photos(10))
+
             // `All` shuffles with the stored seed (§6.5), so this exercises the real rebuild.
             fun viewModel() =
                 SwipeViewModel(
@@ -578,8 +584,12 @@ class SwipeViewModelTest {
             advanceUntilIdle()
             first.onIntent(SwipeIntent.Keep)
             advanceUntilIdle()
-            val expectedCurrent = first.uiState.value.current?.id
-            val expectedNext = first.uiState.value.next?.id
+            val expectedCurrent =
+                first.uiState.value.current
+                    ?.id
+            val expectedNext =
+                first.uiState.value.next
+                    ?.id
             assertEquals(1, sessionStore.createCalls.size)
 
             // "Process death": a fresh ViewModel over the same stores resumes, not restarts.
@@ -597,7 +607,11 @@ class SwipeViewModelTest {
             // Continuing walks the same remaining order.
             second.onIntent(SwipeIntent.Keep)
             advanceUntilIdle()
-            assertEquals(expectedNext, second.uiState.value.current?.id)
+            assertEquals(
+                expectedNext,
+                second.uiState.value.current
+                    ?.id,
+            )
         }
 
     @Test
