@@ -1,8 +1,12 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(
+    kotlinx.cinterop.BetaInteropApi::class, // NSArray.create (FR-25)
+    kotlinx.cinterop.ExperimentalForeignApi::class,
+)
 
 package dev.swipe.platform
 
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.photoKitDeleteResult
 import dev.swipe.data.photoKitIsScreenshot
 import dev.swipe.data.photoKitLibraryAccess
 import dev.swipe.data.photoKitMediaType
@@ -20,9 +24,12 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.toKotlinInstant
+import platform.Foundation.NSArray
 import platform.Foundation.NSPredicate
+import platform.Foundation.create
 import platform.Photos.PHAccessLevelReadWrite
 import platform.Photos.PHAsset
+import platform.Photos.PHAssetChangeRequest
 import platform.Photos.PHAssetMediaTypeImage
 import platform.Photos.PHAssetMediaTypeVideo
 import platform.Photos.PHFetchOptions
@@ -40,9 +47,9 @@ import kotlin.math.roundToLong
  * (§6.8). No networking happens here; PhotoKit's own iCloud downloads are the only
  * network traffic (NFR-6).
  *
- * The write side is deliberately absent: `delete` answers
- * [DeleteResult.Failed] until WP-3.2 implements the change request, and AGENTS.md
- * rule 1 keeps this file the only place that could ever call `performChanges`.
+ * The write side ([delete], WP-3.2) and the change observer ([changes]) also live
+ * here: AGENTS.md rule 1 and the §8.3 check-rules guard keep this file the only
+ * place that can ever call `performChanges` / `deleteAssets`.
  */
 class PhotoKitMediaLibrary(
     private val fetchDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -117,11 +124,46 @@ class PhotoKitMediaLibrary(
         }
 
     /**
-     * Not wired yet: WP-3.2 implements `performChanges { deleteAssets }` behind the
-     * in-app confirmation (FR-25). Failing loudly is the safe answer — nothing here
-     * can touch the library (NFR-5, AGENTS.md rule 1).
+     * One confirmed batch, one change request (FR-25): fetch the assets by local
+     * identifier, then run the PhotoKit change request behind the iOS system dialog
+     * with `performChanges { deleteAssets }`, bridged by [suspendCancellableCoroutine]
+     * — the completion handler answers on a PhotoKit queue. The `NSError` it carries
+     * decides the outcome through [photoKitDeleteResult]: success → `Deleted`,
+     * `PHPhotosErrorUserCancelled` (3072) → `Cancelled` (FR-27, silent), anything else
+     * → `Failed(localizedDescription)`.
+     *
+     * **Zero fetched assets answer [DeleteResult.Deleted] without a change request** —
+     * no iOS dialog for a batch with nothing to delete (§6.8). That is also the
+     * convergence path for a retried commit whose PhotoKit delete succeeded but whose
+     * `markDeleted` store write failed: the second run finds nothing left to delete,
+     * stays dialog-free, and lets `CommitDeletionsUseCase` mark the rows DELETED.
      */
-    override suspend fun delete(ids: List<String>): DeleteResult = DeleteResult.Failed("not implemented")
+    override suspend fun delete(ids: List<String>): DeleteResult =
+        withContext(fetchDispatcher) {
+            val assets = mutableListOf<PHAsset>()
+            PHAsset.fetchAssetsWithLocalIdentifiers(ids, null).enumerateObjectsUsingBlock { asset, _, _ ->
+                (asset as? PHAsset)?.let(assets::add)
+            }
+            if (assets.isEmpty()) return@withContext DeleteResult.Deleted
+            val assetsToRemove = NSArray.create(array = assets)
+            suspendCancellableCoroutine<DeleteResult> { continuation ->
+                PHPhotoLibrary.sharedPhotoLibrary().performChanges(
+                    changeBlock = {
+                        PHAssetChangeRequest.deleteAssets(assetsToRemove)
+                    },
+                    completionHandler = { success, error ->
+                        continuation.resume(
+                            photoKitDeleteResult(
+                                success = success,
+                                errorDomain = error?.domain,
+                                errorCode = error?.code,
+                                errorMessage = error?.localizedDescription,
+                            ),
+                        )
+                    },
+                )
+            }
+        }
 
     /** The change observer arrives with WP-3.2 (FR-28); quiet until then. */
     override fun changes(): Flow<Unit> = emptyFlow()

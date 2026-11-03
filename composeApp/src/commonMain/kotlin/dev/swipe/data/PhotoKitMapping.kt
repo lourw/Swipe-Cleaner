@@ -1,5 +1,6 @@
 package dev.swipe.data
 
+import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaType
 
@@ -17,6 +18,12 @@ private const val PH_MEDIA_TYPE_VIDEO = 2 // PHAssetMediaType.video
 
 private const val PH_SUBTYPE_PHOTO_LIVE = 1 shl 0 // PHAssetMediaSubtype.photoLive
 private const val PH_SUBTYPE_SCREENSHOT = 1 shl 2 // PHAssetMediaSubtype.photoScreenshot
+
+/** The `NSError.domain` of every `PHPhotosError` (§6.8). */
+private const val PH_ERROR_DOMAIN = "PHPhotosErrorDomain"
+
+/** `PHPhotosErrorUserCancelled`: the iOS delete dialog was dismissed (3072, §6.8). */
+private const val PH_ERROR_USER_CANCELLED = 3072L
 
 private const val PH_AUTH_RESTRICTED = 1 // PHAuthorizationStatus.restricted
 private const val PH_AUTH_DENIED = 2 // PHAuthorizationStatus.denied
@@ -63,3 +70,27 @@ fun photoKitLibraryAccess(status: Int): LibraryAccess =
         PH_AUTH_DENIED, PH_AUTH_RESTRICTED -> LibraryAccess.DENIED
         else -> LibraryAccess.NOT_DETERMINED
     }
+
+/**
+ * The `performChanges` completion handler's outcome → [DeleteResult] (FR-25–27, §6.7):
+ * success → [DeleteResult.Deleted]; the error PhotoKit raises when the user dismisses
+ * the iOS delete dialog — domain [PH_ERROR_DOMAIN] with code 3072,
+ * `PHPhotosErrorUserCancelled` — → [DeleteResult.Cancelled], silent per FR-27; anything
+ * else → [DeleteResult.Failed] carrying the error's `localizedDescription` so the toast
+ * can show why. The iOS implementation passes the `NSError`'s fields as plain values,
+ * which keeps this mapping testable without PhotoKit (§8.2).
+ */
+fun photoKitDeleteResult(
+    success: Boolean,
+    errorDomain: String?,
+    errorCode: Long?,
+    errorMessage: String?,
+): DeleteResult =
+    when {
+        success -> DeleteResult.Deleted
+        errorDomain == PH_ERROR_DOMAIN && errorCode == PH_ERROR_USER_CANCELLED -> DeleteResult.Cancelled
+        else -> DeleteResult.Failed(errorMessage ?: DELETE_FAILED_FALLBACK)
+    }
+
+/** Stand-in message when a PhotoKit failure carries no description at all. */
+private const val DELETE_FAILED_FALLBACK = "Delete failed"
