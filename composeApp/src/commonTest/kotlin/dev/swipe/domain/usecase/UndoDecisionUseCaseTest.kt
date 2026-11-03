@@ -18,7 +18,7 @@ class UndoDecisionUseCaseTest {
             val store = FakeDecisionStore()
             store.record("a", Decision.KEEP, "s1")
 
-            UndoDecisionUseCase(store)("a")
+            UndoDecisionUseCase(store)("a", "s1")
 
             assertEquals(listOf("a"), store.removeCalls)
             assertEquals(emptySet(), store.decidedIds())
@@ -31,7 +31,7 @@ class UndoDecisionUseCaseTest {
             store.failNextRemove = IllegalStateException("disk full")
 
             assertFailsWith<IllegalStateException> {
-                UndoDecisionUseCase(store)("a")
+                UndoDecisionUseCase(store)("a", "s1")
             }
         }
 }

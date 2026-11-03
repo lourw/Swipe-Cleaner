@@ -9,6 +9,7 @@ import dev.swipe.db.SwipeDatabase
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.model.SessionCounts
 import dev.swipe.domain.model.Stats
 import dev.swipe.fakes.FakeClock
 import dev.swipe.platform.DatabaseDriverFactory
@@ -153,7 +154,7 @@ class SqlStoresTest {
                 assertEquals(emptyList(), awaitItem())
                 store.record("a", Decision.DELETE, "session-1")
                 assertEquals(listOf("a"), awaitItem())
-                store.remove("a")
+                store.remove("a", "session-1")
                 assertEquals(emptyList(), awaitItem())
             }
         }
@@ -183,11 +184,45 @@ class SqlStoresTest {
             decisions.record("queued-1", Decision.DELETE, "session-1")
             decisions.record("skipped-1", Decision.SKIP, "session-1")
 
-            decisions.remove("queued-1")
-            decisions.remove("skipped-1")
+            decisions.remove("queued-1", "session-1")
+            decisions.remove("skipped-1", "session-1")
 
             assertEquals(emptySet(), decisions.decidedIds())
             assertEquals(emptySet(), sessions.skippedIds("session-1"))
+        }
+
+    @Test
+    fun `FR-15 remove clears the skip of its session only`() =
+        runTest {
+            // The resume flow (§6.5 step 1) keeps several sessions alive; undoing a
+            // skip in one must leave the same asset's skip row in another (FR-14).
+            val decisions = SqlDecisionStore(database, clock)
+            val sessions = SqlSessionStore(database, clock)
+            decisions.record("skipped-1", Decision.SKIP, "session-1")
+            decisions.record("skipped-1", Decision.SKIP, "session-2")
+
+            decisions.remove("skipped-1", "session-1")
+
+            assertEquals(emptySet(), sessions.skippedIds("session-1"))
+            assertEquals(setOf("skipped-1"), sessions.skippedIds("session-2"))
+        }
+
+    // ——— FR-21: per-session counts ———
+
+    @Test
+    fun `FR-21 sessionCounts counts this session keeps and queue only`() =
+        runTest {
+            val store = SqlDecisionStore(database, clock)
+            store.record("a", Decision.KEEP, "session-1")
+            store.record("b", Decision.DELETE, "session-1")
+            store.record("c", Decision.SKIP, "session-1") // never in decision (§7)
+            store.record("d", Decision.KEEP, "session-2")
+            store.record("e", Decision.DELETE, "session-1")
+            store.markDeleted(listOf("e")) // DELETED is neither kept nor queued
+
+            assertEquals(SessionCounts(kept = 1, queued = 1), store.sessionCounts("session-1"))
+            assertEquals(SessionCounts(kept = 1, queued = 0), store.sessionCounts("session-2"))
+            assertEquals(SessionCounts(kept = 0, queued = 0), store.sessionCounts("session-3"))
         }
 
     // ——— FR-10: stats from COUNT queries ———

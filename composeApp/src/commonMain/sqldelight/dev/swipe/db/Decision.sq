@@ -51,3 +51,12 @@ countByDecision:
 SELECT decision, COUNT(*) AS total
 FROM decision
 GROUP BY decision;
+
+-- One session's KEEP / pending-DELETE counts (FR-21 summary; resume index correction,
+-- §6.5 step 1). SUM over no rows is NULL, hence the COALESCE.
+sessionCounts:
+SELECT
+  COALESCE(SUM(CASE WHEN decision = 'KEEP' THEN 1 ELSE 0 END), 0) AS kept,
+  COALESCE(SUM(CASE WHEN decision = 'DELETE' THEN 1 ELSE 0 END), 0) AS queued
+FROM decision
+WHERE session_id = ?;

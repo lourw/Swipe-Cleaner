@@ -23,9 +23,12 @@ class FakeSessionSkips {
         state.update { current -> current + (sessionId to (current[sessionId].orEmpty() + assetId)) }
     }
 
-    /** Drop [assetId] from every session, as undo does (FR-15). */
-    fun removeEverywhere(assetId: String) {
-        state.update { current -> current.mapValues { (_, ids) -> ids - assetId } }
+    /** Drop [assetId]'s skip from [sessionId] only, as undo does (FR-15, FR-14). */
+    fun remove(
+        sessionId: String,
+        assetId: String,
+    ) {
+        state.update { current -> current + (sessionId to current[sessionId].orEmpty().minus(assetId)) }
     }
 
     /** Skipped ids of [sessionId] (FR-14). */

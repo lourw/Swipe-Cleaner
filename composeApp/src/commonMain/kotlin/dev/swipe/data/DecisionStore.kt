@@ -1,6 +1,7 @@
 package dev.swipe.data
 
 import dev.swipe.domain.model.Decision
+import dev.swipe.domain.model.SessionCounts
 import dev.swipe.domain.model.Stats
 import kotlinx.coroutines.flow.Flow
 
@@ -25,12 +26,24 @@ interface DecisionStore {
 
     /**
      * Undo (FR-15): removes the row that holds [id] — its `decision` row, or its
-     * `session_skip` row when the last decision was a SKIP.
+     * `session_skip` row *for [sessionId]* when the last decision was a SKIP. The
+     * session narrows the skip side so undoing a skip here never clears the same
+     * asset's skip row in another session (the resume flow, §6.5 step 1).
      */
-    suspend fun remove(id: String)
+    suspend fun remove(
+        id: String,
+        sessionId: String,
+    )
 
     /** Ids with a KEEP or a pending DELETE, which every source subtracts (FR-9). */
     suspend fun decidedIds(): Set<String>
+
+    /**
+     * This session's KEEP / pending-DELETE counts, computed with a `COUNT` query
+     * (§7): the summary numbers (FR-21) and the resume index correction, since a
+     * rebuilt deck subtracts exactly these rows (§6.5 step 1).
+     */
+    suspend fun sessionCounts(sessionId: String): SessionCounts
 
     /**
      * Pending DELETEs, newest decision first (FR-23), re-emitted whenever the queue

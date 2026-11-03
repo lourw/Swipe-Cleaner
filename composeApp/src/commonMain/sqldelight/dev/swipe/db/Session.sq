@@ -54,6 +54,7 @@ insertSkip:
 INSERT OR IGNORE INTO session_skip(session_id, asset_id)
 VALUES (?, ?);
 
--- Undo (FR-15): clear the asset from every session's skips.
-deleteSkipsByAsset:
-DELETE FROM session_skip WHERE asset_id = ?;
+-- Undo (FR-15): clear the asset's skip row for this session only, so undoing a skip
+-- here never clears the same asset's skip in another session (resume flow, §6.5 step 1).
+deleteSkipsForSession:
+DELETE FROM session_skip WHERE session_id = ? AND asset_id = ?;

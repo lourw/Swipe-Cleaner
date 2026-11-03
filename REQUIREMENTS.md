@@ -412,8 +412,9 @@ interface MediaLoader {
 
 interface DecisionStore {
     suspend fun record(id: String, decision: Decision, sessionId: String)  // SKIP goes to session_skip, never to decision (§7)
-    suspend fun remove(id: String)                          // undo; clears the decision or session_skip row
+    suspend fun remove(id: String, sessionId: String)                       // undo; clears the decision row, or this session's session_skip row (FR-14: never another session's skip)
     suspend fun decidedIds(): Set<String>                   // KEEP + pending DELETE
+    suspend fun sessionCounts(sessionId: String): SessionCounts  // this session's KEEP / pending-DELETE COUNTs (FR-21 summary; resume index correction, §6.5 step 1)
     fun deleteQueue(): Flow<List<String>>
     suspend fun markDeleted(ids: List<String>)
     suspend fun clearKeeps()

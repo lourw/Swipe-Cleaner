@@ -2,6 +2,7 @@ package dev.swipe.fakes
 
 import dev.swipe.data.DecisionStore
 import dev.swipe.domain.model.Decision
+import dev.swipe.domain.model.SessionCounts
 import dev.swipe.domain.model.Stats
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,14 +78,17 @@ class FakeDecisionStore(
         }
     }
 
-    override suspend fun remove(id: String) {
+    override suspend fun remove(
+        id: String,
+        sessionId: String,
+    ) {
         removeCalls += id
         failNextRemove?.let {
             failNextRemove = null
             throw it
         }
         rows.update { current -> current.filterNot { it.id == id } }
-        skips.removeEverywhere(id)
+        skips.remove(sessionId, id)
     }
 
     override suspend fun decidedIds(): Set<String> {
@@ -96,6 +100,14 @@ class FakeDecisionStore(
         return rows.value
             .filter { it.decision == Decision.KEEP || it.decision == Decision.DELETE }
             .mapTo(mutableSetOf()) { it.id }
+    }
+
+    override suspend fun sessionCounts(sessionId: String): SessionCounts {
+        val sessionRows = rows.value.filter { it.sessionId == sessionId }
+        return SessionCounts(
+            kept = sessionRows.count { it.decision == Decision.KEEP },
+            queued = sessionRows.count { it.decision == Decision.DELETE },
+        )
     }
 
     override fun deleteQueue(): Flow<List<String>> =

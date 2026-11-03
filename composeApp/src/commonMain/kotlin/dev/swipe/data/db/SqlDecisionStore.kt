@@ -7,6 +7,7 @@ import dev.swipe.db.DecisionQueries
 import dev.swipe.db.SessionQueries
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.domain.model.Decision
+import dev.swipe.domain.model.SessionCounts
 import dev.swipe.domain.model.Stats
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -44,13 +45,17 @@ class SqlDecisionStore(
         }
     }
 
-    override suspend fun remove(id: String) {
+    override suspend fun remove(
+        id: String,
+        sessionId: String,
+    ) {
         withContext(dispatcher) {
             // Undo clears whichever table holds the row (FR-15); one transaction so a
-            // half-applied undo can't leave a ghost behind.
+            // half-applied undo can't leave a ghost behind. The skip side is scoped to
+            // [sessionId] so another session's skip of the same asset survives (§6.5 step 1).
             database.transaction {
                 decisions.deleteById(id)
-                sessions.deleteSkipsByAsset(id)
+                sessions.deleteSkipsForSession(sessionId, id)
             }
         }
     }
@@ -58,6 +63,15 @@ class SqlDecisionStore(
     override suspend fun decidedIds(): Set<String> =
         withContext(dispatcher) {
             decisions.decidedIds().executeAsList().toSet()
+        }
+
+    override suspend fun sessionCounts(sessionId: String): SessionCounts =
+        withContext(dispatcher) {
+            // COALESCE in the query keeps the SUMs non-null, so the generated row is Long.
+            decisions
+                .sessionCounts(sessionId)
+                .executeAsOne()
+                .let { row -> SessionCounts(kept = row.kept.toInt(), queued = row.queued.toInt()) }
         }
 
     override fun deleteQueue(): Flow<List<String>> =
