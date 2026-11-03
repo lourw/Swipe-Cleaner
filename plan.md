@@ -794,7 +794,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 | 2.1 | SwipeCard gestures | M2 | [x] |
 | 2.2 | SwipeViewModel full | M2 | [x] |
 | 2.3 | Swipe screen + summary + haptics | M2 | [x] |
-| 3.1 | CommitDeletions + QueueViewModel | M3 | [ ] |
+| 3.1 | CommitDeletions + QueueViewModel | M3 | [x] |
 | 3.2 | PhotoKit delete + change observer | M3 | [ ] |
 | 3.3 | Queue UI + delete success | M3 | [ ] |
 | 4.1 | VideoPlayer expect/actual | M4 | [ ] |

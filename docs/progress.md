@@ -49,6 +49,32 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
 
+### WP-3.1 (m3-commit-deletions) — verified APPROVE-WITH-MINOR (delete path, max scrutiny), findings fixed, merged 7d07bad
+- CommitDeletionsUseCase + InAppDeleteConfirmation (internal ctor; sole construction site =
+  QueueViewModel.ConfirmDelete; intersection before the ONE delete call; Cancelled/Failed →
+  zero store calls) + PruneQueueUseCase (pages of 20, silent, session "prune") +
+  RestoreFromQueueUseCase (KEEP under "restore"; no schema change — session_id is plain TEXT).
+  QueueViewModel: one StateFlow + sealed intents + Channel events; init prunes then collects
+  deleteQueue() live; double-confirm + empty-queue guards; notificationSuccess in the VM
+  (per plan task 4, not a deviation). 29 tests incl. all three §8.2 safety tests (verifier:
+  all real, pin store state). §6.7/NFR-5 token paragraph landed.
+- Verifier found + we fixed: §6.7/KDoc overclaimed "exactly as the user saw it" (token is the
+  live queue at tap time — reworded to what the code guarantees); restore() had no membership
+  guard (now mirrors open(), tested); dangling test KDoc ref → check-rules guard #5; §7 now
+  documents synthetic "restore"/"prune" session ids.
+- Carried into later briefs:
+  - WP-3.2: confirm the markDeleted-failure retry converges end-to-end (verifier finding 5:
+    PhotoKit succeeded but store write failed → rows still queued → retry re-deletes vanished
+    ids; the planned "zero assets → Deleted without a call" makes it converge); wire
+    changes() → re-prune.
+  - WP-3.3: `Deleted(0)` presentation (currently success haptic + "Deleted 0" screen — render
+    neutral/skip when 0, suppress haptic; add VM test). §5.8 wireframe says "Tap an item to
+    restore it" but FR-24 + VM = tap → full-screen → Restore; render per FR-24 and reconcile
+    the wireframe caption.
+  - WP-6.x: sessionCounts excludes DELETED rows → resumed `reviewedBase` under-reports after a
+    mid-session commit (also logged under WP-2.2). DELETED rows keep session_id, so
+    per-session attribution is possible later.
+
 ### WP-2.3 (m2-swipe-screen) — verified APPROVE-WITH-MINOR, findings fixed, merged 8173e25 — **M2 code-complete**
 - SwipeScreen assembly: TopBar (progress `128 / 2,340` tnum+grouping, queue badge, close),
   ActionBar (undo/delete/skip, tinted), CardMetadata (96 dp scrim, date, duration), EmptyState,
