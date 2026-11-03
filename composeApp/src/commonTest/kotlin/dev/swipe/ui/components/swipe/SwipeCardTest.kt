@@ -16,17 +16,20 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeWithVelocity
 import androidx.compose.ui.test.v2.runComposeUiTest
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.launch
 
 /**
  * The §5.6 gesture end to end on the real [SwipeCard]: drags past each
  * direction's threshold commit on release with no fling (velocity pinned to
- * zero by [swipeWithVelocity]), a short drag snaps back, and Reduce Motion
- * commits through the 150 ms crossfade instead of the 220 ms flight.
+ * zero by [swipeWithVelocity]), a short drag snaps back, the button path
+ * (`flyOff(verdict)`) nudges then commits, and Reduce Motion commits through
+ * the 150 ms crossfade without ever rotating — read through the card's
+ * [RotationZSemanticsPropertyKey] hook, since graphicsLayer transforms are
+ * invisible to semantics otherwise.
  */
 class SwipeCardTest {
     /** Drags the tagged card by fractions of its own size and releases at rest. */
@@ -51,8 +54,12 @@ class SwipeCardTest {
         }
     }
 
+    /** The rotation the card layer actually applies, via the test hook. */
+    private fun SemanticsNodeInteractionsProvider.appliedRotationZ(): Float =
+        onNodeWithTag(CARD_TAG).fetchSemanticsNode().config[RotationZSemanticsPropertyKey]
+
     @Test
-    fun `5-6 drag right past threshold commits keep`() =
+    fun `5-6 drag past threshold commits KEEP`() =
         runComposeUiTest {
             var dismissed: SwipeVerdict? = null
             var crossings = 0
@@ -76,7 +83,7 @@ class SwipeCardTest {
         }
 
     @Test
-    fun `5-6 drag left commits delete`() =
+    fun `5-6 drag left past threshold commits DELETE`() =
         runComposeUiTest {
             var dismissed: SwipeVerdict? = null
             setContent {
@@ -96,7 +103,7 @@ class SwipeCardTest {
         }
 
     @Test
-    fun `5-6 drag up commits skip`() =
+    fun `5-6 drag up past threshold commits SKIP`() =
         runComposeUiTest {
             var dismissed: SwipeVerdict? = null
             setContent {
@@ -116,7 +123,7 @@ class SwipeCardTest {
         }
 
     @Test
-    fun `5-6 short drag snaps back without committing`() =
+    fun `5-6 short drag snaps back without commit`() =
         runComposeUiTest {
             var dismissed: SwipeVerdict? = null
             var crossings = 0
@@ -173,11 +180,42 @@ class SwipeCardTest {
         }
 
     @Test
-    fun `5-6 reduce motion commits with a 150 ms crossfade`() =
+    fun `5-6 card rotates with the drag when motion is on`() =
+        runComposeUiTest {
+            var dismissed: SwipeVerdict? = null
+            mainClock.autoAdvance = false
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    SwipeCard(
+                        onDismiss = { dismissed = it },
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        content = {},
+                    )
+                }
+            }
+            val size = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Half a card width right: the §5.6 ramp is (dx / cardWidth) × 12°
+            // — minus the touch slop the recognizer consumes before the drag
+            // starts, hence the loose tolerance. This also proves the hook
+            // publishes real rotation, so the zero asserts below are honest.
+            onNodeWithTag(CARD_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width / 2f, start.y))
+            }
+            mainClock.advanceTimeBy(32L)
+            assertEquals(MAX_ROTATION_DEG / 2f, appliedRotationZ(), 1f)
+            onNodeWithTag(CARD_TAG).performTouchInput { up() }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            assertEquals(SwipeVerdict.KEEP, dismissed)
+        }
+
+    @Test
+    fun `5-6 reduce motion commits without rotation`() =
         runComposeUiTest {
             var dismissed: SwipeVerdict? = null
             // Drive frames by hand: waitForIdle() with auto-advance would run
-            // the whole crossfade before the mid-animation assertion below.
+            // the whole crossfade before the mid-animation assertions below.
             mainClock.autoAdvance = false
             setContent {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -189,14 +227,28 @@ class SwipeCardTest {
                     )
                 }
             }
-            swipeCard(xFraction = COMMIT_FRACTION_HORIZONTAL + 0.1f, yFraction = 0f)
-            // Process the release and the first frames of the crossfade.
+            val size = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Drag past the 35 % threshold and pause mid-drag: §5.6 Reduce
+            // Motion never rotates, so the applied rotation is 0 even while
+            // the card follows the finger sideways.
+            onNodeWithTag(CARD_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+            }
+            mainClock.advanceTimeBy(32L)
+            assertEquals(0f, appliedRotationZ())
+            onNodeWithTag(CARD_TAG).performTouchInput { up() }
+            // Mid-crossfade: still square, and the commit has not landed.
             mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS / 2L)
             assertNull(dismissed)
+            assertEquals(0f, appliedRotationZ())
             // The crossfade finishes at 150 ms — well before the 220 ms
-            // flight a motion-enabled commit would take.
-            mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS.toLong() + 50L)
+            // flight a motion-enabled commit would take — and the card never
+            // rotated on the way out either.
+            mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS / 2L + 50L)
             assertEquals(SwipeVerdict.KEEP, dismissed)
+            assertEquals(0f, appliedRotationZ())
         }
 
     private companion object {

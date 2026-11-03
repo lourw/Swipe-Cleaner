@@ -28,11 +28,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.toSize
 import dev.swipe.ui.theme.CARD_SHADOW_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+/**
+ * Test hook for §5.6 Reduce Motion: the rotation the card layer actually
+ * applies, published as a semantics property on the card node so
+ * `SwipeCardTest` can assert it stays 0. graphicsLayer transforms are
+ * invisible to semantics; this is the only property the card publishes.
+ */
+internal val RotationZSemanticsPropertyKey = SemanticsPropertyKey<Float>("SwipeCardRotationZ")
 
 /**
  * The full-bleed decision card (§5.7) with the §5.6 gesture stack:
@@ -68,14 +78,19 @@ fun SwipeCard(
 
     val shape = RoundedCornerShape(SwipeTheme.radii.card)
     val activeVerdict = state.committedVerdict ?: if (state.dragging) previewVerdict(state.offset, cardSize) else null
+    // §5.6: rotation is motion; Reduce Motion keeps the card square while it
+    // crossfades out. Hoisted so the semantics hook below publishes exactly
+    // what the layer applies.
+    val appliedRotationZ = if (reduceMotion) 0f else rotationFor(state.offset, cardSize.width)
 
     Box(
         modifier =
-            modifier.onSizeChanged { px ->
-                cardSize = px.toSize()
-                state.cardSize = cardSize
-                state.density = density
-            },
+            modifier
+                .onSizeChanged { px ->
+                    cardSize = px.toSize()
+                    state.cardSize = cardSize
+                    state.density = density
+                }.semantics { set(RotationZSemanticsPropertyKey, appliedRotationZ) },
     ) {
         // The glow sits behind the card, so the card travelling over it
         // reveals the pooled color on the swipe side.
@@ -92,9 +107,7 @@ fun SwipeCard(
                     .graphicsLayer {
                         translationX = state.offset.x
                         translationY = state.offset.y
-                        // §5.6: rotation is motion; Reduce Motion keeps the card
-                        // square while it crossfades out.
-                        rotationZ = if (reduceMotion) 0f else rotationFor(state.offset, cardSize.width)
+                        rotationZ = appliedRotationZ
                         transformOrigin = DRAG_TRANSFORM_ORIGIN
                         alpha = state.alpha
                     }.shadow(
@@ -104,7 +117,7 @@ fun SwipeCard(
                         ambientColor = Color.Black.copy(alpha = CARD_SHADOW_ALPHA),
                         spotColor = Color.Black.copy(alpha = CARD_SHADOW_ALPHA),
                     ).clip(shape)
-                    .background(SwipeTheme.colors.surfaceRaised)
+                    .background(SwipeTheme.colors.bg)
                     .combinedClickable(
                         onClick = onTap,
                         onDoubleClick = onDoubleTap,
