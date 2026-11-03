@@ -19,8 +19,10 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.toKotlinInstant
@@ -32,8 +34,11 @@ import platform.Photos.PHAsset
 import platform.Photos.PHAssetChangeRequest
 import platform.Photos.PHAssetMediaTypeImage
 import platform.Photos.PHAssetMediaTypeVideo
+import platform.Photos.PHChange
 import platform.Photos.PHFetchOptions
 import platform.Photos.PHPhotoLibrary
+import platform.Photos.PHPhotoLibraryChangeObserverProtocol
+import platform.darwin.NSObject
 import kotlin.coroutines.resume
 import kotlin.math.roundToLong
 
@@ -165,8 +170,22 @@ class PhotoKitMediaLibrary(
             }
         }
 
-    /** The change observer arrives with WP-3.2 (FR-28); quiet until then. */
-    override fun changes(): Flow<Unit> = emptyFlow()
+    /**
+     * The library change observer (FR-28, §6.8): a cold Flow that registers a
+     * `PHPhotoLibraryChangeObserver` when the first collector arrives and
+     * unregisters it in `awaitClose`, so cancelling the collector detaches the
+     * observer (NFR-7). PhotoKit delivers `photoLibraryDidChange` on a queue of
+     * its own; every delivery emits one `Unit` and the Flow is conflated, so a
+     * busy library can never pile up work behind a slow consumer — each
+     * consumer re-reads what it needs (the queue prune, the limited count).
+     */
+    override fun changes(): Flow<Unit> =
+        callbackFlow {
+            val photoLibrary = PHPhotoLibrary.sharedPhotoLibrary()
+            val observer = LibraryChangeObserver { trySend(Unit) }
+            photoLibrary.registerChangeObserver(observer)
+            awaitClose { photoLibrary.unregisterChangeObserver(observer) }
+        }.conflate()
 
     /** The cheap candidate scan arrives with WP-5.1 (FR-6); empty until then. */
     override suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey> = emptyList()
@@ -198,5 +217,19 @@ class PhotoKitMediaLibrary(
 
         /** NSTimeInterval (seconds) → milliseconds. */
         const val MS_PER_SECOND = 1000.0
+    }
+}
+
+/**
+ * Kotlin/Native `NSObject` conforming to `PHPhotoLibraryChangeObserver` (§6.8):
+ * PhotoKit calls `photoLibraryDidChange` on its own queue whenever the library
+ * changes; every call forwards one tick to the [changes] Flow.
+ */
+private class LibraryChangeObserver(
+    private val onChange: () -> Unit,
+) : NSObject(),
+    PHPhotoLibraryChangeObserverProtocol {
+    override fun photoLibraryDidChange(changeInstance: PHChange) {
+        onChange()
     }
 }
