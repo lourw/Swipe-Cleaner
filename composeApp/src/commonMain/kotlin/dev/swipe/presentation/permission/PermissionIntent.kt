@@ -15,8 +15,8 @@ sealed interface PermissionIntent {
 
     /**
      * The app came to the foreground: re-read authorization and the FR-2 count.
-     * Covers grants and revocations made in Settings and limited-library edits;
-     * the count refresh moves onto `MediaLibrary.changes()` in WP-3.2.
+     * Covers grants and revocations made in Settings; since WP-3.2 in-app
+     * limited-library edits also refresh through `MediaLibrary.changes()`.
      */
     data object Recheck : PermissionIntent
 }

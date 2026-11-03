@@ -167,6 +167,35 @@ class PermissionViewModelTest {
             assertEquals(1, actions.presentLimitedLibraryPickerCalls)
         }
 
+    @Test
+    fun `FR-2 a library change refreshes the limited banner count`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(3), access = LibraryAccess.LIMITED)
+            val settings = FakeSettingsStore()
+            settings.setOnboardingSeen(true)
+
+            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+
+            viewModel.uiState.test {
+                awaitItem() // splash
+                assertEquals(3, awaitItem().limitedCount)
+
+                // The user adds items in the system limited-library picker: the
+                // library changes and PhotoKit fires its observer (WP-3.2).
+                library.items.addAll(photoItems(2).map { it.copy(id = "extra-${it.id}") })
+                library.notifyChange()
+
+                val refreshed = awaitItem()
+                assertEquals(5, refreshed.limitedCount)
+                assertEquals(PermissionScreen.HOME, refreshed.startScreen)
+            }
+            // Both counts came from ids-only fetches (NFR-4).
+            val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> =
+                listOf(DeckSource.All to MediaTypeFilter.ALL, DeckSource.All to MediaTypeFilter.ALL)
+            assertEquals(expectedCalls, library.assetIdsCalls)
+        }
+
     private fun photoItems(count: Int): List<MediaItem> =
         (1..count).map { index ->
             MediaItem(

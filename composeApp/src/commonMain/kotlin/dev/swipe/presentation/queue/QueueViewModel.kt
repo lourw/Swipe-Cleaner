@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
+import dev.swipe.data.MediaLibrary
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.CommitOutcome
 import dev.swipe.domain.usecase.InAppDeleteConfirmation
@@ -25,8 +26,9 @@ import kotlinx.coroutines.launch
  *
  * **Queue** (FR-23, FR-28): [items] mirrors [DecisionStore.deleteQueue] — newest
  * decision first — re-emitted live. On load [PruneQueueUseCase] first drops ids
- * PhotoKit no longer returns, silently. (WP-3.2 re-runs the prune on each
- * `MediaLibrary.changes()` emission.)
+ * PhotoKit no longer returns, silently, and every `MediaLibrary.changes()`
+ * emission re-runs the prune (WP-3.2), so an asset deleted in the Photos app
+ * disappears without an app restart.
  *
  * **Restore** (FR-24): [QueueIntent.Restore] records KEEP via
  * [RestoreFromQueueUseCase]; the queue flow drops the row, and an open viewer for
@@ -48,6 +50,7 @@ class QueueViewModel(
     private val pruneQueue: PruneQueueUseCase,
     private val restoreFromQueue: RestoreFromQueueUseCase,
     private val decisions: DecisionStore,
+    private val mediaLibrary: MediaLibrary,
     private val haptics: Haptics,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(QueueUiState())
@@ -78,6 +81,24 @@ class QueueViewModel(
             // FR-23: the newest-first order is the store's query, live.
             decisions.deleteQueue().collect { ids ->
                 _uiState.update { it.copy(items = ids) }
+            }
+        }
+        // FR-28 (WP-3.2): queued assets can vanish outside the app — deleted in
+        // Photos, or lost with an iCloud library change. Every `changes()`
+        // emission re-runs the silent prune so the list converges without a
+        // restart. While a commit runs the queue belongs to it (FR-25): pruning
+        // mid-batch would race the `markDeleted` write, so those emissions are
+        // skipped — the next one or the next load prunes again anyway.
+        viewModelScope.launch {
+            mediaLibrary.changes().collect {
+                if (_uiState.value.deleting) return@collect
+                try {
+                    pruneQueue()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation // ViewModel teardown, not a failed prune
+                } catch (_: Exception) {
+                    // FR-28 keeps pruning silent; the next change retries.
+                }
             }
         }
     }

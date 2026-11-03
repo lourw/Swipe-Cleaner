@@ -72,6 +72,7 @@ val commonModule: Module =
                 pruneQueue = get(),
                 restoreFromQueue = get(),
                 decisions = get(),
+                mediaLibrary = get(),
                 haptics = get(),
             )
         }

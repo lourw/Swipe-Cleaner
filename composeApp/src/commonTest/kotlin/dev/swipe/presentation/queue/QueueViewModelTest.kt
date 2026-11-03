@@ -471,6 +471,84 @@ class QueueViewModelTest {
             assertTrue(f.library.deleteCalls.isEmpty())
         }
 
+    @Test
+    fun `FR-28 a library change prunes a queued asset deleted elsewhere`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3).start()
+
+            f.viewModel.uiState.test {
+                awaitQueueReady()
+
+                // asset-2 dies in the Photos app while this screen is open: the
+                // asset leaves the library and `changes()` fires (WP-3.2).
+                f.library.items.removeAll { it.id == "asset-2" }
+                f.library.notifyChange()
+
+                // No restart, no interaction: the row disappears on its own.
+                val after = awaitItem()
+                assertEquals(listOf("asset-3", "asset-1"), after.items)
+            }
+            // Silently out of the store too, exactly like the load prune (FR-28).
+            assertEquals(listOf("asset-2"), f.store.removeCalls)
+            assertEquals(listOf("asset-3", "asset-1"), f.store.deleteQueue().first())
+            assertTrue(f.library.deleteCalls.isEmpty())
+        }
+
+    @Test
+    fun `FR-28 a failing prune on a library change stays silent and retries next change`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2).start()
+            f.library.items.removeAll { it.id == "asset-1" } // gone, but the probe fails
+            f.library.failNextItems = IllegalStateException("PhotoKit busy")
+
+            f.viewModel.events.test {
+                val eventTurbine = this
+                f.viewModel.uiState.test {
+                    awaitQueueReady()
+
+                    f.library.notifyChange()
+                    expectNoEvents() // FR-28 keeps pruning silent…
+                    assertEquals(2, f.viewModel.uiState.value.items.size) // …and the row stays
+
+                    // The next change retries and succeeds.
+                    f.library.notifyChange()
+                    val after = awaitItem()
+                    assertEquals(listOf("asset-2"), after.items)
+                }
+                eventTurbine.expectNoEvents()
+            }
+            assertEquals(listOf("asset-1"), f.store.removeCalls)
+        }
+
+    @Test
+    fun `6-7 a library change during a commit does not prune the batch mid-flight`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2).start()
+            advanceUntilIdle()
+
+            // The commit owns the queue (FR-25): a change arriving while the
+            // batch is between PhotoKit and markDeleted must not prune those
+            // rows away before they can be marked DELETED.
+            f.library.nextDeleteResult = DeleteResult.Deleted
+            f.viewModel.onIntent(QueueIntent.RequestDelete)
+            f.viewModel.onIntent(QueueIntent.ConfirmDelete)
+            // The first change lands while deleting is already true.
+            f.library.notifyChange()
+            advanceUntilIdle()
+            // A late second change, after the commit settled, prunes normally —
+            // but the batch rows are DELETED by now, so nothing is left to prune.
+            f.library.notifyChange()
+            advanceUntilIdle()
+
+            val state = f.viewModel.uiState.value
+            assertEquals(QueueDeleteResult.Deleted(2), state.result)
+            assertEquals(listOf(listOf("asset-2", "asset-1")), f.store.markDeletedCalls)
+            assertTrue(f.store.removeCalls.isEmpty())
+        }
+
     /** Consume the initial (pre-queue) emission and return the first queue-built state. */
     private suspend fun ReceiveTurbine<QueueUiState>.awaitQueueReady(): QueueUiState {
         awaitItem()
@@ -516,6 +594,7 @@ class QueueViewModelTest {
                     pruneQueue = PruneQueueUseCase(library, store),
                     restoreFromQueue = RestoreFromQueueUseCase(store),
                     decisions = store,
+                    mediaLibrary = library,
                     haptics = haptics,
                 )
             return this

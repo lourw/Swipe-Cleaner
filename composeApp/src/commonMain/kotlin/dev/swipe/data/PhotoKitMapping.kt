@@ -72,7 +72,8 @@ fun photoKitLibraryAccess(status: Int): LibraryAccess =
     }
 
 /**
- * The `performChanges` completion handler's outcome → [DeleteResult] (FR-25–27, §6.7):
+ * The PhotoKit change-request completion handler's outcome → [DeleteResult]
+ * (FR-25–27, §6.7):
  * success → [DeleteResult.Deleted]; the error PhotoKit raises when the user dismisses
  * the iOS delete dialog — domain [PH_ERROR_DOMAIN] with code 3072,
  * `PHPhotosErrorUserCancelled` — → [DeleteResult.Cancelled], silent per FR-27; anything

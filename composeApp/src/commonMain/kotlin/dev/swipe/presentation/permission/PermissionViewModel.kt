@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
  * The permission flow (FR-1–3, §5.8 screen map). Reads the current authorization on
  * start, shows the onboarding screen before the first request, routes FULL and
  * LIMITED to Home and DENIED to the blocking screen, and re-reads whenever the app
- * comes to the foreground (WP-1.7 task 1).
+ * comes to the foreground (WP-1.7 task 1) or the library changes (WP-3.2), which is
+ * what keeps the FR-2 limited-access count honest while Home is on screen.
  */
 class PermissionViewModel(
     private val mediaLibrary: MediaLibrary,
@@ -32,6 +33,12 @@ class PermissionViewModel(
 
     init {
         checkAccess()
+        // WP-3.2: limited-library edits (adding or removing items in the system
+        // picker) fire `changes()`; re-running [checkAccess] refreshes the FR-2
+        // banner count without waiting for a resume.
+        viewModelScope.launch {
+            mediaLibrary.changes().collect { checkAccess() }
+        }
     }
 
     /** The one entry point for user and lifecycle actions (AGENTS.md ViewModel convention). */
@@ -69,7 +76,7 @@ class PermissionViewModel(
      * shows the onboarding screen — it is the only screen that can fire the system
      * prompt. FULL or LIMITED shows Home once onboarding was seen (FR-1 returning
      * user), LIMITED also counts the accessible items for the banner (FR-2) with an
-     * ids-only fetch (NFR-4); the count refresh moves onto `changes()` in WP-3.2.
+     * ids-only fetch (NFR-4), re-run on every `changes()` emission (WP-3.2).
      */
     private suspend fun publish(access: LibraryAccess) {
         val screen =
