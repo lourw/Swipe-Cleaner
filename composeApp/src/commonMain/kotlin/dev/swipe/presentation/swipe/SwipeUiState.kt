@@ -17,7 +17,7 @@ data class SwipeUiState(
     val progress: Progress = Progress(reviewed = 0, total = 0),
     /** Size of the pending-delete queue, from [dev.swipe.data.DecisionStore.deleteQueue] (FR-10, FR-23). */
     val queueCount: Int = 0,
-    /** Undo affordance; the undo stack arrives with WP-2.2 (FR-15). */
+    /** Whether the in-memory undo stack (max 50, FR-15) has an entry to undo. */
     val canUndo: Boolean = false,
     /** Video mute state, remembered for the session (FR-16); videos start muted. */
     val muted: Boolean = true,
@@ -26,9 +26,10 @@ data class SwipeUiState(
     /** Session summary once the deck runs out (FR-21); set with the final decision. */
     val finished: SessionSummary? = null,
     /**
-     * Increments every time a failed decision write sends the card back (NFR-7).
-     * One-shot events ride on state fields the composable watches for changes
-     * (§6.6); the card plays its return animation on each change.
+     * Increments every time a failed decision write sends the card back (NFR-7);
+     * the card plays its return animation on each change. The sole exception to
+     * the Channel-based one-shot event policy of §6.6, kept here because the
+     * revert must pair with the [toast] that is already state.
      */
     val revertToken: Long = 0L,
     /**

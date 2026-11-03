@@ -73,7 +73,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-12** Right swipe or the Keep button records `KEEP` and advances to the next item.
 - **FR-13** Left swipe or the Delete button records `DELETE` (queued, not yet deleted) and advances.
 - **FR-14** Up swipe or the Skip button records `SKIP` for this session only. The item can appear in later sessions.
-- **FR-15** **Undo** reverts the last decision and brings the card back. The undo stack holds up to 50 steps per session.
+- **FR-15** **Undo** reverts the last decision and brings the card back. The undo stack holds up to 50 steps per session. The stack is in-memory only: after process death the resumed session starts with an empty undo stack.
 - **FR-16** Videos autoplay muted and loop. Tapping the video toggles sound, and the mute state is remembered for the session. A scrubber shows progress.
 - **FR-17** Long-press on a Live Photo plays its motion.
 - **FR-18** The card shows metadata: date, and the duration for videos. A badge marks Live Photos, iCloud items, and favorites.
