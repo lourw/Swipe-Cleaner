@@ -44,6 +44,7 @@ val commonModule: Module =
                 typeFilter = params.get(),
                 buildDeck = get(),
                 recordDecision = get(),
+                undoDecision = get(),
                 mediaLibrary = get(),
                 mediaLoader = get(),
                 decisions = get(),

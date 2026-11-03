@@ -27,8 +27,11 @@ class BuildDeckUseCase(
 ) {
     /**
      * The deck for [source] narrowed by [typeFilter] (FR-5). [seed] drives the shuffle
-     * of [DeckSource.All] and is ignored by every other source. Decided ids are
-     * subtracted before ordering, so grouping and shuffling see only fresh items.
+     * of [DeckSource.All] and is ignored by every other source. [DeckSource.All]
+     * shuffles the *full* id list before decided ids are subtracted, so the seeded
+     * order survives decisions: a rebuild with the same seed lands on the same order
+     * minus the decided items, which is what resume needs to reopen a session on the
+     * same card (FR-20). Other sources subtract before ordering.
      */
     suspend operator fun invoke(
         source: DeckSource,
@@ -36,19 +39,18 @@ class BuildDeckUseCase(
         seed: Long,
     ): List<String> {
         val decided = decisions.decidedIds()
-        val deck =
-            if (source.isLikelyDuplicates) {
-                val candidates =
-                    library
-                        .duplicateCandidates(typeFilter)
-                        .filterNot { it.id in decided }
-                DuplicateGrouper.group(candidates)
-            } else {
+        if (source.isLikelyDuplicates) {
+            val candidates =
                 library
-                    .assetIds(source, typeFilter)
-                    .filterNot { it in decided }
-            }
-        return if (source == DeckSource.All) deck.shuffled(Random(seed)) else deck
+                    .duplicateCandidates(typeFilter)
+                    .filterNot { it.id in decided }
+            return DuplicateGrouper.group(candidates)
+        }
+        val ids = library.assetIds(source, typeFilter)
+        // Shuffle first, subtract second (see the doc): filtering first would change
+        // the permutation as rows accumulate and break resume's order (FR-20).
+        val ordered = if (source == DeckSource.All) ids.shuffled(Random(seed)) else ids
+        return ordered.filterNot { it in decided }
     }
 
     private val DeckSource.isLikelyDuplicates: Boolean

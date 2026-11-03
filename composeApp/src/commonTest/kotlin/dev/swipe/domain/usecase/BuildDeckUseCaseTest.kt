@@ -98,6 +98,27 @@ class BuildDeckUseCaseTest {
         }
 
     @Test
+    fun `6-5 seeded order survives decided subtraction`() =
+        runTest {
+            // The shuffle runs on the full id list before decided items are subtracted,
+            // so a rebuild mid-session keeps the same relative order — what resume
+            // needs to reopen a session on the same card (FR-20).
+            val library = FakeMediaLibrary((0L until 10L).map { photo("p$it", it) })
+            val store = FakeDecisionStore()
+            val build = BuildDeckUseCase(library, store)
+
+            val full = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+            val first = full[2]
+            val second = full[5]
+            store.record(first, Decision.KEEP, "session-1")
+            store.record(second, Decision.DELETE, "session-1")
+
+            val rebuilt = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+
+            assertEquals(full.filterNot { it == first || it == second }, rebuilt)
+        }
+
+    @Test
     fun `FR-6 long videos are longest first`() =
         runTest {
             // The library returns this source pre-sorted duration-descending (§6.5);

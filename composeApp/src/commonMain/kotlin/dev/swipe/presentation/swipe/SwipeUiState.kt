@@ -23,7 +23,7 @@ data class SwipeUiState(
     val muted: Boolean = true,
     /** Transient message above the cards ([ToastMessage]); null when none. */
     val toast: ToastMessage? = null,
-    /** Session summary once the deck runs out (FR-21); built by WP-2.2. */
+    /** Session summary once the deck runs out (FR-21); set with the final decision. */
     val finished: SessionSummary? = null,
     /**
      * Increments every time a failed decision write sends the card back (NFR-7).
@@ -31,13 +31,33 @@ data class SwipeUiState(
      * (§6.6); the card plays its return animation on each change.
      */
     val revertToken: Long = 0L,
+    /**
+     * Id of the favorite whose Delete is awaiting confirmation ([ToastMessage.FavoriteConfirm],
+     * FR-22); null when none. Set instead of recording, cleared by
+     * [SwipeIntent.ConfirmFavoriteDelete]'s advance or [SwipeIntent.DismissToast].
+     */
+    val pendingFavoriteDelete: String? = null,
 )
 
 /**
- * One-shot message shown by the §5.7 Toast in [SwipeUiState.toast]. WP-2.2 adds the
- * "Undone" message (FR-15) and the favorite confirm (FR-22).
+ * One-shot message shown by the §5.7 Toast in [SwipeUiState.toast].
  */
 sealed interface ToastMessage {
     /** NFR-7: the decision write failed, so the card was reverted and stays put. */
     data object SaveFailed : ToastMessage
+
+    /** FR-15: an undo succeeded; the card is coming back ("Undone"). */
+    data object Undone : ToastMessage
+
+    /**
+     * FR-22: "This is a favorite — delete anyway?" with a Delete action; while it is
+     * up, [SwipeUiState.pendingFavoriteDelete] holds the id. Warning style (WP-2.3).
+     */
+    data object FavoriteConfirm : ToastMessage
+
+    /**
+     * The session could not be opened or resumed and the deck could not be built
+     * (§6.5 step 1 failed): the screen stays empty instead of crashing.
+     */
+    data object StartFailed : ToastMessage
 }
