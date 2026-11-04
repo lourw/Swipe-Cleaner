@@ -39,7 +39,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
-| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 MERGED (7d07bad) · 3.2 MERGED (b239d2d) · 4.1 next |
+| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 (7d07bad) · 3.2 (b239d2d) · 4.1 (21fcfda) MERGED · 5.1 next |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
 | J | 6.2 Accessibility (6.1) | pending |
@@ -48,6 +48,38 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-4.1 (m4-video-player) — verified APPROVE-WITH-MINOR, findings fixed, merged 21fcfda
+- First dispatch completed the code (7 commits) but was cancelled mid-evidence; a finisher
+  session ran the simulator proof and stripped its driver. VideoPlayer expect/actual (the ONE
+  sanctioned expect — check-rules.sh now guards it, incl. `internal expect` after this fix),
+  iosMain VideoPlayerView (UIKitView + AVPlayerLayer sublayer; layerClass not overridable
+  through K/N — documented deviation), VideoItemCache (deferred-as-entry, mutex, networkAccess
+  per includeCloudOnly), VideoPreloader interface + FakeVideoPreloader, SwipeViewModel
+  preloads the current+3 window alongside images (folded into refreshPrefetch for detekt).
+- **Loop deviation:** AVPlayerLooper never queues a copy through K/N interop on iOS 26.5 →
+  plain AVPlayer + end-of-item notification seek-to-zero; progress = currentTime modulo
+  duration; §6.4 + expect KDoc updated to match. Live Photo = play once, no loop, paired
+  resource → temp file.
+- Verifier: 4/4 mutations killed (preload, cancel, duration guard, name escape); threading
+  clean; evidence judged sound (5 loop wraps prove the notification fired). Fixed pre-merge:
+  **requestPlayerItemForVideo DOES return a cancellable PHImageRequestID** (compile-probed) —
+  now retained + cancelImageRequest on cancel (stops in-flight iCloud video downloads);
+  Live Photo temp entries ref-counted so a re-mount racing a release keeps its file
+  (WP-4.2 long-press prerequisite) + failed exports delete partial files; livePhotoTempFileName
+  made actually injective (fixed-width hex escapes; old doubling collided on `a//b` vs `a_b`);
+  expect KDoc onProgress-for-Live-Photos contradiction; stale looper comment; 9a1d1a3
+  message amended to carry FR-16 (local-only rebase).
+- Carried into later briefs:
+  - WP-4.2: mount gated on SwipeCardState.isIdle (R2 — poster while dragging); autoplayVideos
+    caller-side (poster + tap affordance); scrubber from onProgress (Live Photos DO fire
+    progress — just show no scrubber there); the temp-file refcount fix landed, long-press
+    re-mount is safe now; consider resume-at-end seek (pause racing the end notification);
+    add 👤 cloud-only Live Photo check alongside the cloud-video one.
+  - WP-6.3: VideoItemCache has no internal eviction (caller-discipline bound; KDoc notes the
+    deferral) — add LRU/window-only eviction.
+- 👤 open: Live Photo seeding + playback on device (addmedia can't seed Live Photos); R2
+  visual confirmation at rest vs dragging (WP-4.2).
 
 ### WP-3.3 (m3-queue-ui) — verified APPROVE-WITH-MINOR, findings fixed, merged dfc92e2 — **M3 code-complete**
 - QueueScreen (header "To delete (N)", hint, 3-col LazyVerticalGrid, pinned destructive CTA +
