@@ -40,14 +40,53 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
-| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** · 4.2 MERGED (07c9c3d) — **M4 code-complete** · 5.2 next |
-| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
+| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
+| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | 5.3 next |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-5.2 (m5-home-viewmodel) — verified APPROVE-WITH-MINOR, findings 1–5 + nits fixed, merged c5c2faa — **Wave H complete**
+- `LoadSourcesUseCase(type)` progressive ladder: `albums()` estimates → ids-only Shuffle →
+  `smartCounts(type)` (Bursts/Dupes full passes land last) → lazy FR-9 refine (Shuffle, smart rows
+  one at a time, albums batched). Refine uses the deck's own path: Likely Duplicates subtracts
+  decided **before** grouping (`duplicateCandidates` + `DuplicateGrouper`) — the old
+  membership-minus-decided proved `refined 1 / deck 0` on mixed twin groups (fix test pins it).
+  Album estimates are ALWAYS refined (`estimatedAssetCount` can report 0 for a non-empty album;
+  new fake seam `nextAlbumsEstimate`). `SourceCounts` carries exactness flags;
+  `HomeViewModel.exactRows` mask keeps refined numbers on screen across `changes()` re-runs — no
+  exact→estimate→exact flicker. Filter switch clears every count (album rows lose the number, keep
+  identity; FR-5 "never stale under a new label"). One reload collector: `MutableSharedFlow(replay=1)`
+  + `flatMapLatest` (startup/filter/changes one path; back-to-back refresh requests coalesce).
+  `HomeUiState`: `typeFilter`, `shuffleCount: Int?`, `smartRows` (always 5, §5.8 order),
+  `albumRows: List<HomeAlbumRow>` (id/title/coverAssetId/count?), `stats`, `queueCount`, `access`.
+  Events over `Channel(UNLIMITED)`: `OpenDeck(source, typeFilter)` / `OpenQueue` / `OpenSettings`
+  (public `events` + `trySend`, QueueViewModel convention). §6.5 "Home counts" paragraph documents
+  the ladder. 262 tests; new: duplicates-deck equality, zero-estimate refine, no-flicker refresh;
+  FR-5 test now observes the placeholder clear (was mutation-survivable), months-never covers the
+  filter reload. Mutation-checked: album-clear, mask, duplicates special-case each killed by exactly
+  its test.
+- Deviations: `HomeIntent.SetTypeFilter` KDoc claims "persists across launches" — store NOT wired
+  yet; WP-5.3 must wire SettingsStore or drop the claim. `HomeUiState.albumRows` is a Home row
+  model (nullable count), not `AlbumSource`.
+- Carried into later briefs:
+  - WP-5.3: render null counts as em dashes (NFR-4); banners — To-Delete iff `queueCount > 0`
+    (tap → `OpenQueue`), limited-access iff `access == LIMITED` (FR-2, limited first; item count
+    text owned by PermissionViewModel); wire `HomeViewModel.events` into the nav host with the
+    CURRENT `typeFilter` from `OpenDeck`; cover thumbs via `HomeAlbumRow.coverAssetId` +
+    `MediaLoader.image(id, 40dp×scale)` (small-target LRU bypass, §6.4); Months screen calls
+    `library.months(type)` itself (Home state deliberately carries nothing); row titles/§5.8 order
+    from `smartRows`; `HomeIntent.SetTypeFilter` persistence across launches must be wired (or the
+    KDoc claim dropped).
+  - WP-6.3: one refresh+refine cycle ≈ **7 whole-library enumerations** at 50k default Home
+    (All-ids; Bursts + Dupes inside `smartCounts`; refine re-runs Bursts ids, Dupes candidates,
+    Screenshots predicate, LongVideos duration sort — Bursts and Dupes pay 2 full passes each per
+    cycle). Every `changes()` tick restarts the ladder (in-flight work lost). Reuse ideas: shuffle
+    already holds its id list; streaming per-filter `smartCounts` could feed refine; album refine
+    adds one collection fetch per album per cycle.
 
 ### WP-4.2 (m4-video-ux) — verified APPROVE-WITH-MINOR, findings fixed, merged 07c9c3d — **M4 code-complete**
 - Tap matrix (chrome tap = mute on video cards / play-pause when autoplay-off started, session-level
