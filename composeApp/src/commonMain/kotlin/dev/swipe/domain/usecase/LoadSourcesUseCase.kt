@@ -25,11 +25,21 @@ import kotlinx.coroutines.flow.flow
  * - [albums]: the [AlbumSource] rows first with PhotoKit's cheap estimate counts
  *   (FR-8, NFR-4), each row converging to the exact FR-9 count for the current
  *   filter as it is refined; null until the fetch answers.
+ *
+ * The `*xact*` fields tag which values are already the FR-9-exact count, so a
+ * consumer re-running this flow (a `changes()` refresh) can keep its refined
+ * numbers on screen while the new run's raw estimates stream in (§6.5).
  */
 data class SourceCounts(
     val shuffleCount: Int? = null,
+    /** True once [shuffleCount] is the FR-9-exact count, not the raw fetch size. */
+    val shuffleExact: Boolean = false,
     val smartCounts: Map<SmartFilter, Int> = emptyMap(),
+    /** Filters whose [smartCounts] value is FR-9-exact. */
+    val exactSmart: Set<SmartFilter> = emptySet(),
     val albums: List<AlbumSource>? = null,
+    /** Album ids whose [albums] row count is FR-9-exact. */
+    val exactAlbumIds: Set<String> = emptySet(),
 )
 
 /**
@@ -44,13 +54,14 @@ data class SourceCounts(
  * every count starts as a placeholder until its source answers.
  *
  * **FR-9 exclusion** runs afterwards, lazily, row by row: `decidedIds()` is read
- * once, then each row's own membership is re-fetched with the same ids-only
- * `assetIds(source, type)` the deck would run and counted minus the decided set,
- * one emission per refined row. That makes every count exact and equal to the deck
- * size the row opens. Bursts and Likely Duplicates therefore pay a second
- * full-library pass *after* the placeholder is already on screen (§6.5); a row
- * whose refinement fetch fails keeps its raw count, and the next `changes()`
- * refresh retries.
+ * once, then each row is counted with the deck's own path minus the decided set,
+ * one emission per refinement wave whose number actually moves. Likely Duplicates
+ * refines through [MediaLibrary.duplicateCandidates] + [DuplicateGrouper] — decided
+ * subtracted **before** grouping, exactly like [BuildDeckUseCase] — because a twin
+ * whose partner is decided leaves the deck, and membership-minus-decided would
+ * over-report it. Bursts therefore pay a second full-library pass *after* the
+ * placeholder is already on screen (§6.5); a row whose refinement fetch fails keeps
+ * its raw count, and the next `changes()` refresh retries.
  *
  * A failed fetch never kills the Flow — the row simply keeps its placeholder until
  * the next refresh (the caller re-runs this use case on every
@@ -94,11 +105,12 @@ class LoadSourcesUseCase(
         }
 
     /**
-     * Phase 4 of [invoke]: re-fetch each non-empty row with the deck's own
-     * `assetIds(source, type)` and emit the membership-minus-decided count, one
-     * emission per row whose number actually moves — a refinement that agrees
-     * with the placeholder is not a new screen state (NFR-4). Album estimates
-     * converge even with nothing decided, because the estimate ignores [type].
+     * Phase 4 of [invoke]: count each non-empty row with the deck's own path minus
+     * the decided set and emit the result, one emission per refinement wave whose
+     * number actually moves — a refinement that agrees with the placeholder is not
+     * a new screen state (NFR-4). Album estimates always converge, even with
+     * nothing decided: the estimate ignores [type] and can even report 0 for a
+     * non-empty album (Apple documents `estimatedAssetCount` as approximate).
      */
     private suspend fun FlowCollector<SourceCounts>.refineRows(
         counts: SourceCounts,
@@ -106,55 +118,107 @@ class LoadSourcesUseCase(
         type: MediaTypeFilter,
         decided: Set<String>,
     ) {
+        var current = refineShuffle(counts, allIds, decided)
+        current = refineSmart(current, type, decided)
+        refineAlbums(current, type, decided)
+    }
+
+    /** FR-9-exact Shuffle count; emits only when the refinement moves the number. */
+    private suspend fun FlowCollector<SourceCounts>.refineShuffle(
+        counts: SourceCounts,
+        allIds: List<String>?,
+        decided: Set<String>,
+    ): SourceCounts {
+        if (allIds == null || counts.shuffleCount == null) return counts
+        val refined = exact(allIds, decided)
+        val moved = counts.shuffleCount != refined
+        val current = counts.copy(shuffleCount = refined, shuffleExact = true)
+        if (moved) emit(current)
+        return current
+    }
+
+    /**
+     * FR-9-exact smart counts, one emission per row whose number moves. A raw
+     * count of 0 means the source is empty, so the exact count is 0 too — no
+     * second full pass to buy for it (§6.5).
+     */
+    private suspend fun FlowCollector<SourceCounts>.refineSmart(
+        counts: SourceCounts,
+        type: MediaTypeFilter,
+        decided: Set<String>,
+    ): SourceCounts {
         var current = counts
-        if (allIds != null && current.shuffleCount != null) {
-            val refined = exact(allIds, decided)
-            if (current.shuffleCount != refined) {
-                current = current.copy(shuffleCount = refined)
-                emit(current)
-            }
-        }
         for (kind in SmartFilter.entries) {
-            // A raw count of 0 means the source is empty, so the exact count is 0
-            // too — no second full pass to buy for it (§6.5).
             val raw = current.smartCounts[kind]
             if (raw != null && raw > 0) {
-                val ids = attempt { library.assetIds(DeckSource.Smart(kind), type) }
-                if (ids != null) {
-                    val refined = exact(ids, decided)
-                    if (current.smartCounts[kind] != refined) {
-                        current = current.copy(smartCounts = current.smartCounts + (kind to refined))
-                        emit(current)
-                    }
+                val refined = attempt { exactSmartCount(kind, type, decided) }
+                if (refined != null) {
+                    val moved = current.smartCounts[kind] != refined
+                    current =
+                        current.copy(
+                            smartCounts = current.smartCounts + (kind to refined),
+                            exactSmart = current.exactSmart + kind,
+                        )
+                    if (moved) emit(current)
                 }
             }
         }
-        val albumsNow = current.albums
-        if (albumsNow != null && albumsNow.isNotEmpty()) {
-            val refinedAlbums = albumsNow.map { album -> refineAlbum(album, type, decided) }
-            if (refinedAlbums != albumsNow) {
-                current = current.copy(albums = refinedAlbums)
+        return current
+    }
+
+    /**
+     * FR-9 + FR-5-exact album counts, fetched even at a 0 estimate — only the
+     * fetch proves membership for [type] (§6.5) — emitted as one batch when any
+     * row moves; a failed fetch keeps that row's estimate for the next refresh.
+     */
+    private suspend fun FlowCollector<SourceCounts>.refineAlbums(
+        counts: SourceCounts,
+        type: MediaTypeFilter,
+        decided: Set<String>,
+    ): SourceCounts {
+        var current = counts
+        val albumsNow = counts.albums.orEmpty()
+        if (albumsNow.isNotEmpty()) {
+            var moved = false
+            val exactAlbumIds = counts.exactAlbumIds.toMutableSet()
+            val refinedAlbums =
+                albumsNow.map { album ->
+                    val ids = attempt { library.assetIds(DeckSource.Album(album.id, album.title), type) }
+                    if (ids == null) {
+                        album
+                    } else {
+                        exactAlbumIds += album.id
+                        album.copy(count = exact(ids, decided)).also { if (it != album) moved = true }
+                    }
+                }
+            if (moved) {
+                current = counts.copy(albums = refinedAlbums, exactAlbumIds = exactAlbumIds)
                 emit(current)
             }
         }
+        return current
     }
 
-    /** One album row's FR-9 + FR-5 refinement; an empty album stays empty, a failed fetch keeps the estimate. */
-    private suspend fun refineAlbum(
-        album: AlbumSource,
+    /**
+     * One row's FR-9-exact count via the deck's own path: Likely Duplicates
+     * subtracts [decided] **before** grouping (like [BuildDeckUseCase]), every
+     * other smart filter is ids-minus-decided.
+     */
+    private suspend fun exactSmartCount(
+        kind: SmartFilter,
         type: MediaTypeFilter,
         decided: Set<String>,
-    ): AlbumSource {
-        // An empty album is exact under every filter and every decision; a failed
-        // fetch keeps the estimate for the next refresh to retry (§6.8).
-        val ids =
-            if (album.count == 0) {
-                null
-            } else {
-                attempt { library.assetIds(DeckSource.Album(album.id, album.title), type) }
-            }
-        return if (ids == null) album else album.copy(count = exact(ids, decided))
-    }
+    ): Int =
+        if (kind == SmartFilter.LIKELY_DUPLICATES) {
+            DuplicateGrouper
+                .group(
+                    library
+                        .duplicateCandidates(type)
+                        .filterNot { it.id in decided },
+                ).size
+        } else {
+            exact(library.assetIds(DeckSource.Smart(kind), type), decided)
+        }
 
     /** Membership minus decided ids — what FR-9 asks of every source count. */
     private fun exact(

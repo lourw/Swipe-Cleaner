@@ -25,13 +25,14 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Home's state owner (§6.5, FR-2, FR-4, FR-5, FR-7, FR-9, FR-10, FR-24, NFR-4):
+ * Home's state owner (§6.5, FR-2, FR-4, FR-5, FR-7, FR-9, FR-10, NFR-4):
  * progressive counts merged into one state, one refresh per `changes()` emission,
  * the filter reload, navigation events, and the promise that the Months path is
- * never touched from Home (WP-5.2; FR-39 belongs to WP-5.3).
+ * never touched from Home (Months is FR-7 and belongs to WP-5.3).
  */
 class HomeViewModelTest {
     @AfterTest
@@ -72,21 +73,42 @@ class HomeViewModelTest {
     fun `FR-5 changing type filter reloads counts`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-            val library = FakeMediaLibrary(photoItems(3) + videoItems(2))
+            val library =
+                FakeMediaLibrary(
+                    photoItems(3) + videoItems(2),
+                    albums = mapOf("a1" to setOf("asset-1", "video-1", "video-2")),
+                )
             val viewModel = homeViewModel(library, FakeDecisionStore())
             val all = viewModel.awaitSettled(this)
             assertEquals(5, all.shuffleCount)
+            assertEquals(3, all.albumRows.single().count)
 
             viewModel.onIntent(HomeIntent.SetTypeFilter(MediaTypeFilter.VIDEOS))
 
-            var switched = viewModel.uiState.value
-            while (switched.typeFilter != MediaTypeFilter.VIDEOS) {
-                testScheduler.advanceUntilIdle()
-                switched = viewModel.uiState.value
+            // Observe emissions, not just the settled end state: the switch drops
+            // the ALL numbers to placeholders before any VIDEOS count lands —
+            // album rows included — so stale numbers never sit under the new
+            // label (FR-5).
+            var sawCleared = false
+            viewModel.uiState.test {
+                var s = awaitItem()
+                while (!sawCleared || s.shuffleCount == null) {
+                    if (s.typeFilter == MediaTypeFilter.VIDEOS && !sawCleared) {
+                        sawCleared = true
+                        assertNull(s.shuffleCount)
+                        assertTrue(s.smartRows.all { it.count == null })
+                        assertTrue(s.albumRows.all { it.count == null })
+                    }
+                    s = awaitItem()
+                }
+                cancelAndIgnoreRemainingEvents()
             }
+            assertTrue(sawCleared, "the switch never cleared the counts")
+
             val videos = viewModel.awaitSettled(this)
             assertEquals(MediaTypeFilter.VIDEOS, videos.typeFilter)
             assertEquals(2, videos.shuffleCount) // only the videos (FR-5)
+            assertEquals(2, videos.albumRows.single().count) // a1 minus the photo
             // The reload really re-ran every fetch under the new filter.
             assertTrue(library.albumsCalls >= 2)
             assertTrue(library.assetIdsCalls.all { it.second == MediaTypeFilter.ALL || it.second == MediaTypeFilter.VIDEOS })
@@ -131,7 +153,7 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `FR-24 one changes emission refreshes counts exactly once`() =
+    fun `FR-4 one changes emission refreshes counts exactly once`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(3))
@@ -149,7 +171,7 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `WP-5-2 home never loads months`() =
+    fun `NFR-4 home never loads months`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(3))
@@ -157,9 +179,36 @@ class HomeViewModelTest {
             viewModel.awaitSettled(this)
             library.notifyChange()
             testScheduler.advanceUntilIdle()
+            viewModel.onIntent(HomeIntent.SetTypeFilter(MediaTypeFilter.PHOTOS))
+            testScheduler.advanceUntilIdle()
 
-            // The Months overlay is FR-39 (WP-5.3); Home never pays for it.
+            // Startup, a changes() refresh, and a filter reload: the By-month
+            // screen is FR-7 (WP-5.3); Home never pays for its full-library path.
             assertEquals(0, library.monthsCalls)
+        }
+
+    @Test
+    fun `FR-9 a changes refresh never flickers refined counts back to estimates`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(4))
+            val store = seedStore("asset-1" to Decision.KEEP, "asset-2" to Decision.DELETE)
+            val viewModel = homeViewModel(library, store)
+            val settled = viewModel.awaitSettled(this)
+            assertEquals(2, settled.shuffleCount) // FR-9-exact, not the raw 4
+
+            // The refresh re-runs the ladder: its raw Shuffle estimate (4) arrives
+            // before its own refinement, but the exactness mask keeps the refined
+            // number on screen (§6.5) — no exact → estimate → exact flicker.
+            library.gateNextSmartCounts = true
+            library.notifyChange()
+            testScheduler.advanceUntilIdle()
+            assertEquals(2, library.smartCountsCalls) // the re-run is in flight, gated
+            assertEquals(2, viewModel.uiState.value.shuffleCount)
+
+            library.releaseSmartCounts()
+            val refreshed = viewModel.awaitSettled(this)
+            assertEquals(2, refreshed.shuffleCount)
         }
 
     @Test
@@ -168,7 +217,7 @@ class HomeViewModelTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val viewModel = homeViewModel(FakeMediaLibrary(photoItems(2)), FakeDecisionStore())
 
-            viewModel.eventsFlow.test {
+            viewModel.events.test {
                 viewModel.onIntent(HomeIntent.OpenSource.Shuffle)
                 assertEquals(HomeEvent.OpenDeck(DeckSource.All, MediaTypeFilter.ALL), awaitItem())
 

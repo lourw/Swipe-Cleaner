@@ -10,15 +10,15 @@ import dev.swipe.domain.model.MediaTypeFilter
  * [dev.swipe.presentation.deck.DeckViewModel] (WP-5.3) builds the deck with it.
  */
 sealed interface HomeEvent {
-    /** Open the Deck for [source] with [typeFilter] applied (FR-5, FR-7). */
+    /** Open the Deck for [source] with [typeFilter] applied (FR-5). */
     data class OpenDeck(
         val source: DeckSource,
         val typeFilter: MediaTypeFilter,
     ) : HomeEvent
 
-    /** Open the **To Delete** queue (FR-20). */
+    /** Open the **To Delete** queue (FR-10). */
     data object OpenQueue : HomeEvent
 
-    /** Open the **Settings** screen (FR-34). */
+    /** Open the **Settings** screen (FR-29). */
     data object OpenSettings : HomeEvent
 }

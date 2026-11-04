@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /**
  * The progressive Home counts (FR-4, FR-5, FR-9, NFR-4, §6.5 *Home counts*): the
@@ -144,6 +145,77 @@ class LoadSourcesUseCaseTest {
             assertTrue(library.assetIdsCalls.all { it.second == MediaTypeFilter.VIDEOS })
         }
 
+    @Test
+    fun `FR-9 refined duplicates count equals the deck the row opens`() =
+        runTest {
+            // d1/d2 are twins (same dimensions, 1 s apart). Deciding d1 must take d2
+            // out of the row too — the deck subtracts decided BEFORE grouping, and
+            // plain membership-minus-decided would over-report 1 for an empty deck.
+            val library =
+                FakeMediaLibrary(
+                    listOf(
+                        twin("d1", "2026-01-01T10:00:00Z"),
+                        twin("d2", "2026-01-01T10:00:01Z"),
+                        photo("p3"),
+                    ),
+                )
+            val store = FakeDecisionStore()
+            store.record("d1", Decision.KEEP, "s")
+            val useCase = LoadSourcesUseCase(library, store)
+
+            useCase(MediaTypeFilter.ALL).test {
+                awaitItem() // albums: none seeded
+                assertEquals(3, awaitItem().shuffleCount) // raw
+                val smart = awaitItem()
+                assertEquals(2, smart.smartCounts[SmartFilter.LIKELY_DUPLICATES]) // both twins, raw
+
+                // Refinement: shuffle 3 → 2, then the deck's own grouping path over
+                // the undecided candidates — the lone twin d2 is no group, so the
+                // row lands at 0, matching the deck it opens (§6.5).
+                val refinedShuffle = awaitItem()
+                assertEquals(2, refinedShuffle.shuffleCount)
+                assertEquals(2, refinedShuffle.smartCounts[SmartFilter.LIKELY_DUPLICATES])
+
+                val refined = awaitItem()
+                assertEquals(0, refined.smartCounts[SmartFilter.LIKELY_DUPLICATES])
+                assertTrue(refined.exactSmart.contains(SmartFilter.LIKELY_DUPLICATES))
+                awaitComplete()
+            }
+            val deck =
+                BuildDeckUseCase(library, store)(
+                    DeckSource.Smart(SmartFilter.LIKELY_DUPLICATES),
+                    MediaTypeFilter.ALL,
+                    0L,
+                )
+            assertEquals(0, deck.size)
+        }
+
+    @Test
+    fun `FR-9 a zero album estimate still gets refined`() =
+        runTest {
+            // estimatedAssetCount can lag reality — even report 0 for a non-empty
+            // album — so refinement never trusts the estimate, only a fetch (§6.5).
+            val library =
+                FakeMediaLibrary(
+                    listOf(photo("p1"), photo("p2")),
+                    albums = mapOf("a1" to setOf("p1", "p2")),
+                )
+            library.nextAlbumsEstimate = 0
+            val useCase = LoadSourcesUseCase(library, FakeDecisionStore())
+
+            useCase(MediaTypeFilter.ALL).test {
+                val albums = awaitItem()
+                assertEquals(0, albums.albums?.single()?.count) // the wrong estimate on screen
+                assertEquals(2, awaitItem().shuffleCount)
+                awaitItem() // smart counts: every source raw 0, nothing to refine
+                val refined = awaitItem()
+                assertEquals(2, refined.albums?.single()?.count) // the fetch fixed it
+                assertTrue(refined.exactAlbumIds.contains("a1"))
+                awaitComplete()
+            }
+            assertTrue(DeckSource.Album("a1", "a1") in library.assetIdsCalls.map { it.first })
+        }
+
     private fun photo(
         id: String,
         screenshot: Boolean = false,
@@ -176,4 +248,10 @@ class LoadSourcesUseCaseTest {
         )
 
     private fun photoItems(count: Int): List<MediaItem> = (1..count).map { photo("asset-$it") }
+
+    /** A dated photo (same 120×160 dimensions as [photo]) so twins group (FR-6). */
+    private fun twin(
+        id: String,
+        createdAt: String,
+    ): MediaItem = photo(id).copy(createdAt = Instant.parse(createdAt))
 }

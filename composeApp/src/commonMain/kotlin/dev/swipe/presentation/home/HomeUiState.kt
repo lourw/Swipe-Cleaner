@@ -1,6 +1,5 @@
 package dev.swipe.presentation.home
 
-import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
@@ -37,10 +36,11 @@ data class HomeUiState(
     /**
      * The album rows for the **Albums** screen (FR-8): empty until `albums()`
      * answers, then PhotoKit-estimate counts converging to the exact FR-9 counts
-     * for [typeFilter] (§6.5 *Home counts*). [AlbumSource.coverAssetId] drives the
-     * 40 dp row thumbnail (WP-5.3).
+     * for [typeFilter] (§6.5 *Home counts*). A filter switch keeps the rows but
+     * drops their counts to the placeholder — never stale numbers under a new
+     * label (FR-5). [coverAssetId] drives the 40 dp row thumbnail (WP-5.3).
      */
-    val albumRows: List<AlbumSource> = emptyList(),
+    val albumRows: List<HomeAlbumRow> = emptyList(),
     /** Lifetime reviewed / kept / deleted for the stats line (FR-10); null before the first read. */
     val stats: Stats? = null,
     /** Items waiting in the To Delete queue (FR-10); the queue Banner shows iff > 0. */
@@ -61,6 +61,23 @@ data class HomeUiState(
 data class HomeSmartRow(
     /** Which smart filter this row is (FR-6). */
     val kind: SmartFilter,
+    /** Item count excluding decided items (FR-9); null while loading. */
+    val count: Int?,
+)
+
+/**
+ * One **Albums** row (FR-8, §5.8): [id] + [title] open it as
+ * `DeckSource.Album(id, title)`, [coverAssetId] drives the 40 dp thumbnail, and
+ * [count] is null until loaded (NFR-4's placeholder), PhotoKit's estimate first
+ * and then the exact FR-9 count for the current filter (§6.5 *Home counts*).
+ */
+data class HomeAlbumRow(
+    /** Stable PhotoKit collection identifier. */
+    val id: String,
+    /** Album title shown on the row (FR-8). */
+    val title: String,
+    /** Newest asset's id for the cover thumbnail; null when the album is empty. */
+    val coverAssetId: String?,
     /** Item count excluding decided items (FR-9); null while loading. */
     val count: Int?,
 )

@@ -5,7 +5,7 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 
 /**
- * Everything the Home screen can ask for (§6.5, FR-4, FR-5, FR-7, FR-10, FR-34):
+ * Everything the Home screen can ask for (§6.5, FR-4, FR-5, FR-10, FR-29):
  * change the media-type filter, open a deck for a source, open the To Delete
  * queue, open Settings. Navigation itself goes out as [HomeEvent].
  */
@@ -21,8 +21,8 @@ sealed interface HomeIntent {
     ) : HomeIntent
 
     /**
-     * Open the deck for one source (FR-7): **Shuffle everything**, a **Smart
-     * filters** row, or one **Albums** row (WP-5.3).
+     * Open the deck for one source (FR-4, FR-6, FR-8): **Shuffle everything**, a
+     * **Smart filters** row, or one **Albums** row (WP-5.3).
      */
     sealed interface OpenSource : HomeIntent {
         /** The FR-4 Shuffle-everything row. */
@@ -39,9 +39,9 @@ sealed interface HomeIntent {
         ) : OpenSource
     }
 
-    /** Open the **To Delete** queue (FR-20). */
+    /** Open the **To Delete** queue (FR-10). */
     data object OpenQueue : HomeIntent
 
-    /** Open the **Settings** screen (FR-34). */
+    /** Open the **Settings** screen (FR-29). */
     data object OpenSettings : HomeIntent
 }

@@ -85,6 +85,13 @@ class FakeMediaLibrary(
     var failNextItems: Throwable? = null
     var failNextDuplicateCandidates: Throwable? = null
 
+    /**
+     * When set, the next [albums()] reports this count on every row instead of the
+     * true membership size — models `estimatedAssetCount` lagging reality, even to
+     * 0 for a non-empty album (§6.4, WP-5.2 refinement test).
+     */
+    var nextAlbumsEstimate: Int? = null
+
     /** Returned by every [delete] until changed; defaults to success. */
     var nextDeleteResult: DeleteResult = DeleteResult.Deleted
 
@@ -134,13 +141,16 @@ class FakeMediaLibrary(
             throw it
         }
         // Same shape as the real library: user albums ([albums]) first; counts and
-        // cover reflect current contents (deleted items are gone, FR-28).
+        // cover reflect current contents (deleted items are gone, FR-28). One-shot
+        // [nextAlbumsEstimate] models `estimatedAssetCount` lagging reality (§6.4).
+        val estimate = nextAlbumsEstimate
+        nextAlbumsEstimate = null
         return albums.map { (id, memberIds) ->
             val members = items.filter { it.id in memberIds }
             AlbumSource(
                 id = id,
                 title = albumTitles[id] ?: id,
-                count = members.size,
+                count = estimate ?: members.size,
                 coverAssetId = members.byDateDescending().firstOrNull()?.id,
             )
         }
