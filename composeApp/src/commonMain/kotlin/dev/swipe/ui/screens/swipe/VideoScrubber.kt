@@ -68,6 +68,11 @@ internal fun VideoScrubber(
                         // pointer-only, matching the card's gesture stack.
                         progressBarRangeInfo = ProgressBarRangeInfo(fraction.coerceIn(0f, 1f), 0f..1f)
                     }.pointerInput(durationMs) {
+                        // An unprepared item (duration still unknown) has no
+                        // meaningful seek range: the player would drop the seek
+                        // and the caption would snap back to 0:00. Drags become
+                        // live as soon as the duration is reported.
+                        if (durationMs <= 0L) return@pointerInput
                         detectHorizontalDragGestures(
                             onDragStart = { offset -> onScrub(scrubFractionAt(offset.x, size.width.toFloat())) },
                             onHorizontalDrag = { change, _ ->

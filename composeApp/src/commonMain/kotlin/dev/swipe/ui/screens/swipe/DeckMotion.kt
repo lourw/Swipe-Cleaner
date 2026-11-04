@@ -234,6 +234,7 @@ private fun BoxScope.TopCardPlayback(
         }
     } else if (cardState.isIdle) {
         // FR-17: over the still, muted, once; release unmounts (stops).
+        // Positional for the same function-type reason as the video branch above.
         videoSlot(card.id, true, true, {}, Modifier.matchParentSize(), true, null)
     }
 }

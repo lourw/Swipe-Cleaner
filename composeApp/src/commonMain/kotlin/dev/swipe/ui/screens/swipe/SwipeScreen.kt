@@ -275,7 +275,9 @@ private fun DeckContent(
  * autoplay-off first tap, the FR-17 hold, and the scrubber trio (the
  * player's last reported fraction, the finger's override while scrubbing,
  * and the pending seek). A new instance per card id, so the next card
- * starts at rest.
+ * starts at rest. R2 remounts the player fresh on every settle, so a video
+ * restarts from 0 after a drag, an undo, or a swipe-away-and-back — the
+ * watched position is deliberately not carried across unmounts.
  */
 private class DeckVideoState {
     var started by mutableStateOf(false)

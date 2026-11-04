@@ -224,7 +224,9 @@ xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
 8. ☐ A horizontal drag **on the card** never moves the scrubber: the card
    drags, rotates, and commits normally, the track holds its reported
    position, and the player is unmounted for the whole drag (R2), resuming
-   from the poster when the card lands.
+   from the poster when the card lands. Playback resumes **from 0** — the
+   rest-mounted player is new each settle, so a watched position is not
+   carried across a drag, an undo, or a swipe-away-and-back.
 
 **Live Photos (FR-17)**
 
