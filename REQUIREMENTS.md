@@ -218,7 +218,7 @@ Other gestures on the card:
 ```
 Onboarding ──► Permission ──► Home ─┬─► Albums ──────┐
                   │                 ├─► By month ────┤
-             (denied)               ├─► Smart filters┤
+             (denied)               │                │
                   ▼                 │                ▼
            Open-Settings            └──────────► Swipe ──► Session summary
                                                    │              │
