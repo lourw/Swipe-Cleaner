@@ -11,10 +11,9 @@ import dev.swipe.domain.model.SmartFilter
  */
 sealed interface HomeIntent {
     /**
-     * Pick the media-type toggle (FR-5): the choice persists across launches
-     * (WP-5.3 wires the store), reloads every count under the new filter, and
-     * applies to whatever deck the user opens next (§5.8: "applies to the next
-     * deck").
+     * Pick the media-type toggle (FR-5): reloads every count under the new
+     * filter, and applies to whatever deck the user opens next (§5.8: "applies
+     * to the next deck").
      */
     data class SetTypeFilter(
         val type: MediaTypeFilter,
@@ -44,4 +43,10 @@ sealed interface HomeIntent {
 
     /** Open the **Settings** screen (FR-29). */
     data object OpenSettings : HomeIntent
+
+    /** Open the **Albums** screen (FR-4, FR-8, WP-5.3); its counts and decks use the current filter. */
+    data object OpenAlbums : HomeIntent
+
+    /** Open the **By month** screen (FR-4, FR-7, WP-5.3); its buckets and decks use the current filter. */
+    data object OpenMonths : HomeIntent
 }

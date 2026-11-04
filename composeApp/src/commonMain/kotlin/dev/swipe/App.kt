@@ -31,17 +31,20 @@ import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeViewModel
 import dev.swipe.ui.components.ComponentGallery
+import dev.swipe.ui.navigation.Albums
 import dev.swipe.ui.navigation.DeleteSuccess
 import dev.swipe.ui.navigation.Denied
 import dev.swipe.ui.navigation.Home
+import dev.swipe.ui.navigation.Months
 import dev.swipe.ui.navigation.Onboarding
 import dev.swipe.ui.navigation.Queue
+import dev.swipe.ui.navigation.Settings
 import dev.swipe.ui.navigation.Summary
 import dev.swipe.ui.navigation.Swipe
-import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
 import dev.swipe.ui.screens.onboarding.OnboardingScreen
 import dev.swipe.ui.screens.queue.QueueScreen
+import dev.swipe.ui.screens.settings.SettingsScreen
 import dev.swipe.ui.screens.summary.DeleteSuccessScreen
 import dev.swipe.ui.screens.swipe.SummaryScreen
 import dev.swipe.ui.screens.swipe.SwipeScreen
@@ -99,11 +102,13 @@ private fun PermissionFlow(
  * the screen the state names and pops the initial route inclusively, so Back
  * cannot return to onboarding or Denied. Keeping `startDestination` and the
  * builder lambda's captures stable (the [state] flow is collected inside
- * [HomeContainer], never read in the builder) keeps navigation-compose from
+ * [HomeDestination], never read in the builder) keeps navigation-compose from
  * rebuilding the graph on state updates, which would otherwise reset deeper
  * stacks once WP-1.9 adds routes. Split out from the ViewModel so the routing
  * is testable without Koin; [navController] is injectable for the same
- * reason.
+ * reason, as are the Koin-backed destinations ([homeDestination],
+ * [albumsDestination], [monthsDestination], [swipeDestination],
+ * [queueDestination]).
  */
 @Composable
 internal fun PermissionFlowContent(
@@ -113,6 +118,11 @@ internal fun PermissionFlowContent(
     navController: NavHostController = rememberNavController(),
     swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route, navController) },
     queueDestination: @Composable () -> Unit = { QueueContainer(navController) },
+    homeDestination: @Composable () -> Unit = {
+        HomeDestination(navController, state, { onIntent(PermissionIntent.ManageLimitedAccess) })
+    },
+    albumsDestination: @Composable (Albums) -> Unit = { route -> AlbumsDestination(route, navController) },
+    monthsDestination: @Composable (Months) -> Unit = { route -> MonthsDestination(route, navController) },
 ) {
     val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
@@ -121,15 +131,7 @@ internal fun PermissionFlowContent(
     }
     val currentRoute = startScreen.toRoute()
     val initialRoute = remember { currentRoute }
-    LaunchedEffect(currentRoute) {
-        if (currentRoute != initialRoute) {
-            navController.navigate(currentRoute) {
-                popUpTo(initialRoute::class) {
-                    inclusive = true
-                }
-            }
-        }
-    }
+    FollowStartRoute(navController, currentRoute, initialRoute)
     NavHost(
         navController = navController,
         startDestination = initialRoute,
@@ -142,13 +144,20 @@ internal fun PermissionFlowContent(
             DeniedScreen(onOpenSettings = { onIntent(PermissionIntent.OpenSettings) })
         }
         composable<Home> {
-            // The remaining §5.8 routes are declared in Routes.kt and get their
-            // composable() entries from the work packages that own them.
-            HomeContainer(
-                state = state,
-                onStartShuffle = { navController.navigate(ShuffleAllSwipe) },
-                onManageLimitedAccess = { onIntent(PermissionIntent.ManageLimitedAccess) },
-            )
+            // The WP-5.3 destination (HomeViewModel-backed) is behind a hook so
+            // navigation tests can run it over fakes without Koin, matching
+            // [swipeDestination] and [queueDestination].
+            homeDestination()
+        }
+        composable<Albums> { entry ->
+            albumsDestination(entry.toRoute<Albums>())
+        }
+        composable<Months> { entry ->
+            monthsDestination(entry.toRoute<Months>())
+        }
+        composable<Settings> {
+            // Placeholder until WP-6.1 (FR-29): the Home gear needs a destination.
+            SettingsScreen(onBack = { navController.navigateUp() })
         }
         composable<Swipe> { entry ->
             swipeDestination(entry.toRoute<Swipe>())
@@ -177,6 +186,28 @@ internal fun PermissionFlowContent(
 }
 
 /**
+ * The imperative half of WP-1.7 routing: once the state's start screen moves
+ * off the initial route, navigate to it and pop the initial entry inclusively
+ * so Back cannot return to onboarding or Denied (FR-1, FR-3).
+ */
+@Composable
+private fun FollowStartRoute(
+    navController: NavHostController,
+    currentRoute: Any,
+    initialRoute: Any,
+) {
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != initialRoute) {
+            navController.navigate(currentRoute) {
+                popUpTo(initialRoute::class) {
+                    inclusive = true
+                }
+            }
+        }
+    }
+}
+
+/**
  * Home, single-top, with everything above it popped: the Close button's
  * destination from the deck (FR-20, §6.5 resume) and the summary's
  * "Back home" (FR-21).
@@ -188,18 +219,6 @@ private fun NavHostController.backToHome() {
         launchSingleTop = true
     }
 }
-
-/**
- * The Swipe route for Home's "Shuffle everything" (FR-4): deck source `All`
- * serialized per the route contract, with the default ALL type filter (FR-5's
- * toggle arrives in WP-5.2). A constant, so it is built once and the NavHost
- * builder lambda captures nothing that changes.
- */
-private val ShuffleAllSwipe =
-    Swipe(
-        sourceJson = Json.encodeToString(DeckSource.serializer(), DeckSource.All),
-        typeFilter = MediaTypeFilter.ALL.name,
-    )
 
 /**
  * The real Swipe destination: decodes the route's [DeckSource] JSON and hands
@@ -309,25 +328,6 @@ private fun QueueContainer(
                 popUpTo(Queue::class) { inclusive = true }
             }
         },
-    )
-}
-
-/**
- * Home destination that reads the FR-2 Limited-access count from the flow
- * inside the composition, so the NavHost builder lambda never captures state
- * values and the graph stays stable across `Recheck` updates.
- */
-@Composable
-private fun HomeContainer(
-    state: StateFlow<PermissionUiState>,
-    onStartShuffle: () -> Unit,
-    onManageLimitedAccess: () -> Unit,
-) {
-    val ui by state.collectAsState()
-    HomeScreen(
-        onStartShuffle = onStartShuffle,
-        limitedItemCount = ui.limitedCount,
-        onManageLimitedAccess = onManageLimitedAccess,
     )
 }
 

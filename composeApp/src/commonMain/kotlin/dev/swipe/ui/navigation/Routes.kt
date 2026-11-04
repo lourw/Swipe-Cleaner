@@ -17,21 +17,25 @@ data object Onboarding
 @Serializable
 data object Denied
 
-/** Home; placeholder until WP-5.3 builds the full screen (FR-4). */
+/** Home, the session-setup screen (§5.8, FR-4, WP-5.3). */
 @Serializable
 data object Home
 
-/** User albums and main smart albums with covers and counts (FR-8, WP-5.3). */
+/**
+ * User albums and main smart albums with covers and counts (FR-8, WP-5.3).
+ * [typeFilter] is the Home media-type toggle carried over (FR-5), the same
+ * route contract as [Swipe]: carried as a name, decoded defensively.
+ */
 @Serializable
-data object Albums
+data class Albums(
+    val typeFilter: String = "ALL",
+)
 
-/** Year → month buckets with counts, newest first (FR-7, WP-5.3). */
+/** Year → month buckets with counts, newest first (FR-7, WP-5.3). [typeFilter] as in [Albums]. */
 @Serializable
-data object Months
-
-/** The v1 smart filters (FR-6, WP-5.3). */
-@Serializable
-data object SmartFilters
+data class Months(
+    val typeFilter: String = "ALL",
+)
 
 /**
  * The swipe deck (WP-1.9). [sourceJson] is the session's `DeckSource` serialized as JSON

@@ -7,7 +7,7 @@ import dev.swipe.domain.model.MediaTypeFilter
  * One-shot navigation requests handed to the App host through
  * [HomeViewModel.events] (§6.2). [OpenDeck] carries the media-type filter that
  * was selected when the row was tapped (§5.8: "applies to the next deck"), and
- * [dev.swipe.presentation.deck.DeckViewModel] (WP-5.3) builds the deck with it.
+ * [dev.swipe.presentation.swipe.SwipeViewModel] builds the deck with it.
  */
 sealed interface HomeEvent {
     /** Open the Deck for [source] with [typeFilter] applied (FR-5). */
@@ -21,4 +21,14 @@ sealed interface HomeEvent {
 
     /** Open the **Settings** screen (FR-29). */
     data object OpenSettings : HomeEvent
+
+    /** Open the **Albums** screen with [typeFilter] (FR-4, FR-8). */
+    data class OpenAlbums(
+        val typeFilter: MediaTypeFilter,
+    ) : HomeEvent
+
+    /** Open the **By month** screen with [typeFilter] (FR-4, FR-7). */
+    data class OpenMonths(
+        val typeFilter: MediaTypeFilter,
+    ) : HomeEvent
 }

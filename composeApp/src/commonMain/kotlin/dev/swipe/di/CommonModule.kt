@@ -11,7 +11,9 @@ import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.presentation.albums.AlbumsViewModel
 import dev.swipe.presentation.home.HomeViewModel
+import dev.swipe.presentation.months.MonthsViewModel
 import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
@@ -91,6 +93,25 @@ val commonModule: Module =
                 library = get(),
                 decisions = get(),
                 loadSources = get(),
+            )
+        }
+
+        // Albums (WP-5.3, FR-8). The filter rides the route (FR-5), same contract
+        // as the deck: resolved with `parametersOf(typeFilter)` by the destination.
+        viewModel { params ->
+            AlbumsViewModel(
+                typeFilter = params.get(),
+                library = get(),
+                decisions = get(),
+            )
+        }
+
+        // By month (WP-5.3, FR-7). Filter rides the route; the scan runs when the
+        // screen opens, never at Home startup (NFR-4).
+        viewModel { params ->
+            MonthsViewModel(
+                typeFilter = params.get(),
+                library = get(),
             )
         }
     }

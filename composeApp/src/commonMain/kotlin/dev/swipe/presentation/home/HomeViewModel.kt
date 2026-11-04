@@ -130,6 +130,14 @@ class HomeViewModel(
                     eventChannel.trySend(HomeEvent.OpenSettings)
                 }
 
+                HomeIntent.OpenAlbums -> {
+                    eventChannel.trySend(HomeEvent.OpenAlbums(_uiState.value.typeFilter))
+                }
+
+                HomeIntent.OpenMonths -> {
+                    eventChannel.trySend(HomeEvent.OpenMonths(_uiState.value.typeFilter))
+                }
+
                 HomeIntent.OpenSource.Shuffle -> {
                     eventChannel.trySend(HomeEvent.OpenDeck(DeckSource.All, _uiState.value.typeFilter))
                 }
