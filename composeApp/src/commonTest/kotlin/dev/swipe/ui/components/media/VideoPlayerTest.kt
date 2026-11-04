@@ -27,4 +27,22 @@ class VideoPlayerTest {
         assertEquals(0f, videoProgressFraction(3.0, Double.POSITIVE_INFINITY))
         assertEquals(0f, videoProgressFraction(Double.NaN, 6.0))
     }
+
+    @Test
+    fun `FR-16 seek position maps the scrub fraction back to seconds`() {
+        assertEquals(3.0, seekPositionSeconds(0.5f, 6.0))
+        assertEquals(0.0, seekPositionSeconds(0f, 6.0))
+        assertEquals(6.0, seekPositionSeconds(1f, 6.0), 0.0001)
+    }
+
+    @Test
+    fun `FR-16 seek position clamps and guards like the progress fraction`() {
+        // A drag can ask for the very edges; the fraction clamps first.
+        assertEquals(0.0, seekPositionSeconds(-0.4f, 6.0))
+        assertEquals(6.0, seekPositionSeconds(1.4f, 6.0), 0.0001)
+        // Unknown/empty durations must not divide into NaN.
+        assertEquals(0.0, seekPositionSeconds(0.5f, 0.0))
+        assertEquals(0.0, seekPositionSeconds(0.5f, Double.NaN))
+        assertEquals(0.0, seekPositionSeconds(0.5f, Double.POSITIVE_INFINITY))
+    }
 }
