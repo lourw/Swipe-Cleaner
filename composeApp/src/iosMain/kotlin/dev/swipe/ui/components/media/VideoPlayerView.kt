@@ -16,22 +16,23 @@ import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
+import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
+import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerLayer
-import platform.AVFoundation.AVPlayerLooper
-import platform.AVFoundation.AVQueuePlayer
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.removeTimeObserver
+import platform.AVFoundation.seekToTime
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.volume
 import platform.CoreGraphics.CGRectMake
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
-import platform.CoreMedia.CMTimeRangeMake
+import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIView
 
@@ -74,7 +75,8 @@ actual fun VideoPlayer(
 
 /**
  * The hosted view: loads the item off the main thread, then attaches an
- * [AVQueuePlayer] (+ `AVPlayerLooper` unless [livePhoto]) to an [AVPlayerLayer]
+ * [AVPlayer] to an [AVPlayerLayer]; looping is done with the item's
+ * end-of-playback notification + seek to zero unless [livePhoto]
  * (FR-16: loops; FR-17: the paired video plays once, no loop).
  *
  * Muting uses `volume = 0` — `AVPlayer` has no mute flag — and playing maps to
@@ -94,10 +96,10 @@ private class VideoPlayerSurface(
     var onProgress: (Float) -> Unit = {}
 
     private val playerLayer = AVPlayerLayer()
-    private var player: AVQueuePlayer? = null
+    private var player: AVPlayer? = null
 
-    /** Must stay strongly held or the loop stops (Apple docs on `AVPlayerLooper`). */
-    private var looper: AVPlayerLooper? = null
+    /** Strong reference for the end-of-item loop observer (FR-16). */
+    private var endObserver: Any? = null
     private var timeObserver: Any? = null
     private var released = false
     private var muted = false
@@ -127,10 +129,11 @@ private class VideoPlayerSurface(
         released = true
         timeObserver?.let { observer -> player?.removeTimeObserver(observer) }
         timeObserver = null
+        endObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
+        endObserver = null
         player?.pause()
         playerLayer.player = null
         player = null
-        looper = null
         if (livePhoto) cache.releaseLivePhotoVideo(id)
     }
 
@@ -155,47 +158,58 @@ private class VideoPlayerSurface(
 
     private fun attach(item: AVPlayerItem?) {
         if (released || item == null) return
-        val queuePlayer = AVQueuePlayer(items = listOf(item))
-        queuePlayer.volume = volumeFor(muted)
-        // FR-16 looping; the looper must stay strongly held or the loop stops. It
-        // adds its own queued copy of the item, hence AVQueuePlayer. Full range:
-        // `playerLooperWithPlayer:templateItem:` is not in this SDK's interop.
-        looper =
-            if (livePhoto) {
-                null
-            } else {
-                AVPlayerLooper(
-                    player = queuePlayer,
-                    templateItem = item,
-                    // kCMTimeZero .. kCMTimePositiveInfinity (their Make forms; the
-                    // constants arrive as raw struct values in this interop).
-                    timeRange =
-                        CMTimeRangeMake(
-                            // start =
-                            CMTimeMake(value = 0, timescale = 1),
-                            // duration =
-                            CMTimeMake(value = Long.MAX_VALUE, timescale = Int.MAX_VALUE),
-                        ),
-                )
-            }
+        // Plain `AVPlayer`, not `AVQueuePlayer`: on iOS 26 the queue drains a played
+        // item at item end, so the loop's seek-to-zero restart raced the removal and
+        // died (verified: item vanishes, `items()` empty, playback stops).
+        val avPlayer = AVPlayer(playerItem = item)
+        avPlayer.volume = volumeFor(muted)
+        // FR-16 looping. `AVPlayerLooper` is unusable through this SDK's Kotlin/Native
+        // interop: neither the 3-arg nor the 4-arg (`existingItemsOrdering`)
+        // initialiser ever inserted a copy — verified on the iOS 26.5 simulator with
+        // both a huge finite and the real `kCMTimePositiveInfinity` duration (queue
+        // stayed empty, status never ReadyToPlay). The classic end-of-item
+        // notification + seek-to-zero loop replaces it; the restart hitch is a
+        // frame, acceptable for a muted autoplay card.
+        if (!livePhoto) {
+            endObserver =
+                NSNotificationCenter.defaultCenter.addObserverForName(
+                    name = AVPlayerItemDidPlayToEndTimeNotification,
+                    `object` = item,
+                    queue = NSOperationQueue.mainQueue(),
+                ) {
+                    if (!released && playing) {
+                        avPlayer.seekToTime(CMTimeMake(value = 0, timescale = 1))
+                        avPlayer.play()
+                    }
+                }
+        }
         // iOS 26 dropped `playWhenReady`; `play()` carries its semantics — with
         // automaticallyWaitsToMinimizeStalling (default) it starts at ReadyForPlaying,
         // so no status polling is needed here (NFR-1).
-        if (playing) queuePlayer.play()
-        playerLayer.player = queuePlayer
-        player = queuePlayer
+        if (playing) avPlayer.play()
+        playerLayer.player = avPlayer
+        player = avPlayer
         timeObserver =
-            queuePlayer.addPeriodicTimeObserverForInterval(
+            avPlayer.addPeriodicTimeObserverForInterval(
                 // interval =
                 CMTimeMake(value = 1, timescale = 10),
                 // queue =
                 null, // nil → main queue delivery
             ) { _ ->
-                // The block's CMTime arrives as a raw struct value; reading
-                // `currentTime()` (a CValue) is equivalent and simpler to type.
-                val position = CMTimeGetSeconds(queuePlayer.currentTime())
+                // The block's CMTime arrives as a raw struct value; reading the
+                // player's `currentTime()` (a CValue) is equivalent and simpler to
+                // type. The modulo against the item duration wraps the reported
+                // position with every loop pass, keeping the fraction cycling 0..1
+                // (FR-16) even if the queue clock ever runs ahead of the item.
+                val position = CMTimeGetSeconds(avPlayer.currentTime())
                 val duration = CMTimeGetSeconds(item.duration)
-                onProgress(videoProgressFraction(position, duration))
+                val wrapped =
+                    if (duration.isFinite() && duration > 0.0) {
+                        position % duration
+                    } else {
+                        position
+                    }
+                onProgress(videoProgressFraction(wrapped, duration))
             }
     }
 

@@ -6,7 +6,7 @@ import androidx.compose.ui.Modifier
 /**
  * Video and Live Photo playback for one card (FR-16, FR-17; §6.4) — the **only**
  * `expect`/`actual` composable in the app (AGENTS.md rule 5). The `actual` is a
- * `UIKitView` hosting an `AVPlayerLayer` over an `AVQueuePlayer`
+ * `UIKitView` hosting an `AVPlayerLayer` over an `AVPlayer`
  * (`iosMain` `ui/components/media/VideoPlayerView.kt`), fed from the shared
  * [dev.swipe.data.VideoPreloader] implementation resolved through Koin.
  *
@@ -15,7 +15,8 @@ import androidx.compose.ui.Modifier
  * caller-side — with autoplay off the caller shows the poster plus a play affordance
  * and only passes `playing = true` once tapped, so this component stays dumb).
  * [onProgress] fires roughly every 100 ms with the playhead fraction
- * ([videoProgressFraction]) for the scrubber (FR-16); it is not called for Live
+ * ([videoProgressFraction]) within the item — it wraps back to 0 on every loop
+ * iteration — for the scrubber (FR-16); it is not called for Live
  * Photos, which play once with no scrubber. With [livePhoto] the paired video of
  * the asset is exported to a temp file and played once, no loop (FR-17).
  *
