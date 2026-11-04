@@ -15,8 +15,7 @@ class VideoPlayerTest {
     @Test
     fun `FR-16 progress fraction clamps the end of the track`() {
         assertEquals(1f, videoProgressFraction(6.0, 6.0))
-        // The looper can overshoot one frame past the template end.
-        assertEquals(1f, videoProgressFraction(6.1, 6.0))
+        assertEquals(1f, videoProgressFraction(6.1, 6.0)) // a tick may land past the end before the seek-to-zero
     }
 
     @Test

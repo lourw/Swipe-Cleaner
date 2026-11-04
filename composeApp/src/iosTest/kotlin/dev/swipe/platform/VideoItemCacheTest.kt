@@ -13,9 +13,10 @@ import kotlin.test.assertNotEquals
 class VideoItemCacheTest {
     @Test
     fun `FR-17 live photo temp file name sanitizes a realistic asset id`() {
-        // PHAsset local identifiers really look like this (slashes included).
+        // PHAsset local identifiers really look like this (slashes included);
+        // each non-alphanumeric (except `-`) becomes a fixed-width hex escape.
         assertEquals(
-            "swipe-live-2AC1A3B4-5678_L0_001.mov",
+            "swipe-live-2AC1A3B4-5678_002fL0_002f001.mov",
             livePhotoTempFileName("2AC1A3B4-5678/L0/001"),
         )
     }
@@ -28,7 +29,11 @@ class VideoItemCacheTest {
 
     @Test
     fun `FR-17 underscore ids cannot collide with slash ids`() {
-        // Both would flatten to `a_b` without the underscore-doubling escape.
+        // Both would flatten to `a_b` without escaping; the hex scheme separates them.
         assertNotEquals(livePhotoTempFileName("a/b"), livePhotoTempFileName("a_b"))
+        // Consecutive specials are the case underscore-doubling got wrong:
+        // `a//b` and `a_b` both encoded to `a__b` under the old scheme.
+        assertNotEquals(livePhotoTempFileName("a//b"), livePhotoTempFileName("a_b"))
+        assertNotEquals(livePhotoTempFileName("a_-b"), livePhotoTempFileName("a__b"))
     }
 }

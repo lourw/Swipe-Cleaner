@@ -77,7 +77,7 @@ git ls-files -z --cached --others --exclude-standard -- iosApp/Configuration/Con
 
 # 8. One expect/actual only (AGENTS.md rule 5): VideoPlayer is the sanctioned exception.
 main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
-    grep_files '^(expect|actual) ' |
+    grep_files '^(public |internal |private )?(expect|actual) ' |
     report "Only VideoPlayer.kt/VideoPlayerView.kt may declare expect/actual (AGENTS.md rule 5)"
 
 if [ -s "$FAILED" ]; then

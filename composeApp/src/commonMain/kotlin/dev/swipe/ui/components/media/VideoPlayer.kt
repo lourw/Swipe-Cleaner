@@ -16,9 +16,9 @@ import androidx.compose.ui.Modifier
  * and only passes `playing = true` once tapped, so this component stays dumb).
  * [onProgress] fires roughly every 100 ms with the playhead fraction
  * ([videoProgressFraction]) within the item — it wraps back to 0 on every loop
- * iteration — for the scrubber (FR-16); it is not called for Live
- * Photos, which play once with no scrubber. With [livePhoto] the paired video of
- * the asset is exported to a temp file and played once, no loop (FR-17).
+ * iteration — for the scrubber (FR-16); it also fires for Live Photos, whose
+ * caller simply shows no scrubber since the paired video plays once, no loop
+ * (FR-17).
  *
  * **At rest only (R2).** The M1 spike (branch `spike-video-interop`) proved the
  * hosted player clips correctly but **ignores `graphicsLayer` rotation and
