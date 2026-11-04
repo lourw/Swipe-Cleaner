@@ -23,7 +23,12 @@ sealed interface DeckSource {
         val title: String,
     ) : DeckSource
 
-    /** Everything created in one calendar month, UTC (FR-4, FR-7). */
+    /**
+     * Everything created in one calendar month of the device's local zone (FR-4, FR-7). The
+     * zone matches the card's date display (§5.7) and how the iOS Photos app groups months;
+     * [dev.swipe.data.monthBuckets] and [dev.swipe.data.monthRange] both use it, so the By-month
+     * buckets and the deck opened from one agree on membership.
+     */
     @Serializable
     data class Month(
         /** Proleptic Gregorian year, e.g. 2026. */
