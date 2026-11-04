@@ -8,6 +8,7 @@ import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
+import dev.swipe.data.VideoPreloader
 import dev.swipe.data.image.BitmapLruCache
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.platform.DatabaseDriverFactory
@@ -16,6 +17,7 @@ import dev.swipe.platform.IosSystemActions
 import dev.swipe.platform.NSUserDefaultsSettingsStore
 import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.PhotoKitMediaLoader
+import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -52,4 +54,10 @@ val iosModule: Module =
         // on the way out (asSkiaBitmap().close() is the Compose MP release path).
         single { BitmapLruCache<ImageBitmap>(onEvict = { _, bitmap -> bitmap.asSkiaBitmap().close() }) }
         single<MediaLoader> { PhotoKitMediaLoader(settings = get(), cache = get()) }
+
+        // Video pipeline (WP-4.1): the shared player-item cache doubles as the deck's
+        // preloader (FR-16, §6.5 step 4); the `VideoPlayer` actual resolves the same
+        // instance from the graph, so preloaded items mount warm.
+        single { VideoItemCache(settings = get()) }
+        single<VideoPreloader> { get<VideoItemCache>() }
     }

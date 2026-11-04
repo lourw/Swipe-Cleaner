@@ -12,6 +12,7 @@ import dev.swipe.data.MediaLoader
 import dev.swipe.data.SessionStore
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
+import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
@@ -20,6 +21,7 @@ import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.platform.VideoItemCache
 import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -65,6 +67,9 @@ class DiSmokeTest {
         koin.get<CommitDeletionsUseCase>()
         koin.get<PruneQueueUseCase>()
         koin.get<RestoreFromQueueUseCase>()
+        // WP-4.1: the VideoPlayer actual and the deck preloader share the one cache.
+        koin.get<VideoItemCache>()
+        koin.get<VideoPreloader>()
     }
 
     @OptIn(ExperimentalTestApi::class)
