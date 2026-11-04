@@ -3,12 +3,15 @@ package dev.swipe.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -63,22 +66,29 @@ fun ConfirmDialog(
                 destructive = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            BasicText(
-                text = cancelLabel,
-                style =
-                    SwipeTheme.typography.callout.copy(
-                        color = colors.accent,
-                        textAlign = TextAlign.Center,
-                    ),
+            // WP-1.2 component rule: every touch target is at least 44 dp, so
+            // the text button rides in a minTouchTarget-floored, centered box.
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .heightIn(min = SwipeTheme.sizes.minTouchTarget)
                         .clickable(onClick = onCancel)
                         .semantics {
                             role = Role.Button
                             this.contentDescription = cancelLabel
                         },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    text = cancelLabel,
+                    style =
+                        SwipeTheme.typography.callout.copy(
+                            color = colors.accent,
+                            textAlign = TextAlign.Center,
+                        ),
+                )
+            }
         }
     }
 }

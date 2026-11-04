@@ -131,8 +131,9 @@ open the queue from the badged queue button or the summary's
 
 **Queue review (FR-23, FR-24)**
 
-1. ☐ The queue shows a 3-column square grid of the queued items, oldest
-   first, with the count in the header; scrolling a long queue stays smooth
+1. ☐ The queue shows a 3-column square grid of the queued items, newest
+   decision first, with the count in the header; video tiles show their
+   duration at the bottom-right (§5.7); scrolling a long queue stays smooth
    (thumbnails pop in degraded-then-sharp, no full-screen stalls).
 2. ☐ Tapping a tile opens the full-screen item viewer; **Close** returns to
    the grid with the same scroll position.

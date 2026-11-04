@@ -105,6 +105,7 @@ fun QueueScreen(
             QueueHeader(count = state.items.size, onBack = onBack)
             QueueGrid(
                 tiles = state.tiles,
+                selectedId = state.selected,
                 loader = mediaLoader,
                 onOpen = { onIntent(QueueIntent.Open(it)) },
             )
@@ -199,10 +200,14 @@ private fun QueueHeader(
     }
 }
 
-/** The 3-column grid (§5.8, FR-23): one [GridTile] per queued item, newest first. */
+/**
+ * The 3-column grid (§5.8, FR-23): one [GridTile] per queued item, newest first.
+ * The tile open in the viewer carries §5.7's keep ring (`selectedId`).
+ */
 @Composable
 private fun ColumnScope.QueueGrid(
     tiles: List<QueueTile>,
+    selectedId: String?,
     loader: MediaLoader,
     onOpen: (String) -> Unit,
 ) {
@@ -217,7 +222,12 @@ private fun ColumnScope.QueueGrid(
                 .fillMaxWidth(),
     ) {
         items(tiles, key = { it.id }) { tile ->
-            GridTile(tile = tile, loader = loader, onClick = { onOpen(tile.id) })
+            GridTile(
+                tile = tile,
+                loader = loader,
+                selected = tile.id == selectedId,
+                onClick = { onOpen(tile.id) },
+            )
         }
     }
 }

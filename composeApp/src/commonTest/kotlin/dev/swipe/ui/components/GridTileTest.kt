@@ -70,8 +70,9 @@ class GridTileTest {
             onNodeWithContentDescription("Queued item").assertExists()
         }
 
+    // Position (bottom-right per §5.7) is visual QA — manual-test.md row.
     @Test
-    fun `5-7 a video tile shows its duration at the bottom-right`() =
+    fun `5-7 a video tile shows its duration`() =
         runComposeUiTest {
             setContent {
                 TestTile(
