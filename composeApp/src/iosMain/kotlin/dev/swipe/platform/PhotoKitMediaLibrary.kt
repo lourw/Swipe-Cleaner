@@ -8,6 +8,7 @@ package dev.swipe.platform
 import dev.swipe.data.LONG_VIDEO_MIN_MS
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.monthBuckets
+import dev.swipe.data.monthRange
 import dev.swipe.data.photoKitDeleteResult
 import dev.swipe.data.photoKitIsScreenshot
 import dev.swipe.data.photoKitLibraryAccess
@@ -33,6 +34,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toKotlinInstant
+import kotlinx.datetime.toNSDate
 import platform.Foundation.NSArray
 import platform.Foundation.NSCompoundPredicate
 import platform.Foundation.NSPredicate
@@ -191,35 +193,41 @@ class PhotoKitMediaLibrary(
         }
 
     /**
-     * Fetches every asset of [type] library-wide (FR-4, FR-5) and enumerates only
-     * `localIdentifier` — the whole point of NFR-4. Live Photos are images to PhotoKit,
-     * so the PHOTOS predicate includes them (FR-5). Creation-date descending is the
-     * fetch default (§6.5); the shuffle happens in `BuildDeckUseCase`.
+     * Ids of [source] narrowed by [type] (FR-5) — the type predicate ANDed into **every**
+     * source predicate — enumerating **only** `localIdentifier` off the fetch result, the
+     * whole point of NFR-4. Deck order (§6.5): `Smart(LONG_VIDEOS)` comes back
+     * duration-descending via a sort descriptor, every other source creation-date
+     * descending (an explicit descriptor on album fetches, whose default is the album's
+     * custom order). Sources: albums by collection ([DeckSource.Album.id] is the
+     * collection `localIdentifier`), months by half-open `creationDate` range from
+     * [monthRange] in the device zone — the same zone [months] bucketed, so deck and
+     * bucket agree on membership (FR-7) — and the smart filters per
+     * [smartAssetIds]. An unknown album id, a missing selfies album, or an empty month
+     * yields an empty list.
      */
     override suspend fun assetIds(
         source: DeckSource,
         type: MediaTypeFilter,
-    ): List<String> {
-        if (source != DeckSource.All) {
-            // Album / Month / Smart sources arrive with WP-5.1; M1's deck only shuffles All.
-            return emptyList()
-        }
-        return withContext(fetchDispatcher) {
-            val options = PHFetchOptions()
-            options.predicate =
-                when (type) {
-                    MediaTypeFilter.ALL -> null
-                    MediaTypeFilter.PHOTOS -> NSPredicate.predicateWithFormat("mediaType == ${PHAssetMediaTypeImage.toInt()}")
-                    MediaTypeFilter.VIDEOS -> NSPredicate.predicateWithFormat("mediaType == ${PHAssetMediaTypeVideo.toInt()}")
+    ): List<String> =
+        withContext(fetchDispatcher) {
+            when (source) {
+                DeckSource.All -> {
+                    idsFrom(assetsWithOptions(typePredicate(type)))
                 }
-            val result = PHAsset.fetchAssetsWithOptions(options)
-            val ids = ArrayList<String>(result.count.toInt())
-            result.enumerateObjectsUsingBlock { asset, _, _ ->
-                (asset as? PHAsset)?.localIdentifier?.let(ids::add)
+
+                is DeckSource.Album -> {
+                    albumAssetIds(source.id, type)
+                }
+
+                is DeckSource.Month -> {
+                    monthAssetIds(source.year, source.month, type)
+                }
+
+                is DeckSource.Smart -> {
+                    smartAssetIds(source.kind, type)
+                }
             }
-            ids
         }
-    }
 
     /**
      * Metadata for [ids] in pages of [METADATA_PAGE_SIZE] (§6.5 step 2), input order
@@ -302,153 +310,12 @@ class PhotoKitMediaLibrary(
         }.conflate()
 
     /**
-     * Cheap candidates for the Likely Duplicates filter (FR-6, §6.5): enumerates **only**
-     * `creationDate`, `pixelWidth`, and `pixelHeight` off the fetch result — the three
-     * fields [DuplicateKey] carries, nothing else (NFR-4) — on [fetchDispatcher], sorted
-     * by creation date descending (nulls last), matching the fake and what
-     * [DuplicateGrouper] expects (§6.4: date-sorted; §6.5: newest-first deck order).
+     * Cheap candidates for the Likely Duplicates filter (FR-6, §6.5): the
+     * [duplicateCandidateKeys] scan (id + creationDate + pixel dimensions only) on
+     * [fetchDispatcher], date-sorted for [DuplicateGrouper].
      */
     override suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey> =
-        withContext(fetchDispatcher) {
-            val keys = mutableListOf<DuplicateKey>()
-            assetsWithOptions(typePredicate(type)).enumerateObjectsUsingBlock { asset, _, _ ->
-                (asset as? PHAsset)?.let {
-                    keys +=
-                        DuplicateKey(
-                            id = it.localIdentifier,
-                            createdAt = it.creationDate?.toKotlinInstant(),
-                            widthPx = it.pixelWidth.toInt(),
-                            heightPx = it.pixelHeight.toInt(),
-                        )
-                }
-            }
-            keys.sortWith { a, b ->
-                when {
-                    a.createdAt == null && b.createdAt == null -> 0
-                    a.createdAt == null -> 1
-                    b.createdAt == null -> -1
-                    else -> b.createdAt.compareTo(a.createdAt)
-                }
-            }
-            keys
-        }
-
-    /**
-     * A fetch of every asset matching [predicate], library-wide. [predicate] must already
-     * carry the type filter — see [typePredicate] (FR-5).
-     */
-    private fun assetsWithOptions(predicate: NSPredicate?): PHFetchResult = PHAsset.fetchAssetsWithOptions(optionsWithPredicate(predicate))
-
-    /** Fetch options carrying [predicate] (null = unrestricted). */
-    private fun optionsWithPredicate(predicate: NSPredicate?): PHFetchOptions {
-        val options = PHFetchOptions()
-        options.predicate = predicate
-        return options
-    }
-
-    /**
-     * The FR-5 type predicate for a fetch: `mediaType == image` (Live Photos are images
-     * to PhotoKit, FR-5) or `mediaType == video`; null for ALL. This is the half that
-     * [andPredicates] ANDs into **every** source predicate.
-     */
-    private fun typePredicate(type: MediaTypeFilter): NSPredicate? =
-        when (type) {
-            MediaTypeFilter.ALL -> null
-            MediaTypeFilter.PHOTOS -> NSPredicate.predicateWithFormat("mediaType == ${PHAssetMediaTypeImage.toInt()}")
-            MediaTypeFilter.VIDEOS -> NSPredicate.predicateWithFormat("mediaType == ${PHAssetMediaTypeVideo.toInt()}")
-        }
-
-    /** AND-combines the non-null predicates (FR-5); null when nothing restricts. */
-    private fun andPredicates(vararg predicates: NSPredicate?): NSPredicate? =
-        predicates.filterNotNull().let { parts ->
-            when (parts.size) {
-                0 -> null
-                1 -> parts.single()
-                else -> NSCompoundPredicate.andPredicateWithSubpredicates(parts)
-            }
-        }
-
-    /**
-     * FR-6 Screenshots: the `photoScreenshot` subtype bit ANDed with the type filter
-     * (FR-5) — `(mediaSubtypes & PHAssetMediaSubtypePhotoScreenshot) != 0`.
-     */
-    private fun screenshotPredicate(type: MediaTypeFilter): NSPredicate? =
-        andPredicates(
-            typePredicate(type),
-            NSPredicate.predicateWithFormat("mediaSubtypes & ${PHAssetMediaSubtypePhotoScreenshot.toLong()} != 0"),
-        )
-
-    /**
-     * FR-6 Long videos: `mediaType == video AND duration >= 60` — the threshold comes
-     * from [LONG_VIDEO_MIN_MS] so the fake and the predicate cannot drift; the compare
-     * is inclusive at exactly 60 s. ANDed with the type filter (FR-5), so
-     * `PHOTOS` yields nothing here, as it must.
-     */
-    private fun longVideoPredicate(type: MediaTypeFilter): NSPredicate? =
-        andPredicates(
-            typePredicate(type),
-            NSPredicate.predicateWithFormat(
-                "mediaType == ${PHAssetMediaTypeVideo.toInt()} AND duration >= ${LONG_VIDEO_MIN_MS / MS_PER_SECOND}",
-            ),
-        )
-
-    /**
-     * FR-6 Bursts: ids of every asset with a `burstIdentifier`. **Predicate support,
-     * checked against the iOS 26.5 SDK:** `PHAsset.h` exposes `burstIdentifier` /
-     * `representsBurst` only as plain read-only properties — neither is a documented
-     * `NSPredicate` key path for `PHFetchOptions` (PhotoKit's KVC predicate support
-     * covers mediaType/mediaSubtypes/creationDate/duration/pixel dimensions, not burst
-     * identity), and the only burst-aware fetch hooks are `includeAllBurstAssets` on
-     * the options and `fetchAssetsWithBurstIdentifier:` (which needs a known id). So:
-     * fetch with `includeAllBurstAssets = true` — every frame of every burst, each
-     * carrying its `burstIdentifier` — and filter in the enumeration on
-     * `burstIdentifier != null`, ANDing the type filter into the fetch predicate (FR-5).
-     * Creation-date descending via a sort descriptor, like every non-LONG_VIDEOS deck
-     * (§6.5). Cost: one pass over the fetch result reading one property per asset —
-     * the same order of work [duplicateCandidates] does.
-     */
-    private fun burstAssetIds(type: MediaTypeFilter): List<String> {
-        val options = optionsWithPredicate(typePredicate(type))
-        options.includeAllBurstAssets = true
-        val sort = NSSortDescriptor(key = "creationDate", ascending = false)
-        options.sortDescriptors = listOf(sort)
-        val ids = mutableListOf<String>()
-        PHAsset.fetchAssetsWithOptions(options).enumerateObjectsUsingBlock { asset, _, _ ->
-            (asset as? PHAsset)?.let { if (it.burstIdentifier != null) ids += it.localIdentifier }
-        }
-        return ids
-    }
-
-    /** The `smartAlbumSelfPortraits` collection (FR-6), or null when PhotoKit has none. */
-    private fun selfiesCollection(): PHAssetCollection? {
-        val fetch =
-            PHAssetCollection.fetchAssetCollectionsWithType(
-                PHAssetCollectionTypeSmartAlbum,
-                PHAssetCollectionSubtypeSmartAlbumSelfPortraits,
-                null,
-            )
-        return fetch.firstObject() as? PHAssetCollection
-    }
-
-    /** One [AlbumSource] row (FR-8): cheap count + newest asset as cover; see [albums]. */
-    private fun toAlbumSource(collection: PHAssetCollection): AlbumSource {
-        val estimated = collection.estimatedAssetCount
-        val count =
-            if (estimated.toLong() == Long.MAX_VALUE) {
-                PHAsset.fetchAssetsInAssetCollection(collection, null).count.toInt()
-            } else {
-                estimated.toInt()
-            }
-        val coverOptions = optionsWithPredicate(null)
-        coverOptions.sortDescriptors = listOf(NSSortDescriptor(key = "creationDate", ascending = false))
-        val cover = PHAsset.fetchAssetsInAssetCollection(collection, coverOptions).firstObject() as? PHAsset
-        return AlbumSource(
-            id = collection.localIdentifier,
-            title = collection.localizedTitle ?: "",
-            count = count,
-            coverAssetId = cover?.localIdentifier,
-        )
-    }
+        withContext(fetchDispatcher) { duplicateCandidateKeys(type) }
 
     /**
      * `PHAsset` → [MediaItem] (§7). The non-trivial bit tests live in
