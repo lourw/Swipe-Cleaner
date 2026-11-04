@@ -18,6 +18,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
@@ -243,6 +244,7 @@ private fun SwipeContainer(
     mediaLoader: MediaLoader = koinInject(),
     systemActions: SystemActions = koinInject(),
     haptics: Haptics = koinInject(),
+    settings: SettingsStore = koinInject(),
 ) {
     val viewModel: SwipeViewModel =
         koinViewModel(
@@ -254,6 +256,9 @@ private fun SwipeContainer(
     // building it inline would churn the subscription on every recomposition.
     val reduceMotionFlow = remember(systemActions) { systemActions.isReduceMotionEnabled() }
     val reduceMotion by reduceMotionFlow.collectAsState(initial = false)
+    // FR-16/FR-29: with autoplay off the card shows the poster and a play
+    // affordance until tapped.
+    val autoplayVideos by settings.autoplayVideos.collectAsState()
     val finished = state.finished
     LaunchedEffect(finished) {
         if (finished != null) {
@@ -271,6 +276,7 @@ private fun SwipeContainer(
         reduceMotion = reduceMotion,
         onClose = onClose,
         onOpenQueue = onOpenQueue,
+        autoplayVideos = autoplayVideos,
     )
 }
 

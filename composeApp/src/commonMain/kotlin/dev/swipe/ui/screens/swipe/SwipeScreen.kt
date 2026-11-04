@@ -3,10 +3,13 @@ package dev.swipe.ui.screens.swipe
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -15,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.presentation.swipe.CardState
 import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
@@ -25,6 +30,10 @@ import dev.swipe.resources.ic_favorite
 import dev.swipe.ui.components.DEFAULT_AUTO_DISMISS
 import dev.swipe.ui.components.NEVER_AUTO_DISMISS
 import dev.swipe.ui.components.Toast
+import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
+import dev.swipe.ui.components.media.SeekTarget
+import dev.swipe.ui.components.media.VideoPlayerSlot
+import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
 import dev.swipe.ui.components.swipe.rememberSwipeCardState
 import dev.swipe.ui.theme.SwipeTheme
@@ -40,6 +49,9 @@ fun decodeTypeFilter(name: String): MediaTypeFilter = MediaTypeFilter.entries.fi
 
 /** Tag the screen tests tap through for card gestures and card taps. */
 internal const val SWIPE_CARD_TEST_TAG = "swipe-card"
+
+/** Tag of the autoplay-off play affordance over a video poster (§5.6, R2 wiring). */
+internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
 
 /**
  * The Swipe screen (§5.8, WP-2.3): [TopBar] over the deck over the [ActionBar]
@@ -62,9 +74,13 @@ internal const val SWIPE_CARD_TEST_TAG = "swipe-card"
  *   [SwipeUiState.revertToken] (a failed decision write, NFR-7) reverts it
  *   the same way (see `CardMotionEffects` in DeckMotion.kt).
  * - **Card taps** (§5.6): a photo tap toggles the chrome (top bar and
- *   metadata), a video tap toggles mute through [SwipeIntent.ToggleMute],
- *   a double-tap toggles aspect-fit/fill locally, and a long-press is a
- *   no-op until Live Photo playback (WP-4.2).
+ *   metadata), a video tap toggles mute through [SwipeIntent.ToggleMute]
+ *   (with autoplay off the first tap starts playback instead), a double-tap
+ *   toggles aspect-fit/fill locally, and holding a Live Photo plays its
+ *   paired video until release (FR-17; see `CardStack` in DeckMotion.kt).
+ * - **Video scrubber** (FR-16): videos only, below the card in the
+ *   action-bar area — [VideoScrubber] seeks through a [SeekTarget] while the
+ *   finger drags (Live Photos show none; they play once, no loop).
  *
  * With no card and no summary to show the screen renders the §5.8
  * [EmptyState]; a moment of it during the deck's first load is accepted.
@@ -82,6 +98,8 @@ fun SwipeScreen(
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    autoplayVideos: Boolean = true,
+    videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     val spacing = SwipeTheme.spacing
 
@@ -130,6 +148,8 @@ fun SwipeScreen(
                     reduceMotion = reduceMotion,
                     onClose = onClose,
                     onOpenQueue = onOpenQueue,
+                    autoplayVideos = autoplayVideos,
+                    videoSlot = videoSlot,
                 )
             }
         }
@@ -181,6 +201,8 @@ private fun DeckContent(
     reduceMotion: Boolean,
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
+    autoplayVideos: Boolean,
+    videoSlot: VideoPlayerSlot,
 ) {
     val cardState = rememberSwipeCardState()
     val scope = rememberCoroutineScope()
@@ -213,19 +235,21 @@ private fun DeckContent(
             visible = chromeVisible,
         )
         state.current?.let { current ->
-            CardStack(
-                card = current,
-                next = state.next,
+            DeckStage(
+                current = current,
+                state = state,
                 cardState = cardState,
                 mediaLoader = mediaLoader,
+                haptics = haptics,
                 reduceMotion = reduceMotion,
                 chromeVisible = chromeVisible,
                 fillMode = fillMode,
+                autoplayVideos = autoplayVideos,
+                onIntent = onIntent,
                 onDismiss = commit,
                 onToggleChrome = { chromeVisible = !chromeVisible },
-                onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
                 onToggleFill = { fillMode = !fillMode },
-                onThresholdCrossed = { haptics.selection() },
+                videoSlot = videoSlot,
             )
         }
         // §5.7 Toast slot: above the action bar (FR-15, FR-22, NFR-7).
@@ -242,6 +266,103 @@ private fun DeckContent(
             onDelete = { buttonCommit(SwipeVerdict.DELETE) },
             onSkip = { buttonCommit(SwipeVerdict.SKIP) },
             onUndo = { onIntent(SwipeIntent.Undo) },
+        )
+    }
+}
+
+/**
+ * The FR-16/FR-17 video interaction state of the current card: the
+ * autoplay-off first tap, the FR-17 hold, and the scrubber trio (the
+ * player's last reported fraction, the finger's override while scrubbing,
+ * and the pending seek). A new instance per card id, so the next card
+ * starts at rest.
+ */
+private class DeckVideoState {
+    var started by mutableStateOf(false)
+    var livePress by mutableStateOf(false)
+    var reportedFraction by mutableFloatStateOf(0f)
+    var seekToken by mutableLongStateOf(0L)
+    var seekTarget by mutableStateOf<SeekTarget?>(null)
+    private var scrubbing by mutableStateOf(false)
+    private var scrubFraction by mutableFloatStateOf(0f)
+
+    /** The scrubber's visible fraction: the finger outranks the player's ticks. */
+    val visibleFraction: Float
+        get() = if (scrubbing) scrubFraction else reportedFraction
+
+    /** A player tick; ignored while the finger is on the scrubber. */
+    fun onProgress(fraction: Float) {
+        if (!scrubbing) reportedFraction = fraction
+    }
+
+    /** A scrubber drag step: show it now, seek the player, count the event. */
+    fun onScrub(fraction: Float) {
+        scrubbing = true
+        scrubFraction = fraction
+        seekToken += 1L
+        seekTarget = SeekTarget(seekToken, fraction)
+    }
+
+    /** Release or cancel: the player's own reports take over again. */
+    fun onScrubEnd() {
+        scrubbing = false
+    }
+}
+
+/**
+ * The current card and its scrubber: the [CardStack] plus the FR-16 scrubber
+ * below it in the action-bar area — videos only, so §5.6 keeps card drags and
+ * scrubber drags disjoint.
+ */
+@Composable
+private fun ColumnScope.DeckStage(
+    current: CardState,
+    state: SwipeUiState,
+    cardState: SwipeCardState,
+    mediaLoader: MediaLoader,
+    haptics: Haptics,
+    reduceMotion: Boolean,
+    chromeVisible: Boolean,
+    fillMode: Boolean,
+    autoplayVideos: Boolean,
+    onIntent: (SwipeIntent) -> Unit,
+    onDismiss: (SwipeVerdict) -> Unit,
+    onToggleChrome: () -> Unit,
+    onToggleFill: () -> Unit,
+    videoSlot: VideoPlayerSlot,
+) {
+    // All video state is per-card (kept fresh by the current id's key).
+    val video = remember(current.id) { DeckVideoState() }
+    CardStack(
+        card = current,
+        next = state.next,
+        cardState = cardState,
+        mediaLoader = mediaLoader,
+        reduceMotion = reduceMotion,
+        chromeVisible = chromeVisible,
+        fillMode = fillMode,
+        autoplayVideos = autoplayVideos,
+        videoStarted = video.started,
+        muted = state.muted,
+        livePress = video.livePress,
+        seekTarget = video.seekTarget,
+        onDismiss = onDismiss,
+        onToggleChrome = onToggleChrome,
+        onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
+        onToggleFill = onToggleFill,
+        onThresholdCrossed = { haptics.selection() },
+        onVideoStart = { video.started = true },
+        onVideoProgress = video::onProgress,
+        onLivePressStart = { video.livePress = true },
+        onPressUp = { video.livePress = false },
+        videoSlot = videoSlot,
+    )
+    if (current.type == MediaType.VIDEO) {
+        VideoScrubber(
+            durationMs = current.durationMs ?: 0L,
+            fraction = video.visibleFraction,
+            onScrub = video::onScrub,
+            onScrubEnd = video::onScrubEnd,
         )
     }
 }

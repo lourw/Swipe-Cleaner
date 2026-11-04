@@ -25,12 +25,19 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.toSize
 import dev.swipe.data.Haptics
+import dev.swipe.data.LoadedImage
 import dev.swipe.data.MediaLoader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
 import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
+import dev.swipe.resources.Res
+import dev.swipe.resources.ic_play_arrow
+import dev.swipe.ui.components.SwipeIcon
+import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
+import dev.swipe.ui.components.media.SeekTarget
+import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.components.swipe.SwipeCard
 import dev.swipe.ui.components.swipe.SwipeCardState
@@ -90,7 +97,13 @@ internal fun CardMotionEffects(
  * The card stack (FR-11): [UnderDeckCard] under the top [SwipeCard], growing
  * 0.94 → 1.0 and 0.6 → 1.0 alpha with the drag progress (§5.6); the one §5.5
  * shadow belongs to the top card only. The §5.6 taps: a video tap toggles
- * mute, a photo tap the chrome, a double-tap the fill mode.
+ * mute (or, with autoplay off, starts playback first), a photo tap the chrome,
+ * a double-tap the fill mode, and a Live Photo long-press plays through
+ * [videoSlot] while the finger is down (FR-16, FR-17).
+ *
+ * R2 (see [dev.swipe.ui.components.media.VideoPlayer]): the hosted player
+ * ignores card transforms, so it is mounted only while the top card is at
+ * rest — poster image up for every animated moment.
  */
 @Composable
 internal fun ColumnScope.CardStack(
@@ -101,13 +114,24 @@ internal fun ColumnScope.CardStack(
     reduceMotion: Boolean,
     chromeVisible: Boolean,
     fillMode: Boolean,
+    autoplayVideos: Boolean,
+    videoStarted: Boolean,
+    muted: Boolean,
+    livePress: Boolean,
+    seekTarget: SeekTarget?,
     onDismiss: (SwipeVerdict) -> Unit,
     onToggleChrome: () -> Unit,
     onToggleMute: () -> Unit,
     onToggleFill: () -> Unit,
     onThresholdCrossed: () -> Unit,
+    onVideoStart: () -> Unit,
+    onVideoProgress: (Float) -> Unit,
+    onLivePressStart: () -> Unit,
+    onPressUp: () -> Unit,
+    videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var deckSize by remember { mutableStateOf(Size.Zero) }
+    val isVideo = card.type == MediaType.VIDEO
     Box(
         modifier =
             Modifier
@@ -130,17 +154,41 @@ internal fun ColumnScope.CardStack(
             reduceMotion = reduceMotion,
             onTap = {
                 // §5.6: a video tap toggles mute; a photo tap the chrome.
-                if (card.type == MediaType.VIDEO) onToggleMute() else onToggleChrome()
+                // With autoplay off the first tap starts playback instead
+                // (the poster + affordance state), later taps toggle mute.
+                when {
+                    !isVideo -> onToggleChrome()
+                    !autoplayVideos && !videoStarted -> onVideoStart()
+                    else -> onToggleMute()
+                }
             },
             onDoubleTap = onToggleFill,
-            onLongPress = { /* Live Photo playback: WP-4.2 */ },
+            onLongPress = {
+                // FR-17: hold a Live Photo to play its paired video.
+                if (card.type == MediaType.LIVE_PHOTO) onLivePressStart()
+            },
+            onPressUp = onPressUp,
             onThresholdCrossed = onThresholdCrossed,
             modifier = Modifier.matchParentSize().testTag(SWIPE_CARD_TEST_TAG),
         ) {
-            CardMedia(card = card, loader = mediaLoader, fillMode = fillMode)
+            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = fillMode)
+            TopCardPlayback(
+                card = card,
+                cardState = cardState,
+                autoplayVideos = autoplayVideos,
+                videoStarted = videoStarted,
+                muted = muted,
+                livePress = livePress,
+                seekTarget = seekTarget,
+                onVideoProgress = onVideoProgress,
+                videoSlot = videoSlot,
+            )
             if (chromeVisible) {
                 CardMetadata(
                     card = card,
+                    // R6: either signal lights the badge — the deck-time flag
+                    // or the pixels having come from iCloud.
+                    isCloudOnly = card.isCloudOnly || loaded?.isCloud == true,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
             }
@@ -148,13 +196,59 @@ internal fun ColumnScope.CardStack(
     }
 }
 
-/** The top card's media: aspect-fit by default, fill after a double-tap (§5.6). */
+/**
+ * The top card's live playback layers (FR-16, FR-17) — everything between
+ * the poster and the metadata scrim. R2 governs the mounts: the hosted
+ * player ignores `graphicsLayer` transforms, so it is composed only while
+ * the top card is at rest, with the poster up for every animated moment.
+ * With autoplay off the card shows a play affordance until the first tap.
+ */
 @Composable
-private fun BoxScope.CardMedia(
+private fun BoxScope.TopCardPlayback(
+    card: CardState,
+    cardState: SwipeCardState,
+    autoplayVideos: Boolean,
+    videoStarted: Boolean,
+    muted: Boolean,
+    livePress: Boolean,
+    seekTarget: SeekTarget?,
+    onVideoProgress: (Float) -> Unit,
+    videoSlot: VideoPlayerSlot,
+) {
+    if (card.type != MediaType.VIDEO && !(livePress && card.type == MediaType.LIVE_PHOTO)) {
+        return
+    }
+    if (card.type == MediaType.VIDEO) {
+        if (!autoplayVideos && !videoStarted) {
+            // R2 wiring: poster + play affordance until the first tap.
+            SwipeIcon(
+                Res.drawable.ic_play_arrow,
+                contentDescription = null,
+                size = SwipeTheme.componentSizes.videoPlayAffordance,
+                modifier = Modifier.align(Alignment.Center).testTag(VIDEO_PLAY_AFFORDANCE_TEST_TAG),
+            )
+        } else if (cardState.isIdle) {
+            // Positional: the slot is a function type (named args are
+            // prohibited on function-type invocations).
+            videoSlot(card.id, muted, true, onVideoProgress, Modifier.matchParentSize(), false, seekTarget)
+        }
+    } else if (cardState.isIdle) {
+        // FR-17: over the still, muted, once; release unmounts (stops).
+        videoSlot(card.id, true, true, {}, Modifier.matchParentSize(), true, null)
+    }
+}
+
+/**
+ * The top card's media: aspect-fit by default, fill after a double-tap (§5.6),
+ * always mounted as the poster under any live playback (R2). Returns the
+ * loaded image so the caller can read its R6 cloud signal.
+ */
+@Composable
+private fun BoxScope.cardMedia(
     card: CardState,
     loader: MediaLoader,
     fillMode: Boolean,
-) {
+): LoadedImage? {
     val loaded =
         rememberMediaImage(
             id = card.id,
@@ -169,6 +263,7 @@ private fun BoxScope.CardMedia(
             modifier = Modifier.matchParentSize(),
         )
     }
+    return loaded
 }
 
 /** The card underneath (FR-11): the next item's media on the shared surface. */

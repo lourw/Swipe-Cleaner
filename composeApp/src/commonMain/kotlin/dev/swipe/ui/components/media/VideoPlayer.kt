@@ -25,8 +25,14 @@ import androidx.compose.ui.Modifier
  * translation** — it stays axis-aligned at its layout rect while the card turns.
  * So the caller must mount this composable only while the card is at rest (not
  * dragging, no flight/return animation in flight) and keep the poster image
- * ([rememberMediaImage]) up for every animated moment; the fallback is wired in
- * WP-4.2.
+ * ([rememberMediaImage]) up for every animated moment; the deck wiring does
+ * exactly that (WP-4.2, `DeckMotion.CardMedia`).
+ *
+ * **Seeking (FR-16 scrubber).** [seekTarget] carries a scrub request (a
+ * monotonically increasing [SeekTarget.token] plus the target fraction); each
+ * new token seeks the player to `fraction × duration` once, and `null` (the
+ * default) never seeks. Repeated tokens keep re-firing even when the fraction
+ * repeats, so dragging back to the same spot still seeks.
  */
 @Composable
 expect fun VideoPlayer(
@@ -36,6 +42,18 @@ expect fun VideoPlayer(
     onProgress: (Float) -> Unit,
     modifier: Modifier = Modifier,
     livePhoto: Boolean = false,
+    seekTarget: SeekTarget? = null,
+)
+
+/**
+ * One seek request for [VideoPlayer] (FR-16 scrubber, WP-4.2): [fraction] is
+ * the position within the item (`0f..1f`, clamped by the player), and [token]
+ * makes every drag step a distinct event so a recomposition with the same
+ * fraction still seeks again.
+ */
+data class SeekTarget(
+    val token: Long,
+    val fraction: Float,
 )
 
 /**
@@ -53,4 +71,21 @@ fun videoProgressFraction(
         0f
     } else {
         (positionSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
+    }
+
+/**
+ * The item position (seconds) a scrubber [fraction] maps to — the inverse of
+ * [videoProgressFraction] for the FR-16 seek (WP-4.2). [fraction] clamps to
+ * `0f..1f`; a non-finite or non-positive duration (unknown, NaN, empty) yields
+ * `0.0`, so a seek before the item reports a duration lands at the start
+ * instead of dividing into NaN.
+ */
+fun seekPositionSeconds(
+    fraction: Float,
+    durationSeconds: Double,
+): Double =
+    if (!durationSeconds.isFinite() || durationSeconds <= 0.0) {
+        0.0
+    } else {
+        fraction.coerceIn(0f, 1f).toDouble() * durationSeconds
     }

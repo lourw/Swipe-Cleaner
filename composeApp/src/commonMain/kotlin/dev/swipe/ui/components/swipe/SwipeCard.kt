@@ -3,11 +3,14 @@ package dev.swipe.ui.components.swipe
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +60,11 @@ internal val RotationZSemanticsPropertyKey = SemanticsPropertyKey<Float>("SwipeC
  * swipe directions: content comes from [content], decisions leave through
  * the callbacks, and haptics fire through [onThresholdCrossed] (the caller
  * decides what the device does).
+ *
+ * [onLongPress] fires while the finger is still down (Compose's long-click
+ * semantics); [onPressUp] fires on the matching release or when a drag
+ * cancels the press — the pair the Live Photo playback needs to stop on
+ * release (FR-17).
  */
 @Composable
 fun SwipeCard(
@@ -67,6 +75,7 @@ fun SwipeCard(
     onTap: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onLongPress: () -> Unit = {},
+    onPressUp: () -> Unit = {},
     onThresholdCrossed: () -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -75,6 +84,9 @@ fun SwipeCard(
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     val currentOnThresholdCrossed by rememberUpdatedState(onThresholdCrossed)
     var cardSize by remember { mutableStateOf(Size.Zero) }
+    // Observing the combinedClickable press: the up-edge the long-press pair
+    // needs (FR-17); combinedClickable gives no release callback of its own.
+    val clickInteractionSource = pressUpInteractionSource(onPressUp)
 
     val shape = RoundedCornerShape(SwipeTheme.radii.card)
     val activeVerdict = state.committedVerdict ?: if (state.dragging) previewVerdict(state.offset, cardSize) else null
@@ -112,6 +124,8 @@ fun SwipeCard(
                     ).clip(shape)
                     .background(SwipeTheme.colors.bg)
                     .combinedClickable(
+                        interactionSource = clickInteractionSource,
+                        indication = null,
                         onClick = onTap,
                         onDoubleClick = onDoubleTap,
                         onLongClick = onLongPress,
@@ -131,6 +145,27 @@ fun SwipeCard(
             VerdictStampOverlay(state.offset, cardSize)
         }
     }
+}
+
+/**
+ * A [MutableInteractionSource] that reports the press's up-edge through
+ * [onPressUp] (FR-17): [PressInteraction.Release] on a normal release and
+ * [PressInteraction.Cancel] when a drag or long-press wins the gesture —
+ * [combinedClickable] offers no release callback of its own, and the Live
+ * Photo hold needs to stop on either edge.
+ */
+@Composable
+private fun pressUpInteractionSource(onPressUp: () -> Unit): MutableInteractionSource {
+    val source = remember { MutableInteractionSource() }
+    val currentOnPressUp by rememberUpdatedState(onPressUp)
+    LaunchedEffect(source) {
+        source.interactions.collect { interaction ->
+            if (interaction is PressInteraction.Release || interaction is PressInteraction.Cancel) {
+                currentOnPressUp()
+            }
+        }
+    }
+    return source
 }
 
 /**
@@ -236,11 +271,16 @@ private suspend fun PointerInputScope.swipeDragGestures(
                     onDismiss(verdict)
                 }
             } else {
+                // Set the flag before the launch so no frame between release
+                // and the first snap-back frame counts as idle (R2: the live
+                // player must not mount for a frame mid-snap-back).
+                state.animating = true
                 scope.launch { state.snapBack() }
             }
         },
         onDragCancel = {
             state.dragging = false
+            state.animating = true
             scope.launch { state.snapBack() }
         },
     )

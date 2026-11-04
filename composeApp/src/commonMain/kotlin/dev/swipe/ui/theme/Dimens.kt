@@ -78,6 +78,12 @@ data class SwipeComponentSizes(
     // follows the §5.5 spacing scale (vertical `s`, horizontal `gutter`).
     val toastWidthFraction: Float = 0.9f,
     val toastPaddingVertical: Dp = 12.dp,
+    // Video scrubber (§5.6, WP-4.2): the §5.7 progress line doubles as the
+    // track; the touch band around it is the §5.5 minimum touch target.
+    val videoScrubberTouchHeight: Dp = 44.dp,
+    // Autoplay-off play affordance (R2 wiring, WP-4.2): a large centered glyph
+    // over the poster, between the two action-button tiers.
+    val videoPlayAffordance: Dp = 56.dp,
     val toastPaddingHorizontal: Dp = 16.dp,
     // Segmented control (§5.7 filter control): visual segment height; the
     // touch target is at least SwipeSizes.minTouchTarget (44 dp).

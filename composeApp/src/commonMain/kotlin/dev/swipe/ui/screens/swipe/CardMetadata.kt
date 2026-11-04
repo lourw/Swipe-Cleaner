@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
 import dev.swipe.resources.Res
@@ -24,14 +25,20 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+/** Test tags for the FR-18 badges (decorative, so tags are the only handle). */
+internal const val BADGE_LIVE_TEST_TAG = "badge-live"
+internal const val BADGE_CLOUD_TEST_TAG = "badge-cloud"
+internal const val BADGE_FAVORITE_TEST_TAG = "badge-favorite"
+
 /**
  * The §5.7 card scrim: the bottom 96 dp of the card fades to `scrim` under
  * the FR-18 metadata row — date (`caption`, `textPrimary`), the duration for
- * videos, and the Live Photo / iCloud / favorite badges at the end.
+ * videos, and the Live Photo / iCloud / favorite badges at the end (WP-4.2).
  *
  * The badges are decorative (NFR-8 puts VoiceOver labels on the decision
- * controls); [isCloudOnly] arrives with the PhotoKit flag in WP-4.x, so the
- * cloud badge renders only when it is true.
+ * controls). [isCloudOnly] lights the cloud badge on either R6 signal — the
+ * caller ORs the deck-time [CardState.isCloudOnly] with the loaded image's
+ * [dev.swipe.data.LoadedImage.isCloud].
  */
 @Composable
 fun CardMetadata(
@@ -67,13 +74,31 @@ fun CardMetadata(
                 modifier = Modifier.weight(1f),
             )
             if (card.type == MediaType.LIVE_PHOTO) {
-                SwipeIcon(Res.drawable.ic_live, contentDescription = null, size = SwipeTheme.sizes.icon, tint = colors.textPrimary)
+                SwipeIcon(
+                    Res.drawable.ic_live,
+                    contentDescription = null,
+                    size = SwipeTheme.sizes.icon,
+                    tint = colors.textPrimary,
+                    modifier = Modifier.testTag(BADGE_LIVE_TEST_TAG),
+                )
             }
             if (isCloudOnly) {
-                SwipeIcon(Res.drawable.ic_cloud, contentDescription = null, size = SwipeTheme.sizes.icon, tint = colors.textPrimary)
+                SwipeIcon(
+                    Res.drawable.ic_cloud,
+                    contentDescription = null,
+                    size = SwipeTheme.sizes.icon,
+                    tint = colors.textPrimary,
+                    modifier = Modifier.testTag(BADGE_CLOUD_TEST_TAG),
+                )
             }
             if (card.isFavorite) {
-                SwipeIcon(Res.drawable.ic_favorite, contentDescription = null, size = SwipeTheme.sizes.icon, tint = colors.textPrimary)
+                SwipeIcon(
+                    Res.drawable.ic_favorite,
+                    contentDescription = null,
+                    size = SwipeTheme.sizes.icon,
+                    tint = colors.textPrimary,
+                    modifier = Modifier.testTag(BADGE_FAVORITE_TEST_TAG),
+                )
             }
         }
     }

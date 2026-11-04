@@ -42,6 +42,22 @@ class SwipeCardState internal constructor(
     var dragging: Boolean by mutableStateOf(false)
         internal set
 
+    /**
+     * True while a fly-off, return, or snap-back animation is running. Set by
+     * the animation bodies; only read through [isIdle] (R2).
+     */
+    var animating: Boolean by mutableStateOf(false)
+        internal set
+
+    /**
+     * True while the card sits perfectly still — not dragging, no animation
+     * running, no verdict committed (R2, WP-4.2). The live video player mounts
+     * only in this window, because the hosted player ignores the card's
+     * `graphicsLayer` transform; every other moment shows the poster.
+     */
+    val isIdle: Boolean
+        get() = !dragging && !animating && committedVerdict == null
+
     /** The verdict a completed fly-off committed, or null while in the deck. */
     var committedVerdict: SwipeVerdict? by mutableStateOf(null)
         internal set
@@ -69,13 +85,18 @@ class SwipeCardState internal constructor(
      */
     internal suspend fun flyOffCommitted(reduceMotion: Boolean = false) {
         val verdict = committedVerdict ?: return
-        if (reduceMotion) {
-            alphaAnim.animateTo(0f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
-        } else {
-            offsetAnim.animateTo(
-                targetValue = flyOffTarget(offsetAnim.value, directionToward(verdict), cardSize),
-                animationSpec = tween(FLY_OFF_MS, easing = FastOutLinearInEasing),
-            )
+        animating = true
+        try {
+            if (reduceMotion) {
+                alphaAnim.animateTo(0f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
+            } else {
+                offsetAnim.animateTo(
+                    targetValue = flyOffTarget(offsetAnim.value, directionToward(verdict), cardSize),
+                    animationSpec = tween(FLY_OFF_MS, easing = FastOutLinearInEasing),
+                )
+            }
+        } finally {
+            animating = false
         }
     }
 
@@ -112,19 +133,24 @@ class SwipeCardState internal constructor(
         verdict: SwipeVerdict,
         reduceMotion: Boolean = false,
     ) {
-        if (reduceMotion) {
-            offsetAnim.snapTo(Offset.Zero)
-            alphaAnim.snapTo(0f)
-            committedVerdict = null
-            alphaAnim.animateTo(1f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
-        } else {
-            offsetAnim.snapTo(undoEntryPoint(verdict))
-            alphaAnim.snapTo(1f)
-            committedVerdict = null
-            offsetAnim.animateTo(
-                targetValue = Offset.Zero,
-                animationSpec = tween(UNDO_RETURN_MS, easing = FastOutSlowInEasing),
-            )
+        animating = true
+        try {
+            if (reduceMotion) {
+                offsetAnim.snapTo(Offset.Zero)
+                alphaAnim.snapTo(0f)
+                committedVerdict = null
+                alphaAnim.animateTo(1f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
+            } else {
+                offsetAnim.snapTo(undoEntryPoint(verdict))
+                alphaAnim.snapTo(1f)
+                committedVerdict = null
+                offsetAnim.animateTo(
+                    targetValue = Offset.Zero,
+                    animationSpec = tween(UNDO_RETURN_MS, easing = FastOutSlowInEasing),
+                )
+            }
+        } finally {
+            animating = false
         }
     }
 
@@ -137,10 +163,15 @@ class SwipeCardState internal constructor(
 
     /** A below-threshold release springs the card back to center (§5.6). */
     suspend fun snapBack() {
-        offsetAnim.animateTo(
-            targetValue = Offset.Zero,
-            animationSpec = spring(dampingRatio = SNAP_DAMPING, stiffness = SNAP_STIFFNESS),
-        )
+        animating = true
+        try {
+            offsetAnim.animateTo(
+                targetValue = Offset.Zero,
+                animationSpec = spring(dampingRatio = SNAP_DAMPING, stiffness = SNAP_STIFFNESS),
+            )
+        } finally {
+            animating = false
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
+import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
 import platform.AVFoundation.pause
@@ -57,6 +58,7 @@ actual fun VideoPlayer(
     onProgress: (Float) -> Unit,
     modifier: Modifier,
     livePhoto: Boolean,
+    seekTarget: SeekTarget?,
 ) {
     val cache = remember { KoinPlatform.getKoin().get<VideoItemCache>() }
     val currentOnProgress by rememberUpdatedState(onProgress)
@@ -66,6 +68,10 @@ actual fun VideoPlayer(
         SideEffect { view.onProgress = { fraction -> currentOnProgress(fraction) } }
         LaunchedEffect(muted) { view.applyMuted(muted) }
         LaunchedEffect(playing) { view.applyPlaying(playing) }
+        // FR-16 scrubber: each new token seeks once; null (never scrubbed yet)
+        // does nothing. The token, not the fraction, keys the effect so a drag
+        // back to the same fraction still re-seeks.
+        LaunchedEffect(seekTarget) { seekTarget?.let { view.seekTo(it.fraction) } }
         DisposableEffect(view) {
             onDispose { view.release() }
         }
@@ -120,7 +126,39 @@ private class VideoPlayerSurface(
 
     fun applyPlaying(playing: Boolean) {
         this.playing = playing
-        player?.let { p -> if (playing) p.play() else p.pause() }
+        player?.let { p ->
+            if (playing) {
+                // WP-4.1 carry-over: a pause racing the end-of-item notification
+                // can leave the item parked at its end, where `play()` does
+                // nothing — resume from zero instead of freezing.
+                if (!livePhoto && isAtItemEnd(p)) {
+                    p.seekToTime(CMTimeMake(value = 0, timescale = 1))
+                }
+                p.play()
+            } else {
+                p.pause()
+            }
+        }
+    }
+
+    /**
+     * FR-16 scrubber seek: jump to [fraction] of the item (milliseconds;
+     * [seekPositionSeconds] clamps the fraction and guards unknown durations).
+     * Playback resumes only when [playing] — a paused card stays paused.
+     */
+    fun seekTo(fraction: Float) {
+        val p = player ?: return
+        val item = p.currentItem ?: return
+        val seconds = seekPositionSeconds(fraction, CMTimeGetSeconds(item.duration))
+        p.seekToTime(CMTimeMake(value = (seconds * 1000).toLong(), timescale = 1000))
+        if (playing) p.play()
+    }
+
+    private fun isAtItemEnd(p: AVPlayer): Boolean {
+        val item = p.currentItem ?: return false
+        val duration = CMTimeGetSeconds(item.duration)
+        val position = CMTimeGetSeconds(p.currentTime())
+        return duration.isFinite() && duration > 0.0 && position >= duration - RESUME_AT_END_EPSILON_S
     }
 
     /** Pause, drop the observer and layer, and delete a Live Photo temp file (FR-17). */
@@ -226,3 +264,6 @@ private class VideoPlayerSurface(
 private const val MUTED_VOLUME = 0f
 
 private const val AUDIBLE_VOLUME = 1f
+
+/** How close to the item's end (seconds) counts as "at end" for the resume guard. */
+private const val RESUME_AT_END_EPSILON_S = 0.05

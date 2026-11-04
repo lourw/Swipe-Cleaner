@@ -14,11 +14,13 @@ The app icon set in `composeApp/src/commonMain/composeResources/drawable/` consi
 
 Conversion: each glyph's SVG path was extracted from the upstream rounded SVG (24×24 viewport)
 and written as an Android `<vector>` with a white fill so the app tints it through
-`SwipeIcon`'s `ColorFilter`. No path geometry was modified.
+`SwipeIcon`'s `ColorFilter`. No path geometry was modified. (`play_arrow`'s upstream now ships a
+960-unit viewport; its path is the upstream one scaled uniformly by 1/40 to the shared 24×24
+viewport.)
 
 Files (upstream name → `ic_<name>.xml`): `check`, `close`, `arrow_upward`, `undo`, `delete`,
 `settings`, `chevron_right`, `arrow_back`, `cloud`, `favorite`, `motion_photos_on` (as `ic_live`),
-`photo_library`, `shuffle`, `calendar_month`, `filter_list`.
+`photo_library`, `shuffle`, `calendar_month`, `filter_list`, `play_arrow`.
 
 The Apache-2.0 text of the license is reproduced upstream; the SPDX identifier for these assets is
 `Apache-2.0`. Each XML file carries a short attribution header pointing here.
