@@ -75,6 +75,11 @@ git ls-files -z --cached --others --exclude-standard -- iosApp/Configuration/Con
     xargs -0 grep -nE '^ *BUNDLE_ID *=' /dev/null 2>/dev/null | grep -vE '= *dev\.swipe\.cleaner *$' |
     report "Config.xcconfig must keep the placeholder BUNDLE_ID (AGENTS.md rule 8)"
 
+# 8. One expect/actual only (AGENTS.md rule 5): VideoPlayer is the sanctioned exception.
+main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
+    grep_files '^(expect|actual) ' |
+    report "Only VideoPlayer.kt/VideoPlayerView.kt may declare expect/actual (AGENTS.md rule 5)"
+
 if [ -s "$FAILED" ]; then
     echo "check-rules: $(wc -l <"$FAILED" | tr -d ' ') rule(s) violated"
     exit 1
