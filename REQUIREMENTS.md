@@ -412,6 +412,11 @@ interface MediaLoader {
     }
 }
 
+interface VideoPreloader {                                      // §6.5 step 4; iosMain impl caches AVPlayerItem by asset id (VideoItemCache)
+    fun preload(id: String)                                     // warm the playable item (networkAccessAllowed per includeCloudOnly); no-op when warm
+    fun cancel(id: String)                                      // id left the prefetch window (step 3 parity); drops the warm item
+}
+
 interface DecisionStore {
     suspend fun record(id: String, decision: Decision, sessionId: String)  // SKIP goes to session_skip, never to decision (§7)
     suspend fun remove(id: String, sessionId: String)                       // undo; clears the decision row, or this session's session_skip row (FR-14: never another session's skip)
@@ -472,7 +477,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
    - Everything else: creation date descending (the library returns that order).
 2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20.
 3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
-4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top.
+4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top. `SwipeViewModel` calls `VideoPreloader.preload(id)` for video ids entering the same current + next 3 window (metadata `type == VIDEO` only) and `cancel(id)` for ids leaving it — alongside the image prefetch of step 3 (WP-4.1).
 5. On swipe, the ViewModel saves to `DecisionStore` first, then advances `index`. If the save fails, it emits an error and reverts the card (NFR-7).
 
 ### 6.6 State shape (Swipe screen)
