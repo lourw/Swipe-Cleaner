@@ -4,11 +4,16 @@ import dev.swipe.domain.model.MonthBucket
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+/** Sampling resolution for [SourceQueriesTest]'s DST agreement walk (FR-7). */
+private val dstProbeStep = 15.minutes
 
 /**
  * WP-5.1 pure helpers behind the source queries (FR-6, FR-7), covered without PhotoKit (§8.2).
@@ -17,14 +22,38 @@ import kotlin.time.Instant
  */
 class SourceQueriesTest {
     @Test
+    fun `FR-7 month range and membership agree across DST`() {
+        // The PhotoKit deck predicate compares absolute instants against [monthRange]'s
+        // bounds while Kotlin-side membership is [instantInMonth]; a bucket and the deck
+        // opened from it must not disagree at DST transitions (FR-7). Santiago folds its
+        // clocks mid-day in April and September — sampled at 15 min steps, every instant
+        // falls inside exactly its own local month's range, and no other month's.
+        val zone = TimeZone.of("America/Santiago")
+        var instant = Instant.parse("2024-01-01T00:00:00Z")
+        val endOfProbe = Instant.parse("2025-01-01T00:00:00Z")
+        while (instant < endOfProbe) {
+            val local = instant.toLocalDateTime(zone)
+            val month = local.month.ordinal + 1
+            val (start, end) = monthRange(local.year, month, zone)
+            assertTrue(instant >= start && instant < end, "$instant must fall in its own month range")
+            assertTrue(instantInMonth(instant, local.year, month, zone), "$instant must be a member of its own month")
+            val otherMonth = if (month == 12) 1 else month + 1
+            assertFalse(instantInMonth(instant, local.year, otherMonth, zone), "$instant must not join the next month")
+            instant += dstProbeStep
+        }
+    }
+
+    @Test
     fun `FR-7 month buckets are newest first with counts`() {
         // Two March 2026, one January 2026, three December 2025, plus an undated item that
-        // belongs to no bucket (FR-7).
+        // belongs to no bucket (FR-7). Seeded January-before-March on purpose: if the month
+        // tiebreak in the sort ever regresses to year-only, the stable group order comes out
+        // 2026-01 before 2026-03 and this test fails (it survived exactly that mutation once).
         val dates =
             listOf(
-                utc(2026, 3, 4),
-                utc(2025, 12, 1),
                 utc(2026, 1, 15),
+                utc(2025, 12, 1),
+                utc(2026, 3, 4),
                 null,
                 utc(2026, 3, 31),
                 utc(2025, 12, 25),

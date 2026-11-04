@@ -39,8 +39,11 @@ interface MediaLibrary {
     suspend fun months(type: MediaTypeFilter): List<MonthBucket>
 
     /**
-     * Item counts per smart filter for [type] (FR-5, FR-6): cheap fetch counts, except
-     * Likely Duplicates which scans id+date+size only. Safe at Home startup (NFR-4).
+     * Item counts per smart filter for [type] (FR-5, FR-6): cheap fetch counts except for
+     * the two entries that need a full-library pass — Likely Duplicates (id+date+size only)
+     * and Bursts (`burstIdentifier` has no predicate, so counting means enumerating,
+     * every burst frame included). Call off the main thread with placeholder counts
+     * first at Home startup (NFR-4, §6.5).
      */
     suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>
 

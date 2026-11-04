@@ -1,6 +1,7 @@
 package dev.swipe.fakes
 
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.compareDatesDescending
 import dev.swipe.data.instantInMonth
 import dev.swipe.data.isLongVideoDuration
 import dev.swipe.data.monthBuckets
@@ -292,12 +293,5 @@ class FakeMediaLibrary(
 
     /** Creation date descending; items with no date keep seed order at the end (§6.5). */
     private fun List<MediaItem>.byDateDescending(): List<MediaItem> =
-        sortedWith { a, b ->
-            when {
-                a.createdAt == null && b.createdAt == null -> 0
-                a.createdAt == null -> 1
-                b.createdAt == null -> -1
-                else -> b.createdAt.compareTo(a.createdAt)
-            }
-        }
+        sortedWith { a, b -> compareDatesDescending(a.createdAt, b.createdAt) }
 }

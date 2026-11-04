@@ -2,6 +2,7 @@
 
 package dev.swipe.platform
 
+import dev.swipe.data.compareDatesDescending
 import dev.swipe.data.monthRange
 import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.DuplicateKey
@@ -57,6 +58,9 @@ internal fun monthAssetIds(
     val (start, end) = monthRange(year, month, TimeZone.currentSystemDefault())
     val range =
         andPredicates(
+            // Absolute-instant bounds matching the Kotlin bucketing by construction; NSDate's
+            // double representation resolves ~100 ns at this epoch vs kotlinx microseconds,
+            // so disagreement needs an asset created within ~0.1 µs of local month-midnight.
             NSPredicate.predicateWithFormat("creationDate >= %@", start.toNSDate()),
             NSPredicate.predicateWithFormat("creationDate < %@", end.toNSDate()),
         )
@@ -120,14 +124,31 @@ internal fun smartAssetIds(
  * the same order of work [duplicateCandidateKeys] does.
  */
 internal fun burstAssetIds(type: MediaTypeFilter): List<String> {
+    val ids = mutableListOf<String>()
+    forEachBurstId(type, sorted = true) { ids += it }
+    return ids
+}
+
+/** Burst count without materializing ids — the `smartCounts` entry (NFR-4, no sort needed). */
+internal fun countBurstAssets(type: MediaTypeFilter): Int {
+    var count = 0
+    forEachBurstId(type, sorted = false) { count++ }
+    return count
+}
+
+private fun forEachBurstId(
+    type: MediaTypeFilter,
+    sorted: Boolean,
+    body: (String) -> Unit,
+) {
     val options = optionsWithPredicate(typePredicate(type))
     options.includeAllBurstAssets = true
-    options.sortDescriptors = listOf(NSSortDescriptor(key = "creationDate", ascending = false))
-    val ids = mutableListOf<String>()
-    PHAsset.fetchAssetsWithOptions(options).enumerateObjectsUsingBlock { asset, _, _ ->
-        (asset as? PHAsset)?.let { if (it.burstIdentifier != null) ids += it.localIdentifier }
+    if (sorted) {
+        options.sortDescriptors = listOf(NSSortDescriptor(key = "creationDate", ascending = false))
     }
-    return ids
+    PHAsset.fetchAssetsWithOptions(options).enumerateObjectsUsingBlock { asset, _, _ ->
+        (asset as? PHAsset)?.let { if (it.burstIdentifier != null) body(it.localIdentifier) }
+    }
 }
 
 /** The `smartAlbumSelfPortraits` collection (FR-6), or null when PhotoKit has none. */
@@ -180,13 +201,6 @@ internal fun duplicateCandidateKeys(type: MediaTypeFilter): List<DuplicateKey> {
                 )
         }
     }
-    keys.sortWith { a, b ->
-        when {
-            a.createdAt == null && b.createdAt == null -> 0
-            a.createdAt == null -> 1
-            b.createdAt == null -> -1
-            else -> b.createdAt.compareTo(a.createdAt)
-        }
-    }
+    keys.sortWith { a, b -> compareDatesDescending(a.createdAt, b.createdAt) }
     return keys
 }

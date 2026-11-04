@@ -59,6 +59,22 @@ fun instantInMonth(
 }
 
 /**
+ * Creation-date descending with null dates last — the §6.5 deck order for date-sorted
+ * sources, shared by the real key sort and the fake so the "date-sorted" contract cannot
+ * drift between them. Stable: equal (or null) dates keep their input order.
+ */
+fun compareDatesDescending(
+    a: Instant?,
+    b: Instant?,
+): Int =
+    when {
+        a == null && b == null -> 0
+        a == null -> 1
+        b == null -> -1
+        else -> b.compareTo(a)
+    }
+
+/**
  * The half-open `[start, end)` [Instant] range covering [year]-[month] in [zone] — the bounds of
  * the PhotoKit `creationDate` range predicate for a month deck (FR-7). Built from the same [zone]
  * as [monthBuckets] / [instantInMonth], so a range query and the bucket it came from agree on

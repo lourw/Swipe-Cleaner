@@ -181,7 +181,7 @@ class PhotoKitMediaLibrary(
             mapOf(
                 SmartFilter.SCREENSHOTS to assetsWithOptions(screenshotPredicate(type)).count.toInt(),
                 SmartFilter.LONG_VIDEOS to assetsWithOptions(longVideoPredicate(type)).count.toInt(),
-                SmartFilter.BURSTS to burstAssetIds(type).size,
+                SmartFilter.BURSTS to countBurstAssets(type),
                 SmartFilter.SELFIES to
                     if (selfies == null) {
                         0
