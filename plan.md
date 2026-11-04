@@ -798,7 +798,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 | 3.2 | PhotoKit delete + change observer | M3 | [x] |
 | 3.3 | Queue UI + delete success | M3 | [x] |
 | 4.1 | VideoPlayer expect/actual | M4 | [x] |
-| 4.2 | Video/Live UX + badges | M4 | [ ] |
+| 4.2 | Video/Live UX + badges | M4 | [x] |
 | 5.1 | PhotoKit sources + filters | M5 | [x] |
 | 5.2 | LoadSources + HomeViewModel | M5 | [ ] |
 | 5.3 | Home + source screens | M5 | [ ] |

@@ -40,7 +40,7 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
-| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** · 4.2 in flight |
+| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** · 4.2 MERGED (07c9c3d) — **M4 code-complete** · 5.2 next |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
@@ -48,6 +48,31 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-4.2 (m4-video-ux) — verified APPROVE-WITH-MINOR, findings fixed, merged 07c9c3d — **M4 code-complete**
+- Tap matrix (chrome tap = mute on video cards / play-pause when autoplay-off started, session-level
+  `muted` in SwipeUiState; photo cards keep chrome toggle), scrubber outside the card in the
+  action-bar area (44dp touch band, caption+tnum, drag-to-seek via one-shot `SeekTarget` token,
+  videos only), Live Photo press-and-hold overlay (`pressUpInteractionSource`, release/cancel
+  stops), FR-18 badges (Live / cloud `isCloudOnly || LoadedImage.isCloud` / favorite) + `m:ss`.
+  R2 policy: `TopCardPlayback` mounts the player only while `cardState.isIdle`; poster everything
+  else. `VideoPlayerSlot` seam keeps Koin out of commonTest. `VideoPlayer` expect grew
+  `seekTarget`/`seekPositionSeconds`; §6.4 in sync.
+- Verifier: 4/4 mutations killed — including `isIdle`→`true` (R2 gate is load-bearing) and
+  scrubber-over-card (the drag test does real hit-testing). Fixed pre-merge: the
+  **restart-from-0-after-remount** deviation was documented nowhere → now in manual row 8 +
+  `DeckVideoState` KDoc; scrubber inert while `durationMs <= 0` (unprepared seek would snap back);
+  positional-args comment (named args impossible on function-type invocations).
+- Carried into later briefs:
+  - WP-6.2: scrubber has `progressBarRangeInfo` but no label; play affordance
+    `contentDescription = null`; badges tag-only.
+  - WP-6.3: per-settle AVPlayer create/release churn (inherent to R2 — measure); optional
+    commit-release-frame assertion (structural mitigation exists: dragging=false + animating set
+    synchronously before the coroutine).
+  - WP-5.x/6.x: PhotoKit `isCloudOnly` still hardcoded null (WP-1.4 limitation) — cloud badge
+    currently rides `LoadedImage.isCloud` only; wire the real signal.
+- 👤 open (device): audible unmute, Live Photo hold feel + seeding, iCloud-only video/Live badge,
+  smoothness while swiping a playing video — all in manual-test.md Video rows 9–12.
 
 ### WP-5.1 (m5-photokit-sources) — verified APPROVE-WITH-MINOR, findings fixed, merged beabe1a — Wave G complete
 - **Simulator state note:** evidence was captured on a **wiped + re-seeded** iPhone 17 (13 assets,
