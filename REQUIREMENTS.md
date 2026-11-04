@@ -385,7 +385,9 @@ Split into Gradle modules (`:core:domain`, `:core:data`, `:feature:*`) only if b
 interface MediaLibrary {
     suspend fun authorization(): LibraryAccess            // FULL, LIMITED, DENIED, NOT_DETERMINED
     suspend fun requestAuthorization(): LibraryAccess
-    suspend fun sources(): List<DeckSource>                // albums, months, smart filters w/ counts
+    suspend fun albums(): List<AlbumSource>                      // user + main smart albums, cheap counts & cover (FR-8, NFR-4)
+    suspend fun months(type: MediaTypeFilter): List<MonthBucket> // creationDate scan, newest first — call lazily when By-month opens, never at startup (FR-7, NFR-4)
+    suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>  // cheap per-filter counts (FR-6)
     suspend fun assetIds(source: DeckSource, type: MediaTypeFilter): List<String>  // ids only, cheap
     suspend fun items(ids: List<String>): List<MediaItem>  // metadata for a page
     suspend fun delete(ids: List<String>): DeleteResult    // DELETED, CANCELLED, FAILED(msg)

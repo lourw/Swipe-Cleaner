@@ -1,6 +1,10 @@
 package dev.swipe.fakes
 
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.instantInMonth
+import dev.swipe.data.isLongVideoDuration
+import dev.swipe.data.monthBuckets
+import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.DuplicateKey
@@ -8,13 +12,14 @@ import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.model.MonthBucket
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.model.matches
+import dev.swipe.domain.usecase.DuplicateGrouper
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 /**
  * In-memory [MediaLibrary] for tests (§8.2), seeded with [items] and filtered the way
@@ -25,12 +30,15 @@ import kotlinx.datetime.toLocalDateTime
  *   descending (null dates last), matching the deck contract of §6.5.
  * - **Long videos** (FR-6): videos of `durationMs >= 60_000`, returned **pre-sorted
  *   duration-descending** — the PhotoKit source uses a duration sort descriptor (§6.5).
- * - **Likely duplicates** (FR-6): candidates walked newest-first, run together when
- *   neighbours share pixel dimensions and are within 2 s of each other; only groups of
- *   two or more come back, members next to each other. `duplicateCandidates` (FR-6)
- *   returns the same candidates' keys, sorted by creation date, for `DuplicateGrouper`.
- * - **Album** membership is modeled by [albums] (album id → member asset ids); an unknown
- *   album is empty. **Selfies** (FR-6) are modeled by [selfieIds] the same way.
+ * - **Likely duplicates** (FR-6): the shared `DuplicateGrouper` runs over the same
+ *   candidates `duplicateCandidates` returns (id + date + size, newest-first), so only
+ *   groups of two or more come back, members next to each other, in both the fake and
+ *   the real deck path.
+ * - **Album** membership is modeled by [albums] (album id → member asset ids) with
+ *   [albumTitles] for row titles; an unknown album is empty. **Selfies** (FR-6) are
+ *   modeled by [selfieIds] the same way. [albums] counts and covers reflect current
+ *   contents. [months] and month decks bucket in [monthZone] (UTC by default);
+ *   [smartCounts] counts the same membership each `assetIds` returns.
  *
  * Calls are recorded (`assetIdsCalls`, `deleteCalls`, …). Each `failNext…` switch throws
  * once. [nextDeleteResult] is returned by every `delete` until changed; on
@@ -46,6 +54,10 @@ class FakeMediaLibrary(
     private val selfieIds: Set<String> = emptySet(),
     /** What [authorization] reports; reassign to simulate a Settings change (FR-1–3). */
     var access: LibraryAccess = LibraryAccess.FULL,
+    /** Album id → row title for [albums]; defaults to the id (FR-8). */
+    private val albumTitles: Map<String, String> = emptyMap(),
+    /** Calendar zone for month membership and buckets (FR-7); UTC keeps tests deterministic. */
+    private val monthZone: TimeZone = TimeZone.UTC,
 ) : MediaLibrary {
     /** Current library contents; a [DeleteResult.Deleted] removes ids from it (FR-26). */
     val items = items.toMutableList()
@@ -56,12 +68,18 @@ class FakeMediaLibrary(
     val itemsCalls = mutableListOf<List<String>>()
     val deleteCalls = mutableListOf<List<String>>()
     val duplicateCandidatesCalls = mutableListOf<MediaTypeFilter>()
-    var sourcesCalls = 0
+    var albumsCalls = 0
+        private set
+    var monthsCalls = 0
+        private set
+    var smartCountsCalls = 0
         private set
 
     var failNextAuthorization: Throwable? = null
     var failNextRequestAuthorization: Throwable? = null
-    var failNextSources: Throwable? = null
+    var failNextAlbums: Throwable? = null
+    var failNextMonths: Throwable? = null
+    var failNextSmartCounts: Throwable? = null
     var failNextAssetIds: Throwable? = null
     var failNextItems: Throwable? = null
     var failNextDuplicateCandidates: Throwable? = null
@@ -108,13 +126,42 @@ class FakeMediaLibrary(
         return access
     }
 
-    override suspend fun sources(): List<DeckSource> {
-        sourcesCalls++
-        failNextSources?.let {
-            failNextSources = null
+    override suspend fun albums(): List<AlbumSource> {
+        albumsCalls++
+        failNextAlbums?.let {
+            failNextAlbums = null
             throw it
         }
-        return listOf(DeckSource.All)
+        // Same shape as the real library: user albums ([albums]) first; counts and
+        // cover reflect current contents (deleted items are gone, FR-28).
+        return albums.map { (id, memberIds) ->
+            val members = items.filter { it.id in memberIds }
+            AlbumSource(
+                id = id,
+                title = albumTitles[id] ?: id,
+                count = members.size,
+                coverAssetId = members.byDateDescending().firstOrNull()?.id,
+            )
+        }
+    }
+
+    override suspend fun months(type: MediaTypeFilter): List<MonthBucket> {
+        monthsCalls++
+        failNextMonths?.let {
+            failNextMonths = null
+            throw it
+        }
+        // The same commonMain bucketing the PhotoKit library runs (FR-7).
+        return monthBuckets(items.filterType(type).map { it.createdAt }, monthZone)
+    }
+
+    override suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int> {
+        smartCountsCalls++
+        failNextSmartCounts?.let {
+            failNextSmartCounts = null
+            throw it
+        }
+        return SmartFilter.entries.associateWith { smartItems(it, type).size }
     }
 
     override suspend fun assetIds(
@@ -169,7 +216,7 @@ class FakeMediaLibrary(
 
             SmartFilter.LONG_VIDEOS -> {
                 items
-                    .filter { it.type == MediaType.VIDEO && (it.durationMs ?: 0L) >= LONG_VIDEO_MIN_MS }
+                    .filter { it.type == MediaType.VIDEO && isLongVideoDuration(it.durationMs) }
                     .filterType(type)
                     .sortedByDescending { it.durationMs ?: 0L }
             }
@@ -179,7 +226,15 @@ class FakeMediaLibrary(
             }
 
             SmartFilter.LIKELY_DUPLICATES -> {
-                duplicateGroups(items.filterType(type))
+                // The shared DuplicateGrouper over the same candidates the real library
+                // feeds it (FR-6, §6.5), so fake and deck cannot drift.
+                val byId = items.associateBy { it.id }
+                val candidates =
+                    items
+                        .filterType(type)
+                        .byDateDescending()
+                        .map { DuplicateKey(it.id, it.createdAt, it.widthPx, it.heightPx) }
+                DuplicateGrouper.group(candidates).mapNotNull { byId[it] }
             }
 
             SmartFilter.SELFIES -> {
@@ -229,15 +284,11 @@ class FakeMediaLibrary(
         changesFlow.tryEmit(Unit)
     }
 
-    /** FR-7: month buckets are UTC; items with no date are in no month. */
+    /** FR-7: month membership via the shared helper, in [monthZone]; undated items are in no month. */
     private fun MediaItem.isInMonth(
         year: Int,
         month: Int,
-    ): Boolean {
-        val instant = createdAt ?: return false
-        val local = instant.toLocalDateTime(TimeZone.UTC)
-        return local.year == year && local.month.ordinal + 1 == month
-    }
+    ): Boolean = instantInMonth(createdAt, year, month, monthZone)
 
     /** Creation date descending; items with no date keep seed order at the end (§6.5). */
     private fun List<MediaItem>.byDateDescending(): List<MediaItem> =
@@ -249,40 +300,4 @@ class FakeMediaLibrary(
                 else -> b.createdAt.compareTo(a.createdAt)
             }
         }
-
-    /** FR-6 grouping: equal dimensions and neighbours within 2 s; groups of >= 2 only. */
-    private fun duplicateGroups(candidates: List<MediaItem>): List<MediaItem> {
-        val sorted = candidates.filter { it.createdAt != null }.byDateDescending()
-        val result = mutableListOf<MediaItem>()
-        var group = mutableListOf<MediaItem>()
-
-        fun flush() {
-            if (group.size >= 2) {
-                result += group
-            }
-            group = mutableListOf()
-        }
-        for (item in sorted) {
-            val previous = group.lastOrNull()
-            val joins =
-                previous != null &&
-                    previous.widthPx == item.widthPx &&
-                    previous.heightPx == item.heightPx &&
-                    previous.createdAt!!.minus(item.createdAt!!).inWholeMilliseconds <= DUPLICATE_WINDOW_MS
-            if (previous != null && !joins) {
-                flush()
-            }
-            group += item
-        }
-        flush()
-        return result
-    }
-
-    private companion object {
-        /** FR-6: long videos are >= 60 s. */
-        const val LONG_VIDEO_MIN_MS = 60_000L
-
-        /** FR-6: likely duplicates are taken within 2 s of each other. */
-        const val DUPLICATE_WINDOW_MS = 2_000L
-    }
 }

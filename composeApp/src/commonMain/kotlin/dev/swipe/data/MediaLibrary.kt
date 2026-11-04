@@ -1,11 +1,14 @@
 package dev.swipe.data
 
+import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.DuplicateKey
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.model.MonthBucket
+import dev.swipe.domain.model.SmartFilter
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -20,8 +23,26 @@ interface MediaLibrary {
     /** Ask the system for `readWrite` access and return the outcome (FR-1). */
     suspend fun requestAuthorization(): LibraryAccess
 
-    /** Every selectable source — albums, months, smart filters — with counts (FR-4). */
-    suspend fun sources(): List<DeckSource>
+    /**
+     * The **Albums** rows (FR-4, FR-8): user albums plus the main smart albums (Favorites,
+     * Recently Added, Videos, Selfies, Screenshots, Live Photos, Bursts), each with a cheap
+     * count and a cover asset id. No per-asset enumeration (NFR-4), so this is safe at Home
+     * startup; ordering is user albums first, then the smart albums.
+     */
+    suspend fun albums(): List<AlbumSource>
+
+    /**
+     * The **By month** buckets for [type] (FR-5, FR-7): calendar months of the device zone
+     * with counts, newest first. This enumerates every asset's creation date, so call it
+     * lazily when the By-month screen opens — **never at Home startup** (NFR-4).
+     */
+    suspend fun months(type: MediaTypeFilter): List<MonthBucket>
+
+    /**
+     * Item counts per smart filter for [type] (FR-5, FR-6): cheap fetch counts, except
+     * Likely Duplicates which scans id+date+size only. Safe at Home startup (NFR-4).
+     */
+    suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>
 
     /**
      * Asset IDs of [source] narrowed by [type] (FR-5). IDs only, no metadata, so this
