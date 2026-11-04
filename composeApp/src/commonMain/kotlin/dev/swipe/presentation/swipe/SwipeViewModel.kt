@@ -417,6 +417,12 @@ class SwipeViewModel(
      * §6.5 step 3: keep current + next 3 requested from [MediaLoader.prefetch] and
      * cancel ids that left the window. Both calls pass the identical target size —
      * PhotoKit only cancels prefetches made at the same size (§6.4).
+     *
+     * §6.5 step 4: the window's videos are pre-playlisted through [VideoPreloader]
+     * (FR-16); ids that left the window are released again. `preload` is idempotent
+     * for warm ids, so re-entering a window never re-requests (the cache dedupes).
+     * Live Photos are deliberately absent — their paired video is exported on mount
+     * (FR-17), not ahead of the card.
      */
     private fun refreshPrefetch() {
         val window =
@@ -430,17 +436,6 @@ class SwipeViewModel(
             mediaLoader.prefetch(window, PREFETCH_TARGET_PX)
         }
         prefetched = window
-        refreshVideoPreload(window)
-    }
-
-    /**
-     * §6.5 step 4: the window's videos are pre-playlisted through [VideoPreloader]
-     * (FR-16); ids that left the window are released again. `preload` is idempotent
-     * for warm ids, so re-entering a window never re-requests (the cache dedupes).
-     * Live Photos are deliberately absent — their paired video is exported on mount
-     * (FR-17), not ahead of the card.
-     */
-    private fun refreshVideoPreload(window: List<String>) {
         val videos = window.filter { metadata[it]?.type == MediaType.VIDEO }
         prefetchedVideos.filterNot { it in videos }.forEach(videoPreloader::cancel)
         videos.filterNot { it in prefetchedVideos }.forEach(videoPreloader::preload)
