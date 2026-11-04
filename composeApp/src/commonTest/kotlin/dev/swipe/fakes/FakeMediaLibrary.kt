@@ -156,11 +156,35 @@ class FakeMediaLibrary(
         return monthBuckets(items.filterType(type).map { it.createdAt }, monthZone)
     }
 
+    /**
+     * When true, the **next** `smartCounts` call hangs on [releaseSmartCounts]
+     * before answering — the NFR-4 seam that proves Home renders the cheap rows
+     * while the full-library smart-count pass is still in flight. The gate arms
+     * for exactly one call, and tests that never set the flag never touch the
+     * deferred, so nothing else can wait on it.
+     */
+    var gateNextSmartCounts: Boolean = false
+
+    private var smartCountsReleased: CompletableDeferred<Unit>? = null
+
+    /** Let the gated `smartCounts` call (see [gateNextSmartCounts]) answer. */
+    fun releaseSmartCounts() {
+        smartCountsReleased?.complete(Unit)
+        smartCountsReleased = null
+    }
+
     override suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int> {
         smartCountsCalls++
         failNextSmartCounts?.let {
             failNextSmartCounts = null
             throw it
+        }
+        if (gateNextSmartCounts) {
+            val gate =
+                smartCountsReleased
+                    ?: CompletableDeferred<Unit>().also { smartCountsReleased = it }
+            gate.await()
+            gateNextSmartCounts = false
         }
         return SmartFilter.entries.associateWith { smartItems(it, type).size }
     }
