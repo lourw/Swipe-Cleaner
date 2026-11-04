@@ -39,8 +39,8 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
-| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 next |
-| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | pending |
+| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 MERGED (7d07bad) · 3.2 MERGED (b239d2d) · 4.1 next |
+| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
@@ -48,6 +48,37 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-3.3 (m3-queue-ui) — verified APPROVE-WITH-MINOR, findings fixed, merged dfc92e2 — **M3 code-complete**
+- QueueScreen (header "To delete (N)", hint, 3-col LazyVerticalGrid, pinned destructive CTA +
+  Recently-Deleted caption, §5.8 empty state with "Back home"), GridTile (radius 8, 2 dp gap,
+  duration bottom-right, NFR-8 desc date+type+duration), ConfirmDialog (NFR-5 gate),
+  QueueItemViewer (full-screen Restore), DeleteSuccessScreen (display count, route carries the
+  positive count), QueueUiState.tiles (metadata pages of 20, atomic with items — sequential
+  collector makes a mismatch structurally impossible), PhotoKitMediaLoader LRU-bypass for
+  small-target requests (tiles never evict deck decodes; per-tile request cancel). Placeholder
+  screen deleted. 214 tests green; validate --full passed.
+- Verifier: all four required tests non-vacuous (mutation-verified: GRID_COLUMNS 3→2 and
+  dialog-bypass each fail exactly their test). NFR-5 gate structurally sound (single
+  ConfirmDelete call site behind the dialog; VM guards; sole token site).
+- Fixed post-review: "oldest first" checklist typo (FR-23 is newest-first); GridTile keep-ring
+  was wired to nothing → now marks the tile open in the viewer; ConfirmDialog Cancel below 44 dp
+  → minTouchTarget Box; DeleteSuccess KDoc contradicted the branch's own §6.7 zero-count rule →
+  corrected; duration-position test renamed to what it asserts (no bounds API in this test
+  artifact; position moved to the manual checklist).
+- History: 9012933's missing Co-Authored-By amended via rebase (local-only branch; verified
+  byte-identical trees before/after).
+- Spec edits landed: §5.8 queue-empty CTA "Back home"; §6.7 zero-count commits stay quiet
+  (haptic + nav suppressed, VM-tested); §6.4/§6.8 small-target LRU bypass + tile cancel.
+- Carried into later briefs:
+  - WP-5.3: Home "N waiting to delete" banner must ship WITH navigate(Queue) (verifier-
+    confirmed not wired; TopBar badge + Summary CTA are).
+  - WP-6.2: viewer-overlay back behavior if predictive back ever lands; VoiceOver announced
+    order is date-then-type (doc example shows type-then-date — reconcile wording).
+  - WP-6.3: QueueViewModel.tileMetadata refetches the whole queue per change (O(n²) under
+    rapid restores) — cache id→MediaItem; consider bounded thumbnail cache.
+- 👤 open (device, manual-test.md Delete section): iOS dialog confirm/cancel, Recently Deleted
+  check, notificationSuccess haptic, VoiceOver read-out, scroll smoothness.
 
 ### WP-3.2 (m3-photokit-delete) — verified APPROVE-WITH-MINOR, findings fixed, merged b239d2d
 - PhotoKitMediaLibrary.delete(): fetch by localIdentifier; zero fetched → Deleted WITHOUT
