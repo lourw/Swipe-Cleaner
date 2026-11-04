@@ -98,7 +98,9 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
     card does not move. (Video tap is in the Video section.)
 21. ☐ *Double-tap*: the photo toggles between aspect-fit (default) and
     aspect-fill; another double-tap goes back.
-22. ☐ *Long-press*: no-op for now (Live Photo playback arrives in WP-4.2).
+22. ☐ *Long-press a Live Photo*: playback starts under your finger and stops
+    the moment you release (FR-17 — see the Video section). Long-pressing a
+    plain photo or video does nothing extra.
 
 **Decisions, toasts, and the session (FR-12…FR-15, FR-21, FR-22, NFR-7, §5.8)**
 
@@ -176,12 +178,73 @@ open the queue from the badged queue button or the summary's
 
 ## Video
 
-> **Stub.** Filled by WP-4.2 (playback, scrubber, Live Photos, badges).
+Playback, the scrubber, Live Photos, and the FR-18 badges (FR-16, FR-17,
+FR-18, R2). Seeding: `xcrun simctl addmedia` cannot add Live Photos, so
+Live Photo checks (rows 9–10) need a **device** with at least one Live Photo
+shot with the Live camera mode on. For the rest, generate two clips — one
+short (~5 s) and one over a minute (so the duration badge shows `1:01`):
 
-Will cover: autoplay + tap-to-mute (FR-16), the scrubber living in the
-action-bar area outside the card (a horizontal drag on the card must never
-move it, §5.6), a >60 s video, Live Photo long-press (FR-17), and the cloud /
-favorite / Live badges.
+```bash
+ffmpeg -f lavfi -i testsrc=size=720x1280:rate=30 -f lavfi -i sine=frequency=440 \
+  -t 5 -c:v libx264 -pix_fmt yuv420p -c:a aac clip-5s.mp4
+# same command with -t 61 → clip-61s.mp4
+xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
+```
+
+**Playback and mute (FR-16)**
+
+1. ☐ With Settings → **Autoplay videos** on (the default): a video card's
+   player is mounted while the card is at rest and plays muted on its own;
+   the poster shows during every drag and flight (R2 — no axis-aligned
+   player rectangle while the card turns).
+2. ☐ Tap the video card once: audio starts (simulator: verify by ear with
+   system sound on; a muted `AVPlayer` has `volume = 0`, the unmuted one
+   `1.0`). A second tap mutes again. The card itself does not move and the
+   chrome does **not** toggle on video cards.
+3. ☐ The mute choice is remembered **for the session**: after unmuting,
+   swipe to another video and back (or Undo the swipe) — playback stays
+   unmuted. Force-quitting and relaunching resets to muted.
+4. ☐ With **Autoplay videos** off (the store default is on and the Settings
+   screen is WP-6.1, so flip `SettingsStore.autoplayVideos` however you can
+   until that lands): the card shows the poster with a centered play
+   affordance and no player is mounted. The first tap starts playback
+   (still muted); later taps only toggle mute.
+5. ☐ The card loops: let a short clip play past its end — it restarts from
+   0 without stalling.
+
+**Scrubber (FR-16, §5.6)**
+
+6. ☐ A video card shows a thin progress track with the elapsed time
+   (`caption` size, tabular figures) **outside** the card, in the space
+   between card and action bar. A photo or Live Photo card shows nothing
+   there.
+7. ☐ The track fills as the clip plays. Drag on the track: the thumb and the
+   elapsed label follow the finger, and releasing seeks the player to that
+   position (a >60 s clip makes the jump obvious).
+8. ☐ A horizontal drag **on the card** never moves the scrubber: the card
+   drags, rotates, and commits normally, the track holds its reported
+   position, and the player is unmounted for the whole drag (R2), resuming
+   from the poster when the card lands.
+
+**Live Photos (FR-17)**
+
+9. ☐ 👤 A Live Photo card shows a **Live** badge and the still frame; press
+   and hold: the paired video plays (muted) over the still; release stops
+   and the still returns. No scrubber is ever shown for Live Photos.
+10. ☐ 👤 Long-pressing an iCloud-only Live Photo (rows 11–12 setup) waits for
+    the paired video to export and then plays it once; swiping while it
+    plays behaves normally.
+
+**Badges and duration (FR-18)**
+
+11. ☐ The 61 s clip shows duration `1:01` next to the capture date on the
+    metadata scrim; the 5 s clip shows `0:05`.
+12. ☐ Cloud badge: with **Include iCloud-only** on, an iCloud-optimised item
+    (👤 device with "Optimise iPhone Storage" on; on the simulator any item
+    PhotoKit reports as not locally available) shows the cloud badge on the
+    scrim; locally available items don't. Favorite items show the heart
+    badge; Live Photos the **Live** badge — badges combine (e.g. cloud +
+    favorite).
 
 ## Permissions
 

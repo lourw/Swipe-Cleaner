@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
  * So the caller must mount this composable only while the card is at rest (not
  * dragging, no flight/return animation in flight) and keep the poster image
  * ([rememberMediaImage]) up for every animated moment; the deck wiring does
- * exactly that (WP-4.2, `DeckMotion.CardMedia`).
+ * exactly that (WP-4.2, `DeckMotion.TopCardPlayback` and `DeckStage`).
  *
  * **Seeking (FR-16 scrubber).** [seekTarget] carries a scrub request (a
  * monotonically increasing [SeekTarget.token] plus the target fraction); each
