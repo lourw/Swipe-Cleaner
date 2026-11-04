@@ -6,10 +6,12 @@ import dev.swipe.data.db.SqlDecisionStore
 import dev.swipe.data.db.SqlSessionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
+import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.presentation.home.HomeViewModel
 import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
@@ -47,6 +49,10 @@ val commonModule: Module =
         single { PruneQueueUseCase(library = get(), decisions = get()) }
         single { RestoreFromQueueUseCase(decisions = get()) }
 
+        // Home counts (WP-5.2): the progressive placeholder → exact ladder for the
+        // Shuffle, Smart, and Album rows (FR-4, FR-9, NFR-4, §6.5 *Home counts*).
+        single { LoadSourcesUseCase(library = get(), decisions = get()) }
+
         // The Swipe deck (WP-1.8). Source and filter are route parameters: WP-1.9
         // resolves it with `koinViewModel { parameters { parametersOf(source, typeFilter) } }`.
         viewModel { params ->
@@ -75,6 +81,16 @@ val commonModule: Module =
                 decisions = get(),
                 mediaLibrary = get(),
                 haptics = get(),
+            )
+        }
+
+        // Home (WP-5.2). No route parameters: Home is the root of the stack, and the
+        // media-type filter (FR-5) is per-visit state the screen itself restores.
+        viewModel {
+            HomeViewModel(
+                library = get(),
+                decisions = get(),
+                loadSources = get(),
             )
         }
     }
