@@ -19,6 +19,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeVideoPreloader
 import kotlin.time.Instant
 
 /** The fixed shuffle seed; unused by the source, stored on the session (§6.5 step 1). */
@@ -47,18 +48,29 @@ internal fun photos(
         )
     }
 
+/** [photos] with VIDEO type at the (1-based) deck positions [videoPositions] (FR-16). */
+internal fun mixedDeck(
+    count: Int,
+    videoPositions: Set<Int>,
+): List<MediaItem> =
+    photos(count).mapIndexed { i, item ->
+        if (i + 1 in videoPositions) item.copy(type = MediaType.VIDEO, durationMs = 5_000L) else item
+    }
+
 /** Wires the ViewModel over the shared fakes; deck order is asset-1 … asset-[itemCount]. */
 internal class Fixture(
     itemCount: Int,
     seed: Long = SEED,
     favoriteIds: Set<String> = emptySet(),
+    items: List<MediaItem>? = null,
 ) {
     val clock = FakeClock()
     val skips = FakeSessionSkips()
     val store = FakeDecisionStore(clock, skips)
     val sessionStore = FakeSessionStore(clock, skips)
-    val library = FakeMediaLibrary(photos(itemCount, favoriteIds))
+    val library = FakeMediaLibrary(items ?: photos(itemCount, favoriteIds))
     val loader = FakeMediaLoader()
+    val videoPreloader = FakeVideoPreloader()
     val viewModel =
         SwipeViewModel(
             source = SOURCE,
@@ -68,6 +80,7 @@ internal class Fixture(
             undoDecision = UndoDecisionUseCase(store),
             mediaLibrary = library,
             mediaLoader = loader,
+            videoPreloader = videoPreloader,
             decisions = store,
             sessionStore = sessionStore,
             seedProvider = { seed },

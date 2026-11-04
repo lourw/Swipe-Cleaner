@@ -15,6 +15,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeVideoPreloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -157,6 +158,7 @@ class SwipeViewModelTest {
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
                     decisions = store,
                     sessionStore = FakeSessionStore(clock, skips),
                     seedProvider = { SEED },
@@ -310,5 +312,50 @@ class SwipeViewModelTest {
             // The warm window is asset-1 … asset-4 (§6.5 step 3).
             f.viewModel.onCleared()
             assertEquals(listOf(listOf("asset-1", "asset-2", "asset-3", "asset-4")), f.loader.cancelPrefetchCalls)
+        }
+
+    @Test
+    fun `FR-16 SwipeViewModel preloads video items alongside images for the deck window`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            // Mixed deck: videos at deck positions 2, 4, 5, 7 (§6.5 step 4).
+            val f = Fixture(8, items = mixedDeck(8, videoPositions = setOf(2, 4, 5, 7)))
+
+            f.viewModel.uiState.test {
+                awaitDeckReady()
+            }
+            // Window asset-1 … asset-4: only its videos are pre-playlisted.
+            assertEquals(listOf("asset-2", "asset-4"), f.videoPreloader.preloadCalls)
+            assertEquals(emptyList(), f.videoPreloader.cancelCalls)
+
+            // Slide to asset-2 … asset-5: asset-5 joins, nothing left, nothing re-warmed.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            assertEquals(listOf("asset-2", "asset-4", "asset-5"), f.videoPreloader.preloadCalls)
+            assertEquals(emptyList(), f.videoPreloader.cancelCalls)
+
+            // Slide to asset-3 … asset-6: video asset-2 left the window → cancelled.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            assertEquals(listOf("asset-2"), f.videoPreloader.cancelCalls)
+
+            // Slide to asset-4 … asset-7: the video at position 7 is preloaded.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            assertEquals(listOf("asset-2", "asset-4", "asset-5", "asset-7"), f.videoPreloader.preloadCalls)
+        }
+
+    @Test
+    fun `FR-16 prefetch cancel on cleared releases video preloads`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(8, items = mixedDeck(8, videoPositions = setOf(2, 4, 5, 7)))
+
+            f.viewModel.uiState.test {
+                awaitDeckReady()
+            }
+            // The warm video window is asset-2 and asset-4 (asset-5/7 are outside it).
+            f.viewModel.onCleared()
+            assertEquals(listOf("asset-2", "asset-4"), f.videoPreloader.cancelCalls)
         }
 }

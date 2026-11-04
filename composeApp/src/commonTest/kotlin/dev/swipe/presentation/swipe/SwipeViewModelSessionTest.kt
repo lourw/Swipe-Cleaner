@@ -17,6 +17,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeVideoPreloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -219,6 +220,7 @@ class SwipeViewModelSessionTest {
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
                     decisions = store,
                     sessionStore = sessionStore,
                     seedProvider = { SEED },
@@ -281,6 +283,7 @@ class SwipeViewModelSessionTest {
                     undoDecision = UndoDecisionUseCase(f.store),
                     mediaLibrary = f.library,
                     mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
                     decisions = f.store,
                     sessionStore = f.sessionStore,
                     seedProvider = { SEED },
@@ -297,6 +300,7 @@ class SwipeViewModelSessionTest {
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,
                 mediaLoader = FakeMediaLoader(),
+                videoPreloader = FakeVideoPreloader(),
                 decisions = f.store,
                 sessionStore = f.sessionStore,
                 seedProvider = { SEED },
@@ -323,6 +327,7 @@ class SwipeViewModelSessionTest {
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,
                 mediaLoader = FakeMediaLoader(),
+                videoPreloader = FakeVideoPreloader(),
                 decisions = f.store,
                 sessionStore = f.sessionStore,
                 seedProvider = { SEED },

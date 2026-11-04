@@ -6,9 +6,11 @@ import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.SessionStore
+import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaItem
+import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
@@ -69,6 +71,7 @@ class SwipeViewModel(
     private val undoDecision: UndoDecisionUseCase,
     private val mediaLibrary: MediaLibrary,
     private val mediaLoader: MediaLoader,
+    private val videoPreloader: VideoPreloader,
     private val decisions: DecisionStore,
     private val sessionStore: SessionStore,
     private val seedProvider: () -> Long,
@@ -108,6 +111,9 @@ class SwipeViewModel(
     private var reviewedBase = 0
     private var loadedCount = 0
     private var prefetched: List<String> = emptyList()
+
+    /** §6.5 step 4: the window's video ids kept warm in [VideoPreloader] (FR-16). */
+    private var prefetchedVideos: List<String> = emptyList()
     private val metadata = mutableMapOf<String, MediaItem>()
 
     /** FR-15: successful decisions in order, newest last, capped at [UNDO_STACK_LIMIT]. */
@@ -424,6 +430,21 @@ class SwipeViewModel(
             mediaLoader.prefetch(window, PREFETCH_TARGET_PX)
         }
         prefetched = window
+        refreshVideoPreload(window)
+    }
+
+    /**
+     * §6.5 step 4: the window's videos are pre-playlisted through [VideoPreloader]
+     * (FR-16); ids that left the window are released again. `preload` is idempotent
+     * for warm ids, so re-entering a window never re-requests (the cache dedupes).
+     * Live Photos are deliberately absent — their paired video is exported on mount
+     * (FR-17), not ahead of the card.
+     */
+    private fun refreshVideoPreload(window: List<String>) {
+        val videos = window.filter { metadata[it]?.type == MediaType.VIDEO }
+        prefetchedVideos.filterNot { it in videos }.forEach(videoPreloader::cancel)
+        videos.filterNot { it in prefetchedVideos }.forEach(videoPreloader::preload)
+        prefetchedVideos = videos
     }
 
     /**
@@ -446,11 +467,15 @@ class SwipeViewModel(
     /** The card at [i], or null past the deck's end or before its metadata arrives. */
     private fun cardAt(i: Int): CardState? = deck.getOrNull(i)?.let { metadata[it] }?.let(CardState::from)
 
-    /** §6.5 step 3: leaving the deck cancels the still-warm prefetch window. */
+    /** §6.5 steps 3–4: leaving the deck cancels the still-warm image and video windows. */
     public override fun onCleared() {
         if (prefetched.isNotEmpty()) {
             mediaLoader.cancelPrefetch(prefetched, PREFETCH_TARGET_PX)
             prefetched = emptyList()
+        }
+        if (prefetchedVideos.isNotEmpty()) {
+            prefetchedVideos.forEach(videoPreloader::cancel)
+            prefetchedVideos = emptyList()
         }
     }
 

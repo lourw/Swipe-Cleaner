@@ -14,6 +14,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeVideoPreloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -133,6 +134,7 @@ class SwipeViewModelUndoTest {
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
                     decisions = store,
                     sessionStore = FakeSessionStore(clock, skips),
                     seedProvider = { SEED },
