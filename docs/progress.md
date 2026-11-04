@@ -39,8 +39,8 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | D | 1.9 M1 deck screen (1.5,1.7,1.8) | 1.9 MERGED (8b17605) — **M1 code-complete**, 👤 checkpoints open |
 | E | 2.1 SwipeCard gestures (1.2) · 2.2 SwipeVM full (1.8) | BOTH MERGED: 2.1 (e59a7cc) · 2.2 (6b5c800) |
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
-| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | 3.1 (7d07bad) · 3.2 (b239d2d) · 4.1 (21fcfda) MERGED · 5.1 next |
-| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** |
+| G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
+| H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | 3.3 MERGED (dfc92e2) — **M3 code-complete** · 4.2 in flight |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | pending |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
@@ -48,6 +48,35 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-5.1 (m5-photokit-sources) — verified APPROVE-WITH-MINOR, findings fixed, merged beabe1a — Wave G complete
+- **Simulator state note:** evidence was captured on a **wiped + re-seeded** iPhone 17 (13 assets,
+  7 seeded fixtures) — the verifier confirmed the live Photos.sqlite matches; future evidence lines
+  must state library state (finding).
+- `sources()` split into `albums()` (cheap: estimatedAssetCount + firstObject cover, no per-asset
+  enumeration) / `months(type)` (creationDate-only scan → pure `monthBuckets`, lazy, never at Home
+  startup) / `smartCounts(type)`; `assetIds` real for every DeckSource; real `duplicateCandidates`
+  (fetchKeys-limited, reuses DuplicateGrouper). Pure helpers in `SourceQueries.kt` shared by the
+  fake (no drift); fake gained `monthsCalls` so WP-5.2 can assert Home never pays for the scan.
+- SDK findings: no `Recents` smart-album subtype → mapped to `SmartAlbumRecentlyAdded`;
+  `burstIdentifier` is not an NSPredicate keypath → `includeAllBurstAssets=true` + enumerate-filter
+  (leak-checked: default deck unchanged, flag set only in burst paths); LONG_VIDEOS 60s inclusive
+  in one shared constant; month membership local-zone, DST agreement proven (9.8M-sample property
+  test) and now pinned by a committed Santiago 15-min-walk test.
+- Verifier: mutations 3/3 killed at suite level; the named FR-7 test's tiebreak blind spot fixed
+  (fixture reseeded January-before-March; re-checked, now killed directly). Fixed pre-merge:
+  smartCounts KDoc/§6.4 honesty (**two** full-library passes: Bursts + Duplicates, placeholders
+  first), burst count without list allocation, shared `compareDatesDescending`, NSDate ~100 ns
+  boundary comment.
+- Carried into later briefs:
+  - WP-5.2: `smartCounts` off the main thread with placeholder counts first (two scans); album
+    covers via `MediaLoader.image(coverAssetId, 40dp×scale)` (LRU-bypass by design); `months(type)`
+    only when By-month opens (fake's `monthsCalls` asserts Home never calls it); `AlbumSource.count`
+    is an estimate — FR-9 refine subtracts `decidedIds()` per §6.5.
+  - WP-6.3: 👤 large-library timing for `smartCounts` + `albums` (NFR-4 budget) still open;
+    Bursts/Selfies/screenshots-subtype are **fake-coverage-only** (addmedia cannot seed them —
+    `ZISDETECTEDSCREENSHOT=0` confirmed) — manual-test.md must say device verification is required.
+- 👤 open: large-library NFR-4 startup checkpoint.
 
 ### WP-4.1 (m4-video-player) — verified APPROVE-WITH-MINOR, findings fixed, merged 21fcfda
 - First dispatch completed the code (7 commits) but was cancelled mid-evidence; a finisher
