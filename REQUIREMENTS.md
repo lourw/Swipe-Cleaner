@@ -106,7 +106,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 | NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). |
 | NFR-6 | Privacy | No network calls except PhotoKit's iCloud downloads. No analytics. All data stays on the device. |
 | NFR-7 | Durability | Decisions are written to SQLite before the UI advances. If that write fails, the swipe is reverted. |
-| NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. Honours Reduce Motion (see §5.6). |
+| NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. The swipe card also exposes Keep, Delete, Skip (and Undo when an undo is pending) as VoiceOver custom actions, and describes itself with its capture date, media type, and duration. Honours Reduce Motion (see §5.6). Dynamic Type is out of scope for v1: the layout targets the system default text size. |
 
 ---
 
@@ -187,7 +187,7 @@ The swipe card is the heart of the app. These numbers are the spec, not suggesti
 | Undo return | The card flies back in from the side it left, 260 ms, `FastOutSlowInEasing` |
 | Button-triggered action | Same fly-off, with a synthetic 30 dp nudge first (80 ms) so the motion reads |
 | Haptics | `selection` when crossing the threshold in either direction. `impactLight` on Keep or Skip commit. `impactMedium` on Delete commit. `notificationSuccess` after a batch delete |
-| Reduce Motion | No rotation or fly-off. A 150 ms crossfade to the next card. Stamps still show |
+| Reduce Motion | No rotation or fly-off. A 150 ms crossfade to the next card. Stamps still show. Screen transitions crossfade (150 ms) instead of sliding |
 
 Other gestures on the card:
 
