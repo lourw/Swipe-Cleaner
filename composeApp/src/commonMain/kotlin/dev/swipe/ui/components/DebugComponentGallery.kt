@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +43,8 @@ fun ComponentGallery(modifier: Modifier = Modifier) {
             modifier
                 .fillMaxSize()
                 .background(SwipeTheme.colors.bg)
+                // Safe area (WP-6.4): the first heading clears the status bar.
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(SwipeTheme.spacing.m),
     ) {

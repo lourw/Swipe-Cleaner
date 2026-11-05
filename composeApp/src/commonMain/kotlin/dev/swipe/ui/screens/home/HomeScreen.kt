@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +56,10 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * (NFR-4); arrived counts use grouping separators and tabular figures
  * (§5.7). Taps leave only as [HomeIntent]s; navigation goes out through
  * [HomeIntent]-driven events collected by the App host (§6.2).
+ *
+ * Safe areas (WP-6.4): the `bg` background paints edge-to-edge while the
+ * scroll viewport sits inside the status- and navigation-bar insets, so no
+ * row ever hides under the notch or the Home Indicator.
  */
 @Composable
 fun HomeScreen(
@@ -70,6 +76,8 @@ fun HomeScreen(
             modifier
                 .fillMaxSize()
                 .background(colors.bg)
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = spacing.l),
     ) {

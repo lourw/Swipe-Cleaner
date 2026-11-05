@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ fun ActionBar(
         modifier =
             modifier
                 .fillMaxWidth()
+                // Safe area (WP-6.4): the buttons clear the Home Indicator.
+                .navigationBarsPadding()
                 .padding(vertical = SwipeTheme.spacing.m),
     ) {
         Row(

@@ -4,7 +4,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +65,9 @@ fun QueueItemViewer(
             modifier =
                 Modifier
                     .align(Alignment.TopStart)
+                    // Safe areas (WP-6.4): Close clears the status bar,
+                    // Restore the Home Indicator; the image stays full-bleed.
+                    .statusBarsPadding()
                     .padding(SwipeTheme.spacing.gutter),
         )
         CircleIconButton(
@@ -76,6 +81,7 @@ fun QueueItemViewer(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(SwipeTheme.spacing.gutter),
         )
     }

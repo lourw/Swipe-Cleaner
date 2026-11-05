@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
@@ -45,11 +47,14 @@ fun MonthsScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(SwipeTheme.colors.bg),
+                .background(SwipeTheme.colors.bg)
+                // Safe areas (WP-6.4): header below the status bar, last row
+                // above the Home Indicator; bg paints edge-to-edge.
+                .statusBarsPadding(),
     ) {
         ScreenHeader(title = "By month", onBack = onBack)
         val items = remember(state.buckets) { monthsListItems(state.buckets) }
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             items(items) { item ->
                 when (item) {
                     is MonthsListItem.Year -> {

@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -79,7 +81,15 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .background(colors.bg),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // Safe areas (WP-6.4): header clears the status bar, the scrolling
+        // rows clear the Home Indicator; the bg above paints edge-to-edge.
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+        ) {
             ScreenHeader(title = "Settings", onBack = onBack)
             Column(
                 modifier =
@@ -97,6 +107,7 @@ fun SettingsScreen(
                 modifier =
                     Modifier
                         .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
                         .padding(bottom = SwipeTheme.spacing.xl),
             )
         }

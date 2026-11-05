@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -45,7 +46,9 @@ fun TopBar(
     if (!visible) return
     val colors = SwipeTheme.colors
     val sizes = SwipeTheme.componentSizes
-    Column(modifier = modifier.fillMaxWidth().background(colors.scrim)) {
+    // Safe area (WP-6.4): the scrim paints up into the status bar (background
+    // before the inset padding); the row itself clears it.
+    Column(modifier = modifier.fillMaxWidth().background(colors.scrim).statusBarsPadding()) {
         Box(
             contentAlignment = Alignment.Center,
             modifier =

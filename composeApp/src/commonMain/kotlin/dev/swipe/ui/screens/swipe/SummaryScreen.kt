@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -43,6 +45,10 @@ fun SummaryScreen(
             modifier
                 .fillMaxSize()
                 .background(colors.bg)
+                // Safe areas (WP-6.4): the centered content stays inside the
+                // safe area; bg paints edge-to-edge.
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = SwipeTheme.spacing.gutter),
     ) {
         Column(

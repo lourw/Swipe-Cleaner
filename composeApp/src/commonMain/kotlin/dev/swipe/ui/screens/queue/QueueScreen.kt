@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -101,7 +103,15 @@ fun QueueScreen(
                 .fillMaxSize()
                 .background(SwipeTheme.colors.bg),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // Safe areas (WP-6.4): the bg above paints edge-to-edge; the header
+        // clears the status bar and the pinned CTA the Home Indicator.
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+        ) {
             QueueHeader(count = state.items.size, onBack = onBack)
             QueueGrid(
                 tiles = state.tiles,
@@ -139,6 +149,7 @@ private fun BoxScope.QueueOverlays(
             modifier =
                 Modifier
                     .align(Alignment.TopCenter)
+                    .statusBarsPadding()
                     .padding(top = SwipeTheme.spacing.xl),
         )
     }

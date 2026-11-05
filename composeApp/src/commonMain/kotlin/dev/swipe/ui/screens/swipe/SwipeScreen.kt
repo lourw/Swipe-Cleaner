@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -135,6 +136,8 @@ fun SwipeScreen(
                             modifier =
                                 Modifier
                                     .align(Alignment.BottomCenter)
+                                    // Safe area (WP-6.4): clear the Home Indicator.
+                                    .navigationBarsPadding()
                                     .padding(horizontal = spacing.gutter, vertical = spacing.s),
                         )
                     }

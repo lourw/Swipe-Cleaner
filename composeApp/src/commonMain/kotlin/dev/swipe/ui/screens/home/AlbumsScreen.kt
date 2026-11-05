@@ -3,6 +3,8 @@ package dev.swipe.ui.screens.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -37,10 +39,13 @@ fun AlbumsScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(SwipeTheme.colors.bg),
+                .background(SwipeTheme.colors.bg)
+                // Safe areas (WP-6.4): header below the status bar, last row
+                // above the Home Indicator; bg paints edge-to-edge.
+                .statusBarsPadding(),
     ) {
         ScreenHeader(title = "Albums", onBack = onBack)
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             items(state.rows, key = { it.id }) { row ->
                 SourceRow(
                     title = row.title,

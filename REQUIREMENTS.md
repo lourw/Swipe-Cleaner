@@ -118,6 +118,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 2. **One decision at a time.** Every screen has one obvious primary action.
 3. **Color means verdict.** Green means keep, red means delete, and grey means skip. These colors are never used for anything else.
 4. **Reversible by default.** Undo is always one tap away, and nothing destructive happens without confirmation.
+5. **Safe areas are content areas.** Interactive and readable content never sits under the status bar or the Home Indicator; backgrounds and the swipe-card image paint edge-to-edge behind both.
 
 ### 5.2 Theme
 

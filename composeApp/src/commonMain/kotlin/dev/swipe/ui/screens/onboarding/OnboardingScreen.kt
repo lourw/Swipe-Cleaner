@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +34,10 @@ fun OnboardingScreen(
             modifier
                 .fillMaxSize()
                 .background(colors.bg)
+                // Safe areas (WP-6.4): copy below the status bar, CTA above
+                // the Home Indicator; bg paints edge-to-edge.
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = spacing.gutter, vertical = spacing.l),
     ) {
         Spacer(modifier = Modifier.height(spacing.xl))
