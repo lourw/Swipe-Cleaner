@@ -307,8 +307,8 @@ private fun BoxScope.cardMedia(
             modifier = Modifier.matchParentSize(),
         )
         // NFR-1 span ends ride the emissions, after the frame they draw in
-        // (CommitLatencyTrace; no-ops outside a pending commit).
-        LaunchedEffect(image) { latency.onImage(image.isDegraded) }
+        // (CommitLatencyTrace; the committed card's own emissions are ignored).
+        LaunchedEffect(image) { latency.onImage(card.id, image.isDegraded) }
     }
     return loaded
 }

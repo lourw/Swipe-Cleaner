@@ -98,7 +98,7 @@ meaningful on a 13-item library.
 | NFR-3 bitmaps | ≤ 5 decoded | ≤ 5 by construction (`BitmapLruCache` capacity 5 + in-flight guard; unit-tested) | n/a | n/a | 2026-11-05 |
 | NFR-4 cold start | < 1.5 s | TODO(👤) | iPhone, TBD | 50k | — |
 | NFR-4 cold start | — | **177–232 ms** (median 189 ms; lower bound, see caveat) | simulator, iPhone 17 (iOS 26.5) — not representative | simulator, 13-item library — not representative | 2026-11-05 |
-| NFR-3 resident | — | **≈ 218 MB** RSS | simulator, iPhone 17 (iOS 26.5), **debug build** — not representative | simulator, 13-item library — not representative | 2026-11-05 |
+| NFR-3 resident | — | **≈ 224 MB** RSS (debug builds vary run to run; 218–245 observed) | simulator, iPhone 17 (iOS 26.5), **debug build** — not representative | simulator, 13-item library — not representative | 2026-11-05 |
 
 Simulator smoke numbers (2026-11-05, `iPhone 17` simulator, debug build,
 13-item fixture library):
@@ -106,12 +106,13 @@ Simulator smoke numbers (2026-11-05, `iPhone 17` simulator, debug build,
 - `COLD_START_HOME`: 231.5 ms, 176.8 ms, 188.8 ms over three terminate/launch
   cycles → median ≈ 189 ms. Lower bound: excludes process spawn, dyld, and
   UIKit init; Instruments App Launch will report more.
-- Memory: `ps` RSS of the app process at Home, idle ≈ 223 MB (debug dylib
-  mode inflates this; release/device will differ in both directions).
-  The 20-swipe watermark could not be measured headlessly (no touch
-  automation available); 👤: swipe ~20 cards then re-run
-  `xcrun simctl spawn booted ps axo pid,rss,command | grep SwipeCleaner`, or
-  read Allocations on device.
+- Memory: `ps` RSS of the app process at Home, idle ≈ 224 MB (debug dylib
+  mode inflates this and runs vary ±10%; release/device will differ in both
+  directions). The 20-swipe watermark could not be measured headlessly (no
+  touch automation available); 👤: swipe ~20 cards then re-run
+  `xcrun simctl spawn booted /bin/ps axo pid,rss,comm | grep SwipeCleaner`
+  (bare `ps` does not resolve under `simctl spawn`), or read Allocations
+  on device.
 - `NEXT_CARD_*` spans: wiring verified (unit tests + identical emit path to
   the verified `COLD_START_HOME` span); no numbers because swipes can't be
   automated headlessly. 👤: swipe 20–50 cards while streaming as above, or
@@ -135,7 +136,7 @@ places to look when Instruments shows a problem:
 
 - **Home count ladder** (`HomeViewModel` + `PhotoKitSourceFetches.kt`):
   every `changes()` tick re-runs the whole estimation→refinement ladder —
-  `months`, `smartCounts`, `duplicateCandidates`, burst detection — each of
+  `smartCounts`, `duplicateCandidates`, burst detection — each of
   which enumerates the full asset collection through PhotoKit. On a 50k
   library that is several full passes per library change; Bursts and
   Duplicates each pay two (fetch + refine). If NFR-4 or post-delete Home
@@ -171,6 +172,13 @@ places to look when Instruments shows a problem:
   argument ≤ 1 asserts too (use two zero bytes). A NULL `format` segfaults.
 - The NSLog fallback discussed in the WP brief was **not needed** — real
   signposts work; no deviation.
+- **Release reachability:** the Koin binding and the `MainViewController`
+  cold-start begin are unconditional, so signposts ship in release builds.
+  Risk is low — `_os_signpost_emit_with_name_impl` is the same hard-linked
+  symbol the public macros expand to, so any future OS that removed it would
+  break every signposting app, not just this one — and per-event cost is
+  nanoseconds. If a release reviewer wants them gone, gate on a build flag.
 - Tests: `SwipePerfTraceTest` (commonTest) asserts the commit path opens
   `NEXT_CARD_DEGRADED` + `NEXT_CARD_FULL` and closes them in image order
-  using `FakePerfTrace`; the NFR-1 span pairing is covered there.
+  using `FakePerfTrace` — including the full-first ordering and that the
+  committed card's own late emissions never close the spans.

@@ -201,11 +201,12 @@ private fun ToastSlot(
 internal fun rememberCommit(
     perfTrace: PerfTrace,
     haptics: Haptics,
+    cardId: String?,
     onIntent: (SwipeIntent) -> Unit,
 ): Pair<CommitLatencyTrace, (SwipeVerdict) -> Unit> {
     val latency = remember(perfTrace) { CommitLatencyTrace(perfTrace) }
     val commit: (SwipeVerdict) -> Unit = { verdict ->
-        latency.onCommit()
+        latency.onCommit(cardId)
         verdict.fireHaptic(haptics)
         onIntent(verdict.toIntent())
     }
@@ -236,7 +237,7 @@ private fun DeckContent(
     var fillMode by remember(state.current?.id) { mutableStateOf(false) }
 
     // NFR-1 spans and the shared commit: see [rememberCommit].
-    val (latency, commit) = rememberCommit(perfTrace, haptics, onIntent)
+    val (latency, commit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
     // same commit a gesture makes.
     val buttonCommit: (SwipeVerdict) -> Unit = { verdict ->

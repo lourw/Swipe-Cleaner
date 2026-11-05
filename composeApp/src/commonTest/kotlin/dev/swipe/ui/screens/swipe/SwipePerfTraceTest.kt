@@ -38,7 +38,7 @@ import kotlin.test.assertEquals
  * the first image the degraded span, the first full-quality one the full
  * span. Initial loads emit outside any commit and open nothing, and a card
  * that never serves the full image leaves that span open, which renders as
- * no interval in the trace rather than a bogus one.
+ * an open-ended interval in the trace rather than a bogus closed one.
  */
 class SwipePerfTraceTest {
     private fun card(id: String) =
@@ -57,11 +57,15 @@ class SwipePerfTraceTest {
      * on the test clock, so the two emissions land in different recompositions
      * the way the real iCloud-slow path separates them — the full one.
      * [serveFull] = false models the card that never gets its full-quality
-     * image within the review.
+     * image within the review. [fullDelayFor] overrides the delay per asset
+     * (null = never serves full), [degradedFor] = false models a card the
+     * cache already holds at full quality: its first emission is full.
      */
     private fun steppedLoader(
         fullDelayMs: Long = 200L,
         serveFull: Boolean = true,
+        fullDelayFor: (String) -> Long? = { if (serveFull) fullDelayMs else null },
+        degradedFor: (String) -> Boolean = { true },
     ): MediaLoader =
         object : MediaLoader {
             override fun image(
@@ -69,15 +73,17 @@ class SwipePerfTraceTest {
                 targetPx: IntSize,
             ): Flow<LoadedImage> =
                 flow {
-                    emit(
-                        LoadedImage(
-                            ImageBitmap(width = 1, height = 1),
-                            isDegraded = true,
-                            isCloud = false,
-                        ),
-                    )
-                    if (serveFull) {
-                        delay(fullDelayMs)
+                    if (degradedFor(id)) {
+                        emit(
+                            LoadedImage(
+                                ImageBitmap(width = 1, height = 1),
+                                isDegraded = true,
+                                isCloud = false,
+                            ),
+                        )
+                    }
+                    fullDelayFor(id)?.let { wait ->
+                        delay(wait)
                         emit(
                             LoadedImage(
                                 ImageBitmap(width = 2, height = 2),
@@ -158,12 +164,96 @@ class SwipePerfTraceTest {
             mainClock.advanceTimeBy(300L)
             waitForIdle()
             // Degraded arrived, full never did: the full span stays open and
-            // simply shows no interval in the trace (docs/perf.md).
+            // renders as an open-ended interval in the trace (docs/perf.md).
             assertEquals(
                 listOf(
                     FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_DEGRADED,
                     FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_FULL,
                     FakePerfTrace.Call.END to PerfSpan.NEXT_CARD_DEGRADED,
+                ),
+                trace.calls,
+            )
+        }
+
+    @Test
+    fun `NFR-1 a full-quality first image closes both spans in order`() =
+        runComposeUiTest {
+            val trace = FakePerfTrace()
+            // The next card is already cached at full quality: its FIRST
+            // emission is full, no degraded pass (CommitLatencyTrace KDoc).
+            val loader =
+                steppedLoader(
+                    fullDelayFor = { if (it == "current-id") 200L else 0L },
+                    degradedFor = { it != "next-id" },
+                )
+            val state = MutableStateFlow(deckState())
+            setContent {
+                TraceScreen(state, trace, loader)
+            }
+            waitForIdle()
+            onNodeWithContentDescription("Skip").performClick()
+            mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
+            waitForIdle()
+            state.value = SwipeUiState(current = card("next-id"), next = null)
+            mainClock.advanceTimeBy(300L)
+            waitForIdle()
+            // One full-quality emission closes DEGRADED first, then FULL —
+            // the documented order, pinned so the pair never inverts.
+            assertEquals(
+                listOf(
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_DEGRADED,
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_FULL,
+                    FakePerfTrace.Call.END to PerfSpan.NEXT_CARD_DEGRADED,
+                    FakePerfTrace.Call.END to PerfSpan.NEXT_CARD_FULL,
+                ),
+                trace.calls,
+            )
+        }
+
+    @Test
+    fun `NFR-1 the committed card's own late images never close the spans`() =
+        runComposeUiTest {
+            val trace = FakePerfTrace()
+            // The committed card's full-quality image lands only after the
+            // commit — the slow-iCloud race. The next card serves instantly.
+            val loader =
+                steppedLoader(
+                    fullDelayFor = {
+                        when (it) {
+                            "current-id" -> 900L
+                            else -> 0L
+                        }
+                    },
+                )
+            val state = MutableStateFlow(deckState())
+            setContent {
+                TraceScreen(state, trace, loader)
+            }
+            waitForIdle()
+            onNodeWithContentDescription("Skip").performClick()
+            mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
+            waitForIdle()
+            // Advance past the committed card's late full emission while it
+            // is still the top card: the id guard must ignore it, or it would
+            // report the outgoing card's image as the new card's (NFR-1 lie).
+            mainClock.advanceTimeBy(700L)
+            waitForIdle()
+            assertEquals(
+                listOf(
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_DEGRADED,
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_FULL,
+                ),
+                trace.calls,
+            )
+            state.value = SwipeUiState(current = card("next-id"), next = null)
+            mainClock.advanceTimeBy(300L)
+            waitForIdle()
+            assertEquals(
+                listOf(
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_DEGRADED,
+                    FakePerfTrace.Call.BEGIN to PerfSpan.NEXT_CARD_FULL,
+                    FakePerfTrace.Call.END to PerfSpan.NEXT_CARD_DEGRADED,
+                    FakePerfTrace.Call.END to PerfSpan.NEXT_CARD_FULL,
                 ),
                 trace.calls,
             )

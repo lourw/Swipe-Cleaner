@@ -32,11 +32,12 @@ enum class PerfSpan {
  * `iosMain/platform/IosPerfTrace.kt`; [NoPerfTrace] serves tests and any
  * build that should not trace.
  *
- * Contract: [end] closes the span's most recent unmatched [begin]; calls
- * without a matching partner are dropped, so a span that never completes
- * (a cold start that lands on Onboarding, say) simply shows no interval.
- * Both calls must be cheap — [begin] runs inside the card-commit path, and
- * the instrumentation must never regress the NFR-1 budget it measures.
+ * Contract: [end] closes the span's most recent unmatched [begin]; an [end]
+ * without a matching [begin] is dropped, so a span that never completes
+ * (a cold start that lands on Onboarding, say) simply renders as an
+ * open-ended interval. Both calls must be cheap — [begin] runs inside the
+ * card-commit path, and the instrumentation must never regress the NFR-1
+ * budget it measures.
  */
 interface PerfTrace {
     fun begin(span: PerfSpan)
