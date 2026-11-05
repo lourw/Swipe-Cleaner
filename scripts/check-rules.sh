@@ -80,6 +80,43 @@ main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
     grep_files '^(public |internal |private )?(expect|actual) ' |
     report "Only VideoPlayer.kt/VideoPlayerView.kt may declare expect/actual (AGENTS.md rule 5)"
 
+# 9. Safe areas (§5.1 principle 5, WP-6.4): every full-screen surface keeps its inset
+#    modifiers. The headless CMP test window reports zero insets, so SafeAreaBoundsTest
+#    cannot pin a removed .statusBarsPadding()/.navigationBarsPadding() — this static
+#    guard is the regression net (REQUIREMENTS §8.3).
+#    The 13 surfaces: Home, Albums, Months, Onboarding, Denied, Queue, QueueItemViewer,
+#    Settings, Summary, DeleteSuccess and the shared EmptyState clear both bars; the
+#    deck splits its insets (TopBar clears only the status bar inside its scrim,
+#    SwipeScreen and ActionBar only the Home Indicator); the debug gallery's first
+#    heading clears the status bar. Allowlist: card-interior components (CardMetadata,
+#    DeckMotion, VideoScrubber) ride inside the already-inset card, ScreenHeader takes
+#    its insets from the screens hosting it, and CommitLatencyTrace is not UI.
+safe_area_surfaces() {
+    find "$SRC/commonMain/kotlin/dev/swipe/ui/screens" -name '*.kt' -print0
+    printf '%s\0' "$SRC/commonMain/kotlin/dev/swipe/ui/components/DebugComponentGallery.kt"
+}
+safe_area_violations() {
+    local file need modifier
+    while IFS= read -r -d '' file; do
+        case "$(basename "$file")" in
+            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt)
+                continue ;;
+            TopBar.kt | DebugComponentGallery.kt) need='statusBarsPadding' ;;
+            SwipeScreen.kt | ActionBar.kt) need='navigationBarsPadding' ;;
+            *) need='statusBarsPadding navigationBarsPadding' ;;
+        esac
+        for modifier in $need; do
+            # Strip line comments first: a commented-out modifier still contains
+            # the call text, and commenting one out is exactly this guard's
+            # regression (SafeAreaBoundsTest cannot see the insets at all).
+            sed 's://.*::' "$file" | grep -q "\.$modifier()" ||
+                echo "$file: removed .$modifier()"
+        done
+    done < <(safe_area_surfaces)
+}
+safe_area_violations |
+    report "Full-screen surfaces must keep their safe-area inset modifiers (REQUIREMENTS §5.1 principle 5)"
+
 if [ -s "$FAILED" ]; then
     echo "check-rules: $(wc -l <"$FAILED" | tr -d ' ') rule(s) violated"
     exit 1

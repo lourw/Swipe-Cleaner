@@ -37,9 +37,15 @@ step "5/6 Schema migrations" ./gradlew :composeApp:verifySqlDelightMigration
 step "6/6 Tests" ./gradlew :composeApp:iosSimulatorArm64Test
 
 if [ "$FULL" -eq 1 ]; then
-    step "Full: app build (xcodebuild)" \
+    # Both Xcode configurations must compile: the Release build caught the
+    # missing-argument bug WP-6.4 shipped with, which the Debug-only step
+    # never sees (Kotlin default parameters are invisible to Swift).
+    step "Full: app build, Debug (xcodebuild)" \
         xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp \
-        -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode -quiet build
+        -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode -quiet -configuration Debug build
+    step "Full: app build, Release (xcodebuild)" \
+        xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp \
+        -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode -quiet -configuration Release build
 fi
 
 echo
