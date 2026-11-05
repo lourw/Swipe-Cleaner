@@ -41,13 +41,38 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
-| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | 5.3 MERGED (9698ee5) — **M5 code-complete** · 6.1 next |
+| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | BOTH MERGED (9698ee5 · d873f01) — **M5 code-complete, Wave I complete** |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-6.1 (m6-settings) — verified APPROVE (2 nits: 1 fixed pre-merge, 1 recorded), merged d873f01 — **Wave I complete**
+- Real `SettingsScreen` (placeholder replaced): 3 `ToggleRow`s over a new token-built
+  `ui/components/Switch.kt` (haptics / includeCloudOnly / autoplayVideos, live-mirrored from
+  `SettingsStore` StateFlows), Reset-all → `ConfirmDialog` → `DecisionStore.clearKeeps()`
+  (FR-30; destructive pill styling like the queue dialog), version `InfoRow`, FR-31 expiry row.
+  `SettingsViewModel` gates `clearKeeps` behind the dialog flag (airtight; orphan-confirm tested).
+  FR-31: pure `ProvisioningProfile.parse(raw)` (`<?xml`…`</plist>` slice, realistic CMS-DER
+  fixture) + `SystemActions.signingExpiry()` bundle read; any failure → row hidden (simulator
+  hides, tested). Cloud-only: chose plan-sanctioned **load-time blocking** — every PhotoKit
+  request path goes through `includeCloudOnly`-gated options (image, prefetch, video preload);
+  deck membership toggle-independent; §6.5 documents it (rationale wording fixed pre-merge).
+  `docs/manual-test.md` Settings section filled. 302 tests, 0 fail; `--full` passed; mutations
+  (clearKeeps-wipes-DELETE, parser-accepts-garbage) each killed by exactly one test.
+- Recorded, not changed: `signingExpiry()` does ~tens-of-KB bundle file I/O synchronously on
+  main at VM construction (once per Settings entry; harmless).
+- Carried into later briefs:
+  - WP-6.2: the new `Switch` component + `ToggleRow`/`InfoRow` need the a11y pass like every
+    other control (semantics for role + state, 44 dp targets); Settings screen joins the
+    per-screen contentDescription audit list.
+  - WP-6.3: no new hot paths (Settings reads are one-shot); verify `signingExpiry()` stays
+    invisible in traces.
+  - WP-6.4: §6.5 cloud-only wording is now precise; R6 mitigation = load-blocking + badge.
+- 👤: on device, expiry row must show the free-provisioning 7-day date; with the iCloud toggle
+  off, an iCloud-only item must show degraded/error placeholder, never spin (manual-test step 4).
 
 ### WP-5.3 (m5-home-screens) — verified APPROVE-WITH-MINOR, findings 1–3 fixed, merged 9698ee5 — **M5 code-complete**
 - Home per §5.8: header + gear, stats line (FR-10 all three numbers — see spec edit), queue +

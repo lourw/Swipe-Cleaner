@@ -802,7 +802,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 | 5.1 | PhotoKit sources + filters | M5 | [x] |
 | 5.2 | LoadSources + HomeViewModel | M5 | [x] |
 | 5.3 | Home + source screens | M5 | [x] |
-| 6.1 | Settings | M6 | [ ] |
+| 6.1 | Settings | M6 | [x] |
 | 6.2 | Accessibility + Reduce Motion | M6 | [ ] |
 | 6.3 | Performance pass | M6 | [ ] |
 | 6.4 | Release-readiness sweep | M6 | [ ] |
