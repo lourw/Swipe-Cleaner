@@ -16,6 +16,7 @@ import dev.swipe.presentation.home.HomeViewModel
 import dev.swipe.presentation.months.MonthsViewModel
 import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueViewModel
+import dev.swipe.presentation.settings.SettingsViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -112,6 +113,16 @@ val commonModule: Module =
             MonthsViewModel(
                 typeFilter = params.get(),
                 library = get(),
+            )
+        }
+
+        // Settings (WP-6.1, FR-29–31). No route parameters; the toggle values mirror
+        // SettingsStore's flows and the reset calls DecisionStore.clearKeeps.
+        viewModel {
+            SettingsViewModel(
+                settings = get(),
+                decisions = get(),
+                systemActions = get(),
             )
         }
     }

@@ -28,6 +28,8 @@ import dev.swipe.presentation.permission.PermissionUiState
 import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueIntent
 import dev.swipe.presentation.queue.QueueViewModel
+import dev.swipe.presentation.settings.SettingsIntent
+import dev.swipe.presentation.settings.SettingsViewModel
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeViewModel
 import dev.swipe.ui.components.ComponentGallery
@@ -108,7 +110,7 @@ private fun PermissionFlow(
  * is testable without Koin; [navController] is injectable for the same
  * reason, as are the Koin-backed destinations ([homeDestination],
  * [albumsDestination], [monthsDestination], [swipeDestination],
- * [queueDestination]).
+ * [queueDestination], [settingsDestination]).
  */
 @Composable
 internal fun PermissionFlowContent(
@@ -123,6 +125,7 @@ internal fun PermissionFlowContent(
     },
     albumsDestination: @Composable (Albums) -> Unit = { route -> AlbumsDestination(route, navController) },
     monthsDestination: @Composable (Months) -> Unit = { route -> MonthsDestination(route, navController) },
+    settingsDestination: @Composable () -> Unit = { SettingsContainer(navController) },
 ) {
     val startScreen = state.collectAsState().value.startScreen
     if (startScreen == null) {
@@ -156,8 +159,9 @@ internal fun PermissionFlowContent(
             monthsDestination(entry.toRoute<Months>())
         }
         composable<Settings> {
-            // Placeholder until WP-6.1 (FR-29): the Home gear needs a destination.
-            SettingsScreen(onBack = { navController.navigateUp() })
+            // The WP-6.1 destination (FR-29–31) behind a hook so navigation tests
+            // never build the settings pipeline, matching [queueDestination].
+            settingsDestination()
         }
         composable<Swipe> { entry ->
             swipeDestination(entry.toRoute<Swipe>())
@@ -328,6 +332,25 @@ private fun QueueContainer(
                 popUpTo(Queue::class) { inclusive = true }
             }
         },
+    )
+}
+
+/**
+ * Wires [SettingsViewModel] to [SettingsScreen] (FR-29–31). State is collected
+ * inside this destination composable, never in the NavHost builder (WP-1.7
+ * rule). The screen owns the confirm dialog and toasts; this container only
+ * supplies the ViewModel and Back.
+ */
+@Composable
+private fun SettingsContainer(navController: NavHostController) {
+    val viewModel: SettingsViewModel = koinViewModel()
+    val onIntent: (SettingsIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
+    val state by viewModel.uiState.collectAsState()
+    SettingsScreen(
+        state = state,
+        events = viewModel.events,
+        onIntent = onIntent,
+        onBack = { navController.navigateUp() },
     )
 }
 

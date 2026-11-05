@@ -88,6 +88,11 @@ data class SwipeComponentSizes(
     // Segmented control (§5.7 filter control): visual segment height; the
     // touch target is at least SwipeSizes.minTouchTarget (44 dp).
     val segmentHeight: Dp = 36.dp,
+    // Settings switch (FR-29, WP-6.1): iOS-shape 51 × 31 track with a 27 dp
+    // thumb; the row it lives in meets minTouchTarget, the track itself is visual.
+    val switchTrackWidth: Dp = 51.dp,
+    val switchTrackHeight: Dp = 31.dp,
+    val switchThumb: Dp = 27.dp,
     // Alpha for disabled content (§5.7 disabled states).
     val disabledAlpha: Float = DISABLED_ALPHA,
     /** Alpha for tone-tinted fills that are not verdict colors (§5.3 uses 16% for verdicts). */

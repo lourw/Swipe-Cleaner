@@ -323,11 +323,14 @@ class PermissionFlowContentTest {
                     onIntent = {},
                     navController = nav,
                     homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    // WP-6.1: the real destination builds SettingsViewModel (Koin);
+                    // the navigation test stubs it, same as the queue stub.
+                    settingsDestination = { BasicText("settings-stub") },
                 )
             }
             onNodeWithContentDescription("Settings").performClick()
             waitForIdle()
-            onNodeWithText("Settings are coming soon.").assertExists()
+            onNodeWithText("settings-stub").assertExists()
         }
 
     /**
