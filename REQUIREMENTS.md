@@ -170,7 +170,7 @@ Numbers that change (counters, progress) use tabular figures (`fontFeatureSettin
 - **Corner radii:** card **24 dp**, sheet **20 dp**, grid tile **8 dp**, buttons fully round (pill or circle).
 - **Touch targets:** at least 44 × 44 dp.
 - **Elevation:** no shadows except on the top card, which gets a soft black shadow (blur 24 dp, 40% opacity). Layering uses `surface` / `surfaceRaised` steps instead.
-- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Settings = `settings`.
+- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Settings = `settings`. Icons render through `dev.vicart:compose-material-symbols` (Rounded style) from the bundled Google variable fonts.
 
 ### 5.6 Motion and gestures (swipe card)
 
