@@ -39,6 +39,7 @@ import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.SeekTarget
 import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.components.media.rememberMediaImage
+import dev.swipe.ui.components.swipe.CardAccessibilityAction
 import dev.swipe.ui.components.swipe.SwipeCard
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
@@ -104,6 +105,12 @@ internal fun CardMotionEffects(
  * R2 (see [dev.swipe.ui.components.media.VideoPlayer]): the hosted player
  * ignores card transforms, so it is mounted only while the top card is at
  * rest — poster image up for every animated moment.
+ *
+ * NFR-8: the card node carries [cardAccessibilityDescription] plus one
+ * custom action per decision — Keep/Delete/Skip run the same
+ * [onButtonCommit] the ActionBar buttons take, and Undo (only while
+ * [canUndo]) the same [onUndo] — so VoiceOver users decide without
+ * gestures and with identical behavior.
  */
 @Composable
 internal fun ColumnScope.CardStack(
@@ -120,6 +127,9 @@ internal fun ColumnScope.CardStack(
     livePress: Boolean,
     seekTarget: SeekTarget?,
     onDismiss: (SwipeVerdict) -> Unit,
+    onButtonCommit: (SwipeVerdict) -> Unit,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
     onToggleChrome: () -> Unit,
     onToggleMute: () -> Unit,
     onToggleFill: () -> Unit,
@@ -152,6 +162,16 @@ internal fun ColumnScope.CardStack(
             onDismiss = onDismiss,
             state = cardState,
             reduceMotion = reduceMotion,
+            accessibilityDescription = cardAccessibilityDescription(card),
+            accessibilityActions =
+                buildList {
+                    add(CardAccessibilityAction("Keep") { onButtonCommit(SwipeVerdict.KEEP) })
+                    add(CardAccessibilityAction("Delete") { onButtonCommit(SwipeVerdict.DELETE) })
+                    add(CardAccessibilityAction("Skip") { onButtonCommit(SwipeVerdict.SKIP) })
+                    // FR-15: Undo rides the card only while there is something
+                    // to undo, mirroring the disabled state of the bar's button.
+                    if (canUndo) add(CardAccessibilityAction("Undo", onUndo))
+                },
             onTap = {
                 // §5.6: a video tap toggles mute; a photo tap the chrome.
                 // With autoplay off the first tap starts playback instead

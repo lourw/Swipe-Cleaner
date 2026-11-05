@@ -10,8 +10,10 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeWithVelocity
@@ -283,6 +285,86 @@ class SwipeCardTest {
             mainClock.advanceTimeBy(1000L)
             waitForIdle()
             onNodeWithTag(stampTestTag(SwipeVerdict.KEEP), useUnmergedTree = true).assertDoesNotExist()
+        }
+
+    @Test
+    fun `NFR-8 swipe card exposes keep delete skip accessibility actions`() =
+        runComposeUiTest {
+            val fired = mutableListOf<String>()
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    SwipeCard(
+                        onDismiss = {},
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        accessibilityDescription = "Mar 14, 2021, photo",
+                        accessibilityActions =
+                            listOf(
+                                CardAccessibilityAction("Keep") { fired += "Keep" },
+                                CardAccessibilityAction("Delete") { fired += "Delete" },
+                                CardAccessibilityAction("Skip") { fired += "Skip" },
+                            ),
+                        content = {},
+                    )
+                }
+            }
+            // The card is one VoiceOver element — its date-then-type line —
+            // carrying one custom action per decision, so no gesture is ever
+            // required (NFR-8).
+            val node = onNodeWithContentDescription("Mar 14, 2021, photo").fetchSemanticsNode()
+            val actions = node.config[SemanticsActions.CustomActions]
+            assertEquals(listOf("Keep", "Delete", "Skip"), actions.map { it.label })
+            // Firing an action runs exactly its callback — the caller wires
+            // these to the same paths the ActionBar buttons take.
+            actions.first { it.label == "Delete" }.action()
+            assertEquals(listOf("Delete"), fired)
+        }
+
+    @Test
+    fun `5-6 reduce motion disables rotation and fly-off`() =
+        runComposeUiTest {
+            var cardState: SwipeCardState? = null
+            var dismissed: SwipeVerdict? = null
+            mainClock.autoAdvance = false
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val state = rememberSwipeCardState()
+                    cardState = state
+                    SwipeCard(
+                        onDismiss = { dismissed = it },
+                        state = state,
+                        reduceMotion = true,
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        content = {},
+                    )
+                }
+            }
+            val size = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Drag past the threshold: the card follows the finger (that is
+            // not motion) but never rotates (§5.6 Reduce Motion).
+            onNodeWithTag(CARD_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+            }
+            mainClock.advanceTimeBy(32L)
+            assertEquals(0f, appliedRotationZ())
+            val releaseOffset = checkNotNull(cardState).offset
+            assertTrue(releaseOffset.x > 0f)
+            onNodeWithTag(CARD_TAG).performTouchInput { up() }
+            // Mid-crossfade: the card fades out in place — no fly-off, so
+            // the offset has not moved a pixel since release — while the
+            // alpha is on its way down and the rotation is still zero.
+            mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS / 2L)
+            assertEquals(releaseOffset, checkNotNull(cardState).offset)
+            val midAlpha = checkNotNull(cardState).alpha
+            assertTrue(midAlpha < 1f)
+            assertEquals(0f, appliedRotationZ())
+            // The commit lands at the end of the 150 ms crossfade, still
+            // fully faded and still in place.
+            mainClock.advanceTimeBy(REDUCE_MOTION_CROSSFADE_MS / 2L + 50L)
+            assertEquals(SwipeVerdict.KEEP, dismissed)
+            assertEquals(releaseOffset, checkNotNull(cardState).offset)
+            assertEquals(0f, checkNotNull(cardState).alpha)
         }
 
     private companion object {

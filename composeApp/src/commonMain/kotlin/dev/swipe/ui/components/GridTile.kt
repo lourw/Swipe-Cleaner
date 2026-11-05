@@ -21,11 +21,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import dev.swipe.data.MediaLoader
-import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.queue.QueueTile
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.screens.swipe.formatDuration
+import dev.swipe.ui.screens.swipe.voiceOverLabel
 import dev.swipe.ui.theme.SwipeTheme
 
 /**
@@ -100,15 +100,8 @@ fun tileDescription(tile: QueueTile): String {
     val parts =
         listOfNotNull(
             tile.createdAt?.let(::formatCardDate),
-            tile.type?.let(::tileTypeLabel),
+            tile.type?.voiceOverLabel(),
             tile.durationMs?.let(::formatDuration),
         )
     return parts.joinToString(", ").ifEmpty { "Queued item" }
 }
-
-private fun tileTypeLabel(type: MediaType): String =
-    when (type) {
-        MediaType.PHOTO -> "photo"
-        MediaType.VIDEO -> "video"
-        MediaType.LIVE_PHOTO -> "Live Photo"
-    }

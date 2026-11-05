@@ -114,6 +114,32 @@ fun metadataLine(card: CardState): String {
     return listOfNotNull(date, duration).joinToString(" · ")
 }
 
+/**
+ * NFR-8 VoiceOver line for the deck card: date, then type, then duration,
+ * then "favorite" — the date-then-type shape of
+ * [dev.swipe.ui.components.tileDescription], so the FR-18 badges' meaning
+ * rides the line instead of separate labels. A card always knows its type,
+ * so this is never empty.
+ */
+fun cardAccessibilityDescription(card: CardState): String {
+    val parts =
+        listOfNotNull(
+            card.createdAt?.let(::formatCardDate),
+            card.type.voiceOverLabel(),
+            card.durationMs?.let(::formatDuration),
+            "favorite".takeIf { card.isFavorite },
+        )
+    return parts.joinToString(", ")
+}
+
+/** The type word for VoiceOver lines; lowercase mid-sentence, §5.7 wording. */
+internal fun MediaType.voiceOverLabel(): String =
+    when (this) {
+        MediaType.PHOTO -> "photo"
+        MediaType.VIDEO -> "video"
+        MediaType.LIVE_PHOTO -> "Live Photo"
+    }
+
 /** `Mar 14, 2021` in the device's timezone (§5.7 example); English abbrevs. */
 fun formatCardDate(instant: Instant): String {
     val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())

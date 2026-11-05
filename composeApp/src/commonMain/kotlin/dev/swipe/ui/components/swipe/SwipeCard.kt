@@ -31,7 +31,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.toSize
 import dev.swipe.ui.theme.CARD_SHADOW_ALPHA
@@ -46,6 +51,17 @@ import kotlinx.coroutines.launch
  * invisible to semantics; this is the only property the card publishes.
  */
 internal val RotationZSemanticsPropertyKey = SemanticsPropertyKey<Float>("SwipeCardRotationZ")
+
+/**
+ * One NFR-8 VoiceOver custom action on the [SwipeCard] node (Keep, Delete,
+ * Skip, Undo): the label VoiceOver announces and the callback that runs the
+ * decision — the caller wires it to the same path the action buttons take,
+ * so accessibility decisions behave exactly like button decisions.
+ */
+class CardAccessibilityAction(
+    val label: String,
+    val action: () -> Unit,
+)
 
 /**
  * The full-bleed decision card (§5.7) with the §5.6 gesture stack:
@@ -65,6 +81,11 @@ internal val RotationZSemanticsPropertyKey = SemanticsPropertyKey<Float>("SwipeC
  * semantics); [onPressUp] fires on the matching release or when a drag
  * cancels the press — the pair the Live Photo playback needs to stop on
  * release (FR-17).
+ *
+ * NFR-8: [accessibilityDescription] is the card's VoiceOver line and
+ * [accessibilityActions] (Keep / Delete / Skip / Undo) ride the card node,
+ * so a VoiceOver user decides without ever performing a swipe — the same
+ * decisions the buttons run, wired by the caller to behave identically.
  */
 @Composable
 fun SwipeCard(
@@ -72,6 +93,8 @@ fun SwipeCard(
     modifier: Modifier = Modifier,
     state: SwipeCardState = rememberSwipeCardState(),
     reduceMotion: Boolean = false,
+    accessibilityDescription: String? = null,
+    accessibilityActions: List<CardAccessibilityAction> = emptyList(),
     onTap: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onLongPress: () -> Unit = {},
@@ -129,7 +152,29 @@ fun SwipeCard(
                         onClick = onTap,
                         onDoubleClick = onDoubleTap,
                         onLongClick = onLongPress,
-                    ).pointerInput(reduceMotion) {
+                    ).semantics {
+                        // NFR-8: the card is one VoiceOver element — its line
+                        // and the Keep/Delete/Skip(/Undo) actions, so no
+                        // gesture is ever required to decide.
+                        if (accessibilityDescription != null) {
+                            contentDescription = accessibilityDescription
+                            role = Role.Image
+                        }
+                        if (accessibilityActions.isNotEmpty()) {
+                            // Compose's custom-action contract wants a
+                            // handled-flag; the decision always runs.
+                            customActions =
+                                accessibilityActions.map {
+                                    CustomAccessibilityAction(
+                                        label = it.label,
+                                        action = {
+                                            it.action()
+                                            true
+                                        },
+                                    )
+                                }
+                        }
+                    }.pointerInput(reduceMotion) {
                         swipeDragGestures(
                             state = state,
                             cardSize = { cardSize },
