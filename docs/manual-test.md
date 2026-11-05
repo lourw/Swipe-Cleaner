@@ -262,8 +262,25 @@ xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
 
 ## Settings
 
-> **Stub.** Filled by WP-6.1 (FR-29–31).
-
-Will cover: haptics toggle silencing every haptic (👤), include-iCloud-only,
-autoplay videos, "Reset all decisions" (confirm required; queue survives,
-FR-30), and the signing-expiry row (FR-31).
+1. ☐ Home → gear opens Settings: three toggle rows, a "Reset all decisions"
+   row, and an App version row showing `version (build)`.
+2. ☐ Toggle each switch; leave Settings and return — every switch keeps the
+   state you left it (FR-29, NSUserDefaults).
+3. ☐ 👤 **Haptics off:** swipe, tap, and long-press cards — no haptic feedback
+   anywhere. Turn it back on and the feedback returns.
+4. ☐ **Include iCloud-only items off** (needs a real iCloud library, or a
+   manually seeded iCloud-only asset): swiping onto an iCloud-only card shows
+   the degraded thumbnail or error placeholder, no spinner-to-download (verify
+   with Control Center that Wi-Fi stays idle). Turn it on → the full image
+   loads with the cloud badge.
+5. ☐ **Autoplay videos off:** video cards show the poster with a play
+   affordance until tapped; the next card no longer pre-plays. On → videos
+   start on their own (FR-16).
+6. ☐ **Reset all decisions**: the confirm dialog appears first; **Cancel**
+   changes nothing. **Reset** clears KEEP decisions (Home counts and decks
+   re-include those items) but the delete queue is untouched — the Queue
+   screen still lists every pending item (FR-30).
+7. ☐ The signing-expiry row is **absent on the simulator** (no provisioning
+   profile in the bundle).
+8. ☐ 👤 On a device with free provisioning, the expiry row appears with a date
+   about 7 days after the profile was signed (FR-31).
