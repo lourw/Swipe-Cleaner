@@ -107,6 +107,7 @@ class FakeDecisionStore(
         return SessionCounts(
             kept = sessionRows.count { it.decision == Decision.KEEP },
             queued = sessionRows.count { it.decision == Decision.DELETE },
+            reviewed = sessionRows.size,
         )
     }
 

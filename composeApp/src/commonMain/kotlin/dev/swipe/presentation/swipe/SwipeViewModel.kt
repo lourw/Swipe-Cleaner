@@ -199,7 +199,9 @@ class SwipeViewModel(
                 val skipped = sessionStore.skippedIds(resumable.id)
                 deck = buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped }
                 val counts = decisions.sessionCounts(resumable.id)
-                reviewedBase = counts.kept + counts.queued + skipped.size
+                // WP-6.4: `reviewed` counts committed DELETED rows too, so a
+                // mid-session queue commit (FR-26) never under-counts the base.
+                reviewedBase = counts.reviewed + skipped.size
                 index = 0
             } else {
                 val seed = seedProvider()

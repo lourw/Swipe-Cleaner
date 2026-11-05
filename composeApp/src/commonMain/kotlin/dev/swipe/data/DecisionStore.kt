@@ -39,9 +39,10 @@ interface DecisionStore {
     suspend fun decidedIds(): Set<String>
 
     /**
-     * This session's KEEP / pending-DELETE counts, computed with a `COUNT` query
+     * This session's KEEP / pending-DELETE counts and its reviewed total (every
+     * decision row, committed DELETED included), computed with a `COUNT` query
      * (§7): the summary numbers (FR-21) and the resume index correction, since a
-     * rebuilt deck subtracts exactly these rows (§6.5 step 1).
+     * rebuilt deck subtracts exactly these rows (§6.5 step 1, WP-6.4).
      */
     suspend fun sessionCounts(sessionId: String): SessionCounts
 

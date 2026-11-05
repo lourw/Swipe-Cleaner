@@ -52,11 +52,17 @@ SELECT decision, COUNT(*) AS total
 FROM decision
 GROUP BY decision;
 
--- One session's KEEP / pending-DELETE counts (FR-21 summary; resume index correction,
--- §6.5 step 1). SUM over no rows is NULL, hence the COALESCE.
+-- One session's KEEP / pending-DELETE counts and its reviewed total (FR-21 summary;
+-- resume index correction, §6.5 step 1). `reviewed` counts EVERY row of the session —
+-- KEEP, pending DELETE, and committed DELETED alike — so a mid-session commit flipping
+-- DELETE → DELETED (FR-26) can never under-count the resume base (WP-6.4). COUNT is
+-- wrapped in COALESCE to keep SQLDelight's row-type inference non-null for the whole
+-- select (a bare COUNT(*) alongside the SUMs makes them nullable, 2.4.1); SUM over no
+-- rows is NULL anyway, hence the other COALESCEs.
 sessionCounts:
 SELECT
   COALESCE(SUM(CASE WHEN decision = 'KEEP' THEN 1 ELSE 0 END), 0) AS kept,
-  COALESCE(SUM(CASE WHEN decision = 'DELETE' THEN 1 ELSE 0 END), 0) AS queued
+  COALESCE(SUM(CASE WHEN decision = 'DELETE' THEN 1 ELSE 0 END), 0) AS queued,
+  COALESCE(COUNT(*), 0) AS reviewed
 FROM decision
 WHERE session_id = ?;

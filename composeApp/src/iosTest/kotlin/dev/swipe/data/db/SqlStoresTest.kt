@@ -210,7 +210,7 @@ class SqlStoresTest {
     // ——— FR-21: per-session counts ———
 
     @Test
-    fun `FR-21 sessionCounts counts this session keeps and queue only`() =
+    fun `FR-21 sessionCounts counts keeps and queue and the reviewed total`() =
         runTest {
             val store = SqlDecisionStore(database, clock)
             store.record("a", Decision.KEEP, "session-1")
@@ -218,11 +218,13 @@ class SqlStoresTest {
             store.record("c", Decision.SKIP, "session-1") // never in decision (§7)
             store.record("d", Decision.KEEP, "session-2")
             store.record("e", Decision.DELETE, "session-1")
-            store.markDeleted(listOf("e")) // DELETED is neither kept nor queued
+            store.markDeleted(listOf("e")) // DELETED is neither kept nor queued…
 
-            assertEquals(SessionCounts(kept = 1, queued = 1), store.sessionCounts("session-1"))
-            assertEquals(SessionCounts(kept = 1, queued = 0), store.sessionCounts("session-2"))
-            assertEquals(SessionCounts(kept = 0, queued = 0), store.sessionCounts("session-3"))
+            // …but it stays in `reviewed`, so a mid-session commit never
+            // under-counts the resume base (WP-6.4).
+            assertEquals(SessionCounts(kept = 1, queued = 1, reviewed = 3), store.sessionCounts("session-1"))
+            assertEquals(SessionCounts(kept = 1, queued = 0, reviewed = 1), store.sessionCounts("session-2"))
+            assertEquals(SessionCounts(kept = 0, queued = 0, reviewed = 0), store.sessionCounts("session-3"))
         }
 
     // ——— FR-10: stats from COUNT queries ———

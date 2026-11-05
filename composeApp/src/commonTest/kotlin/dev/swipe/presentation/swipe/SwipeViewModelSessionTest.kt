@@ -265,6 +265,50 @@ class SwipeViewModelSessionTest {
         }
 
     @Test
+    fun `WP-6-4 resume after a mid-session commit counts committed rows in the reviewed base`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(10)
+            advanceUntilIdle()
+
+            // Keep one, queue two, then commit the queue (FR-26): PhotoKit
+            // drops the assets and the rows flip DELETE → DELETED.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            f.viewModel.onIntent(SwipeIntent.Delete)
+            advanceUntilIdle()
+            f.viewModel.onIntent(SwipeIntent.Delete)
+            advanceUntilIdle()
+            val committed = listOf("asset-2", "asset-3")
+            f.library.delete(committed)
+            f.store.markDeleted(committed)
+
+            // "Process death": a fresh screen resumes the same session. The
+            // committed rows match neither KEEP nor pending DELETE any more, so
+            // the old kept + queued base under-counted by 2; `reviewed` counts
+            // every session row, and the base lands on 3 of the original 10.
+            val second =
+                SwipeViewModel(
+                    source = SOURCE,
+                    typeFilter = MediaTypeFilter.ALL,
+                    buildDeck = BuildDeckUseCase(f.library, f.store),
+                    recordDecision = RecordDecisionUseCase(f.store),
+                    undoDecision = UndoDecisionUseCase(f.store),
+                    mediaLibrary = f.library,
+                    mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
+                    decisions = f.store,
+                    sessionStore = f.sessionStore,
+                    seedProvider = { SEED },
+                )
+            advanceUntilIdle()
+            val s = second.uiState.value
+            assertEquals(Progress(3, 10), s.progress)
+            // The deck rebuilt from what is left: asset-1 kept, asset-2/3 gone.
+            assertEquals("asset-4", s.current?.id)
+        }
+
+    @Test
     fun `6-5 a source mismatch starts a fresh session instead of resuming`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

@@ -71,7 +71,13 @@ class SqlDecisionStore(
             decisions
                 .sessionCounts(sessionId)
                 .executeAsOne()
-                .let { row -> SessionCounts(kept = row.kept.toInt(), queued = row.queued.toInt()) }
+                .let { row ->
+                    SessionCounts(
+                        kept = row.kept.toInt(),
+                        queued = row.queued.toInt(),
+                        reviewed = row.reviewed.toInt(),
+                    )
+                }
         }
 
     override fun deleteQueue(): Flow<List<String>> =
