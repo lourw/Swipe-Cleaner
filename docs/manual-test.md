@@ -284,3 +284,49 @@ xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
    profile in the bundle).
 8. ☐ 👤 On a device with free provisioning, the expiry row appears with a date
    about 7 days after the profile was signed (FR-31).
+
+## Debug gallery
+
+The WP-1.2 component gallery (`ComponentGallery` + the WP-2.1 swipe-card demo
+deck) is a debug-only surface (WP-6.4). A **Debug** build (Xcode's Debug
+configuration, `#if DEBUG`) launched with the `-gallery` argument opens the
+gallery instead of the permission flow; a release build never reaches it,
+argument or not — pinned by `DebugGalleryGateTest`.
+
+```bash
+xcrun simctl launch booted dev.swipe.cleaner -gallery
+```
+
+1. ☐ The gallery opens over the launch argument and shows all eight sections
+   (icons, buttons, banners, toasts, badges, icon buttons, segmented control,
+   swipe card) with the swipe-card demo interactive.
+2. ☐ Relaunch without `-gallery` and the normal permission flow / Home
+   appears.
+
+## Layout and safe areas (WP-6.4, 👤)
+
+Run each on a **notched device** (or a simulator with a Home Indicator — the
+exact pixel inset is device-specific, so this stays a 👤 check). Content must
+never sit under the status bar or the Home Indicator; backgrounds do extend
+edge-to-edge behind both.
+
+1. ☐ Home: the "Swipe Cleaner" title row clears the status bar; the last
+   SMART FILTERS row scrolls clear of the Home Indicator.
+2. ☐ Queue: the header and the "Delete N items" CTA clear the status bar and
+   the Home Indicator respectively; the queue toast drops below the status
+   bar.
+3. ☐ Queue item viewer: Close clears the status bar, Restore clears the Home
+   Indicator; the image stays full-bleed behind both.
+4. ☐ Settings: the header clears the status bar; the last row scrolls clear
+   of the Home Indicator; the toast sits above it.
+5. ☐ Albums / By month: headers clear the status bar; the lists scroll clear
+   of the Home Indicator.
+6. ☐ Onboarding and Denied: copy clears the status bar; the CTA clears the
+   Home Indicator.
+7. ☐ Summary and Delete-success: the centered content stays inside the safe
+   area.
+8. ☐ Deck: the TopBar (close, progress, queue) clears the status bar and its
+   scrim runs behind it; the ActionBar buttons clear the Home Indicator; the
+   card image stays full-bleed (FR-11).
+9. ☐ Empty state ("Nothing left here 🎉"): the CTA clears the Home Indicator.
+10. ☐ Debug gallery: the first heading clears the status bar.
