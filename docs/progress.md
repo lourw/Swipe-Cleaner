@@ -43,11 +43,38 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | BOTH MERGED (9698ee5 · d873f01) — **M5 code-complete, Wave I complete** |
 | J | 6.2 Accessibility (6.1) | MERGED (5fbc471) — 6.3 next |
-| K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
+| K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | 6.3 MERGED (08324a8) — device measures 👤 open · 6.4 next |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-6.3 (m6-performance) — verified APPROVE-WITH-MINOR, all 7 findings fixed, merged 08324a8
+- `PerfTrace` seam (commonMain `data/`, `PerfSpan` enum, `NoPerfTrace` for tests, Koin) +
+  `IosPerfTrace` real os_signpost intervals on subsystem `dev.swipe.cleaner.perf` — calls the
+  exported `_os_signpost_emit_with_name_impl` the SDK macros lower to (header-verified +
+  live-verified: 3 clean COLD_START_HOME records from a terminate/launch cycle). Spans:
+  NEXT_CARD_DEGRADED/FULL open at commit (gesture + button), close on the NEW top card's
+  emissions — id-guarded so the committed card's own late loads/undo remounts can't close
+  them (finding 1; two new tests, each mutation-killed by exactly its test: close-order swap,
+  guard removal). COLD_START_HOME from `MainViewController()` → Home first composition,
+  closes exactly once. `docs/perf.md`: capture procedure (incl. `log stream --signpost` +
+  `/bin/ps` gotchas), per-NFR Instruments templates, results table (simulator rows labeled
+  non-representative: cold start ≈ 189 ms lower bound, RSS ≈ 224 MB debug), TODO(👤) device
+  rows with exact steps, hot-path watch list (7-enumeration Home ladder, AVPlayer churn,
+  VideoItemCache deferred pending evidence, tileMetadata refetch, sessionCounts note).
+  321 tests, 0 fail; `--full` passed.
+- Deviations: WP checkboxes unticked — device half is 👤 (accepted; perf.md TODO rows are the
+  gate). Signposts ship in release (documented; same hard-linked symbol as the public macros).
+- Carried into WP-6.4:
+  - 👤 device perf pass (perf.md TODO rows) must complete before "v1 done"; pair with the
+    manual checklist run.
+  - `sessionCounts()` excludes DELETED rows → resumed-session `reviewedBase` under-reports
+    (correctness-adjacent; decide fix-or-spec in the coverage sweep).
+  - Debug gallery (`-gallery` launch arg) + `DebugSwipeCardDemo` exist — WP-6.4 task 5
+    (debug flag) covers them.
+- 👤 open: everything in perf.md's TODO(👤) rows (Time Profiler P95s, Allocations peak,
+  Animation Hitches, App Launch at 50k, 20-swipe memory watermark).
 
 ### WP-6.2 (m6-accessibility) — verified APPROVE-WITH-MINOR, all 3 minors + 2 nits fixed, merged 5fbc471
 - Swipe card: `contentDescription` (date→type→duration→favorite, pure

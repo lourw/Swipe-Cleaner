@@ -806,7 +806,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 | 5.3 | Home + source screens | M5 | [x] |
 | 6.1 | Settings | M6 | [x] |
 | 6.2 | Accessibility + Reduce Motion | M6 | [x] |
-| 6.3 | Performance pass | M6 | [ ] |
+| 6.3 | Performance pass | M6 | [x] |
 | 6.4 | Release-readiness sweep | M6 | [ ] |
 
 ## Expected spec edits (call these out when they land)
