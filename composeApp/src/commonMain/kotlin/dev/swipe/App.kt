@@ -1,5 +1,10 @@
 package dev.swipe
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -88,13 +93,34 @@ fun App(
 private fun PermissionFlow(
     modifier: Modifier = Modifier,
     viewModel: PermissionViewModel = koinViewModel(),
+    systemActions: SystemActions = koinInject(),
 ) {
     val onIntent: (PermissionIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.onIntent(PermissionIntent.Recheck)
     }
-    PermissionFlowContent(state = viewModel.uiState, onIntent = onIntent, modifier = modifier)
+    // remember: the flow re-registers a NSNotification observer per call, so
+    // building it inline would churn the subscription on every recomposition
+    // (same rule as SwipeContainer).
+    val reduceMotionFlow = remember(systemActions) { systemActions.isReduceMotionEnabled() }
+    val reduceMotion by reduceMotionFlow.collectAsState(initial = false)
+    PermissionFlowContent(
+        state = viewModel.uiState,
+        onIntent = onIntent,
+        reduceMotion = reduceMotion,
+        modifier = modifier,
+    )
 }
+
+/**
+ * Navigation transition durations (milliseconds): the Reduce Motion
+ * crossfade matches the §5.6 card crossfade; the slide is the iOS-style
+ * push, with the vacating screen parallaxing at `1 / NAV_EXIT_PARALLAX_DIVISOR`
+ * of the travel.
+ */
+private const val NAV_CROSSFADE_MS = 150
+private const val NAV_SLIDE_MS = 350
+private const val NAV_EXIT_PARALLAX_DIVISOR = 3
 
 /**
  * The permission-flow [NavHost]. The graph is built once, with the start
@@ -111,12 +137,17 @@ private fun PermissionFlow(
  * reason, as are the Koin-backed destinations ([homeDestination],
  * [albumsDestination], [monthsDestination], [swipeDestination],
  * [queueDestination], [settingsDestination]).
+ *
+ * §5.6 Reduce Motion: screen changes slide while motion is on and
+ * crossfade over [NAV_CROSSFADE_MS] with [reduceMotion] — the same
+ * "crossfade instead of move" language the card commit uses.
  */
 @Composable
 internal fun PermissionFlowContent(
     state: StateFlow<PermissionUiState>,
     onIntent: (PermissionIntent) -> Unit,
     modifier: Modifier = Modifier,
+    reduceMotion: Boolean = false,
     navController: NavHostController = rememberNavController(),
     swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route, navController) },
     queueDestination: @Composable () -> Unit = { QueueContainer(navController) },
@@ -139,6 +170,35 @@ internal fun PermissionFlowContent(
         navController = navController,
         startDestination = initialRoute,
         modifier = modifier.fillMaxSize(),
+        // §5.6 Reduce Motion: push/pop slides become crossfades.
+        enterTransition = {
+            if (reduceMotion) {
+                fadeIn(tween(NAV_CROSSFADE_MS))
+            } else {
+                slideInHorizontally(tween(NAV_SLIDE_MS)) { it }
+            }
+        },
+        exitTransition = {
+            if (reduceMotion) {
+                fadeOut(tween(NAV_CROSSFADE_MS))
+            } else {
+                slideOutHorizontally(tween(NAV_SLIDE_MS)) { -it / NAV_EXIT_PARALLAX_DIVISOR }
+            }
+        },
+        popEnterTransition = {
+            if (reduceMotion) {
+                fadeIn(tween(NAV_CROSSFADE_MS))
+            } else {
+                slideInHorizontally(tween(NAV_SLIDE_MS)) { -it / NAV_EXIT_PARALLAX_DIVISOR }
+            }
+        },
+        popExitTransition = {
+            if (reduceMotion) {
+                fadeOut(tween(NAV_CROSSFADE_MS))
+            } else {
+                slideOutHorizontally(tween(NAV_SLIDE_MS)) { it }
+            }
+        },
     ) {
         composable<Onboarding> {
             OnboardingScreen(onAllowAccess = { onIntent(PermissionIntent.RequestAccess) })
