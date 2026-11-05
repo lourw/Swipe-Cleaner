@@ -41,9 +41,11 @@ Deleted items go to iOS **Recently Deleted**, where they stay recoverable for 30
 
 **Open questions (the default in brackets is what we build unless someone changes it)**
 
-- [ ] Long-press on a Live Photo plays its motion? **[Yes]**
-- [ ] Include iCloud-only originals that aren't on the device? **[Yes. Allow network access, and show a cloud badge while the item loads.]**
-- [ ] Show an estimate of storage freed? **[Only if the file size can be read reliably. See Risk R3.]**
+All three were settled during the WP-6.4 release sweep (2026-11-05) against what shipped:
+
+- [x] Long-press on a Live Photo plays its motion? **[Yes]** — Resolved: implemented, FR-17 (hold plays the paired video until release, `DeckMotion`).
+- [x] Include iCloud-only originals that aren't on the device? **[Yes. Allow network access, and show a cloud badge while the item loads.]** — Resolved: implemented, the Settings "Include iCloud-only items" toggle (FR-29) with the cloud badge while an item downloads.
+- [x] Show an estimate of storage freed? **[Only if the file size can be read reliably. See Risk R3.]** — Resolved as deferred: no reliable API covers what R3 demands (PHAsset size doesn't track Recently Deleted), so v1 ships no estimate. Revisit post-v1.
 
 ## 3. Functional requirements
 
