@@ -763,13 +763,15 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 - **Branch:** `m6-release-sweep`
 
 **Tasks**
-1. Coverage audit: for every FR-1…FR-31 and NFR-1…NFR-8, `grep -r "FR-12 " composeApp/src/*Test` (etc.) finds a test, or REQUIREMENTS / `docs/manual-test.md` says why it's manual-only. Produce the table in `docs/coverage.md`.
-2. Resolve the §2 open questions in the spec: tick them, or keep the defaults. Storage estimate (R3): skip it unless it's reliably available, and record the decision.
-3. Re-verify every command in AGENTS.md "Commands", and update the verified date.
-4. Remove debug-only screens and hooks, or keep them behind a debug flag.
-5. 👤 Run all of `docs/manual-test.md` on a device, then install with the free Apple ID flow (§8.1).
+1. Safe-area insets on all screens (found 👤 2026-11-05): `ComposeUIViewController` renders edge-to-edge from y = 0 and no screen applies safe-area insets, so headers (e.g. "To Delete") sit under the status bar clock on device. Apply `WindowInsets.statusBars` top padding (Compose Multiplatform 1.12 maps the iOS safe area) to headers/banners on every screen; swipe-deck card images stay full-bleed (design call — write one line into REQUIREMENTS §5 with the fix). Per-screen tests.
+2. Coverage audit: for every FR-1…FR-31 and NFR-1…NFR-8, `grep -r "FR-12 " composeApp/src/*Test` (etc.) finds a test, or REQUIREMENTS / `docs/manual-test.md` says why it's manual-only. Produce the table in `docs/coverage.md`.
+3. Resolve the §2 open questions in the spec: tick them, or keep the defaults. Storage estimate (R3): skip it unless it's reliably available, and record the decision.
+4. Re-verify every command in AGENTS.md "Commands", and update the verified date.
+5. Remove debug-only screens and hooks, or keep them behind a debug flag.
+6. 👤 Run all of `docs/manual-test.md` on a device, then install with the free Apple ID flow (§8.1).
 
 **Done when**
+- [ ] Safe-area insets: no screen content under the status bar on device (task 1).
 - [ ] `docs/coverage.md` maps every FR/NFR to a test or a manual-checklist item.
 - [ ] All §2 open questions are resolved in the spec.
 - [ ] `scripts/validate.sh --full` passes on `main` after the merge.

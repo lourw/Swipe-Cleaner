@@ -45,17 +45,6 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | J | 6.2 Accessibility (6.1) | MERGED (5fbc471) — 6.3 next |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
 
-## Open TODOs
-
-(cross-cutting fixes found outside a WP; pick up on their own branch before or during WP-6.4)
-
-- **Safe area / status bar insets (all screens).** `ComposeUIViewController` renders edge-to-edge
-  from y = 0 and NO screen applies safe-area insets — headers (e.g. "To Delete") sit under the
-  status bar clock on device. Fix on a dedicated branch: Compose Multiplatform 1.12 maps the iOS
-  safe area to `WindowInsets.statusBars`; headers/banners get top inset padding, swipe-deck card
-  images stay full-bleed (design call — write one line into REQUIREMENTS §5 with the fix). Add
-  per-screen tests; simulator screenshots can then show the top edge. (Found 👤 2026-11-05.)
-
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
