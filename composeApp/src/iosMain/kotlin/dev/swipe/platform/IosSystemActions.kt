@@ -3,6 +3,14 @@
 package dev.swipe.platform
 
 import dev.swipe.data.SystemActions
+import dev.swipe.data.parseProvisioningProfileExpiration
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.convert
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.sizeOf
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -20,6 +28,14 @@ import platform.UIKit.UISceneActivationStateForegroundActive
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
+import platform.posix.FILE
+import platform.posix.SEEK_END
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fread
+import platform.posix.fseek
+import platform.posix.ftell
+import platform.posix.rewind
 import kotlin.time.Instant
 
 /**
@@ -74,8 +90,56 @@ class IosSystemActions : SystemActions {
         return "$shortVersion ($build)"
     }
 
-    /** Reading the provisioning profile lands in WP-6.1; null hides the row (FR-31). */
-    override fun signingExpiry(): Instant? = null
+    /**
+     * Free-provisioning expiry for the Settings row (FR-31, WP-6.1): read
+     * `embedded.mobileprovision` from the app bundle and parse its plist. Every
+     * failure — no profile (TestFlight, App Store), unreadable bytes, missing or
+     * malformed `ExpirationDate` — returns null and the row is hidden. The file
+     * is a CMS-signed blob, so the bytes are decoded as Latin-1 (every byte
+     * maps, the plist inside is ASCII) before the pure parser runs.
+     */
+    override fun signingExpiry(): Instant? =
+        NSBundle.mainBundle
+            .pathForResource("embedded", "mobileprovision")
+            ?.let(::readFileAsLatin1)
+            ?.let(::parseProvisioningProfileExpiration)
+
+    /**
+     * Whole-file read via POSIX stdio (the NSData convenience initializers are
+     * hidden deprecations in the current SDK). Bytes become Chars 1:1 (Latin-1)
+     * for the parser: every byte maps, and the plist inside the CMS blob is ASCII.
+     */
+    private fun readFileAsLatin1(path: String): String? =
+        readWholeFile(path)?.let { bytes ->
+            CharArray(bytes.size) { i -> bytes[i].toUByte().toInt().toChar() }.concatToString()
+        }
+
+    /** The whole file, or null when it can't be opened, is empty, or is implausibly large. */
+    private fun readWholeFile(path: String): ByteArray? =
+        memScoped {
+            val file = fopen(path, "rb")
+            try {
+                file?.let(::readCapped)
+            } finally {
+                file?.let(::fclose)
+            }
+        }
+
+    /** One `fread` of the whole handle — a profile is a few tens of KB. */
+    private fun readCapped(file: CPointer<FILE>): ByteArray? {
+        fseek(file, 0L, SEEK_END)
+        val size = ftell(file)
+        if (size <= 0L || size > MAX_PROFILE_BYTES) {
+            return null
+        }
+        rewind(file)
+        val buffer = ByteArray(size.toInt())
+        val read =
+            buffer.usePinned { pinned ->
+                fread(pinned.addressOf(0), sizeOf<ByteVar>().convert(), size.convert(), file)
+            }
+        return if (read.toLong() == size) buffer else null
+    }
 
     /**
      * The root view controller of the key window in the active window scene (falls
@@ -90,5 +154,10 @@ class IosSystemActions : SystemActions {
         val windows = scene?.windows?.filterIsInstance<UIWindow>() ?: emptyList()
         val window = windows.firstOrNull { it.keyWindow } ?: windows.firstOrNull()
         return window?.rootViewController
+    }
+
+    private companion object {
+        /** Safety cap for the profile read; real profiles are a few tens of KB. */
+        private const val MAX_PROFILE_BYTES = 1L shl 20
     }
 }
