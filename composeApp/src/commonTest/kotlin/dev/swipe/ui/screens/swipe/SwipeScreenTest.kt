@@ -6,6 +6,7 @@ package dev.swipe.ui.screens.swipe
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
@@ -359,5 +360,45 @@ class SwipeScreenTest {
             }
             waitForIdle()
             assertAllClickablesLabeled()
+        }
+
+    @Test
+    fun `NFR-8 the deck card's custom actions commit like the buttons`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(deckState(), onIntent = { intents.add(it) })
+            }
+            waitForIdle()
+            val card =
+                onNodeWithContentDescription(cardAccessibilityDescription(card("current-id")))
+                    .fetchSemanticsNode()
+            assertEquals(
+                listOf("Keep", "Delete", "Skip"),
+                card.config[SemanticsActions.CustomActions].map { it.label },
+            )
+            // Firing the VoiceOver action takes the SAME commit path as the
+            // ActionBar button: flight first, intent after (§5.6, FR-13).
+            card.config[SemanticsActions.CustomActions].first { it.label == "Delete" }.action()
+            waitForIdle()
+            mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Delete), intents)
+        }
+
+    @Test
+    fun `NFR-8 the card's Undo action appears only while an undo is pending`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(deckState().copy(canUndo = true))
+            }
+            waitForIdle()
+            val card =
+                onNodeWithContentDescription(cardAccessibilityDescription(card("current-id")))
+                    .fetchSemanticsNode()
+            assertEquals(
+                listOf("Keep", "Delete", "Skip", "Undo"),
+                card.config[SemanticsActions.CustomActions].map { it.label },
+            )
         }
 }

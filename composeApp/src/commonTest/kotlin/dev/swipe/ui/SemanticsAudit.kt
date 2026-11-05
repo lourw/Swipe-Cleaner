@@ -47,11 +47,11 @@ fun SemanticsNodeInteractionsProvider.assertAllClickablesLabeled() {
         val labeled =
             (
                 config.contains(SemanticsProperties.ContentDescription) &&
-                    config[SemanticsProperties.ContentDescription].isNotEmpty()
+                    config[SemanticsProperties.ContentDescription].any { it.isNotBlank() }
             ) ||
                 (
                     config.contains(SemanticsProperties.Text) &&
-                        config[SemanticsProperties.Text].isNotEmpty()
+                        config[SemanticsProperties.Text].any { it.isNotBlank() }
                 )
         if (clickable && !labeled) {
             unlabeled += node

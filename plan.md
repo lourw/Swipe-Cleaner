@@ -724,7 +724,7 @@ Wave K  WP-6.3 Performance pass (👤)              WP-6.4 Release-readiness swe
 - **Spec:** NFR-8, §5.6 Reduce Motion, §5.5 touch targets.
 
 **Tasks**
-1. Audit every screen. Each control has a `contentDescription` and a role, and touch targets are at least 44 dp. The swipe card exposes custom accessibility actions Keep / Delete / Skip / Undo, so VoiceOver users don't need gestures. The card description reads "Photo, March 14 2021, favorite".
+1. Audit every screen. Each control has a `contentDescription` and a role, and touch targets are at least 44 dp. The swipe card exposes custom accessibility actions Keep / Delete / Skip / Undo, so VoiceOver users don't need gestures. The card description reads "Mar 14, 2021, photo, 0:32, favorite" (the app-wide date-then-type §5.7 shape).
 2. `SystemActions.isReduceMotionEnabled()` → `SwipeCard(reduceMotion = …)` everywhere, plus crossfades instead of slides in navigation transitions.
 3. Dynamic Type is out of scope for v1. Note it in REQUIREMENTS if it's not already there.
 

@@ -174,6 +174,8 @@ private fun GallerySwipeDeck(
                 )
             }
         }
+        // Debug gallery only: no NFR-8 description/custom actions and default
+        // reduceMotion — the production card is wired in DeckMotion.kt.
         SwipeCard(
             onDismiss = onDismiss,
             state = cardState,
