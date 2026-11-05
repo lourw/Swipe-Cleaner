@@ -1,10 +1,5 @@
 package dev.swipe
 
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -113,16 +109,6 @@ private fun PermissionFlow(
 }
 
 /**
- * Navigation transition durations (milliseconds): the Reduce Motion
- * crossfade matches the §5.6 card crossfade; the slide is the iOS-style
- * push, with the vacating screen parallaxing at `1 / NAV_EXIT_PARALLAX_DIVISOR`
- * of the travel.
- */
-private const val NAV_CROSSFADE_MS = 150
-private const val NAV_SLIDE_MS = 350
-private const val NAV_EXIT_PARALLAX_DIVISOR = 3
-
-/**
  * The permission-flow [NavHost]. The graph is built once, with the start
  * destination named by the first non-null [PermissionUiState.startScreen]
  * (WP-1.7); `null` — the first authorization read in flight — shows the theme
@@ -139,8 +125,9 @@ private const val NAV_EXIT_PARALLAX_DIVISOR = 3
  * [queueDestination], [settingsDestination]).
  *
  * §5.6 Reduce Motion: screen changes slide while motion is on and
- * crossfade over [NAV_CROSSFADE_MS] with [reduceMotion] — the same
- * "crossfade instead of move" language the card commit uses.
+ * crossfade with [reduceMotion] via [navEnter], [navExit], [navPopEnter],
+ * and [navPopExit] — the same "crossfade instead of move" language the card
+ * commit uses.
  */
 @Composable
 internal fun PermissionFlowContent(
@@ -170,35 +157,10 @@ internal fun PermissionFlowContent(
         navController = navController,
         startDestination = initialRoute,
         modifier = modifier.fillMaxSize(),
-        // §5.6 Reduce Motion: push/pop slides become crossfades.
-        enterTransition = {
-            if (reduceMotion) {
-                fadeIn(tween(NAV_CROSSFADE_MS))
-            } else {
-                slideInHorizontally(tween(NAV_SLIDE_MS)) { it }
-            }
-        },
-        exitTransition = {
-            if (reduceMotion) {
-                fadeOut(tween(NAV_CROSSFADE_MS))
-            } else {
-                slideOutHorizontally(tween(NAV_SLIDE_MS)) { -it / NAV_EXIT_PARALLAX_DIVISOR }
-            }
-        },
-        popEnterTransition = {
-            if (reduceMotion) {
-                fadeIn(tween(NAV_CROSSFADE_MS))
-            } else {
-                slideInHorizontally(tween(NAV_SLIDE_MS)) { -it / NAV_EXIT_PARALLAX_DIVISOR }
-            }
-        },
-        popExitTransition = {
-            if (reduceMotion) {
-                fadeOut(tween(NAV_CROSSFADE_MS))
-            } else {
-                slideOutHorizontally(tween(NAV_SLIDE_MS)) { it }
-            }
-        },
+        enterTransition = { navEnter(reduceMotion) },
+        exitTransition = { navExit(reduceMotion) },
+        popEnterTransition = { navPopEnter(reduceMotion) },
+        popExitTransition = { navPopExit(reduceMotion) },
     ) {
         composable<Onboarding> {
             OnboardingScreen(onAllowAccess = { onIntent(PermissionIntent.RequestAccess) })
@@ -226,26 +188,34 @@ internal fun PermissionFlowContent(
         composable<Swipe> { entry ->
             swipeDestination(entry.toRoute<Swipe>())
         }
-        composable<Summary> { entry ->
-            val route = entry.toRoute<Summary>()
-            SummaryScreen(
-                kept = route.kept,
-                queued = route.queued,
-                skipped = route.skipped,
-                onBackHome = { navController.backToHome() },
-                onReviewQueue = { navController.navigate(Queue) },
-            )
-        }
+        resultDestinations(navController)
         composable<Queue> {
             queueDestination()
         }
-        composable<DeleteSuccess> { entry ->
-            val route = entry.toRoute<DeleteSuccess>()
-            DeleteSuccessScreen(
-                deleted = route.deleted,
-                onBackHome = { navController.backToHome() },
-            )
-        }
+    }
+}
+
+/**
+ * The deck flow's terminal routes: the FR-24 summary (with its way into the
+ * Queue) and the FR-26 delete-success screen, both returning Home.
+ */
+private fun NavGraphBuilder.resultDestinations(navController: NavHostController) {
+    composable<Summary> { entry ->
+        val route = entry.toRoute<Summary>()
+        SummaryScreen(
+            kept = route.kept,
+            queued = route.queued,
+            skipped = route.skipped,
+            onBackHome = { navController.backToHome() },
+            onReviewQueue = { navController.navigate(Queue) },
+        )
+    }
+    composable<DeleteSuccess> { entry ->
+        val route = entry.toRoute<DeleteSuccess>()
+        DeleteSuccessScreen(
+            deleted = route.deleted,
+            onBackHome = { navController.backToHome() },
+        )
     }
 }
 

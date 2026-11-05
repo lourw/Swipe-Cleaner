@@ -121,11 +121,7 @@ fun SwipeCard(
     Box(
         modifier =
             modifier
-                .onSizeChanged { px ->
-                    cardSize = px.toSize()
-                    state.cardSize = cardSize
-                    state.density = density
-                }.semantics { set(RotationZSemanticsPropertyKey, appliedRotationZ) },
+                .cardSized(state, density, appliedRotationZ) { cardSize = it },
     ) {
         SwipeBackdrop(activeVerdict, state.offset, cardSize)
         Box(
@@ -152,45 +148,98 @@ fun SwipeCard(
                         onClick = onTap,
                         onDoubleClick = onDoubleTap,
                         onLongClick = onLongPress,
-                    ).semantics {
-                        // NFR-8: the card is one VoiceOver element — its line
-                        // and the Keep/Delete/Skip(/Undo) actions, so no
-                        // gesture is ever required to decide.
-                        if (accessibilityDescription != null) {
-                            contentDescription = accessibilityDescription
-                            role = Role.Image
-                        }
-                        if (accessibilityActions.isNotEmpty()) {
-                            // Compose's custom-action contract wants a
-                            // handled-flag; the decision always runs.
-                            customActions =
-                                accessibilityActions.map {
-                                    CustomAccessibilityAction(
-                                        label = it.label,
-                                        action = {
-                                            it.action()
-                                            true
-                                        },
-                                    )
-                                }
-                        }
-                    }.pointerInput(reduceMotion) {
-                        swipeDragGestures(
-                            state = state,
-                            cardSize = { cardSize },
-                            density = density,
-                            reduceMotion = reduceMotion,
-                            scope = scope,
-                            onThresholdCrossed = currentOnThresholdCrossed,
-                            onDismiss = currentOnDismiss,
-                        )
-                    },
+                    ).cardAccessibility(
+                        accessibilityDescription,
+                        accessibilityActions,
+                    ).swipeDragPointerInput(
+                        state = state,
+                        cardSize = { cardSize },
+                        density = density,
+                        reduceMotion = reduceMotion,
+                        scope = scope,
+                        onThresholdCrossed = currentOnThresholdCrossed,
+                        onDismiss = currentOnDismiss,
+                    ),
         ) {
             content()
             VerdictStampOverlay(state.offset, cardSize)
         }
     }
 }
+
+/**
+ * Reports the card's pixel size through [onCardSize] and to [state] (the
+ * gesture math needs both the size and the density), and publishes the
+ * rotation actually applied as the [RotationZSemanticsPropertyKey] test
+ * hook.
+ */
+private fun Modifier.cardSized(
+    state: SwipeCardState,
+    density: Float,
+    rotationZ: Float,
+    onCardSize: (Size) -> Unit,
+): Modifier =
+    onSizeChanged { px ->
+        val size = px.toSize()
+        onCardSize(size)
+        state.cardSize = size
+        state.density = density
+    }.semantics { set(RotationZSemanticsPropertyKey, rotationZ) }
+
+/**
+ * NFR-8: the card is one VoiceOver element — its line and the
+ * Keep/Delete/Skip(/Undo) actions, so no gesture is ever required to
+ * decide. The actions run [CardAccessibilityAction.action] and report
+ * handled: Compose's custom-action contract wants a handled-flag, and the
+ * decision always runs.
+ */
+private fun Modifier.cardAccessibility(
+    description: String?,
+    actions: List<CardAccessibilityAction>,
+): Modifier =
+    semantics {
+        if (description != null) {
+            contentDescription = description
+            role = Role.Image
+        }
+        if (actions.isNotEmpty()) {
+            customActions =
+                actions.map {
+                    CustomAccessibilityAction(
+                        label = it.label,
+                        action = {
+                            it.action()
+                            true
+                        },
+                    )
+                }
+        }
+    }
+
+/**
+ * The §5.6 drag recognizer [swipeDragGestures] wired to this modifier,
+ * restarting when [reduceMotion] changes.
+ */
+private fun Modifier.swipeDragPointerInput(
+    state: SwipeCardState,
+    cardSize: () -> Size,
+    density: Float,
+    reduceMotion: Boolean,
+    scope: CoroutineScope,
+    onThresholdCrossed: () -> Unit,
+    onDismiss: (SwipeVerdict) -> Unit,
+): Modifier =
+    pointerInput(reduceMotion) {
+        swipeDragGestures(
+            state = state,
+            cardSize = cardSize,
+            density = density,
+            reduceMotion = reduceMotion,
+            scope = scope,
+            onThresholdCrossed = onThresholdCrossed,
+            onDismiss = onDismiss,
+        )
+    }
 
 /**
  * A [MutableInteractionSource] that reports the press's up-edge through

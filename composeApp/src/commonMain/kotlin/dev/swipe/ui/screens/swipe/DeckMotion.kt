@@ -141,7 +141,6 @@ internal fun ColumnScope.CardStack(
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var deckSize by remember { mutableStateOf(Size.Zero) }
-    val isVideo = card.type == MediaType.VIDEO
     Box(
         modifier =
             Modifier
@@ -163,25 +162,8 @@ internal fun ColumnScope.CardStack(
             state = cardState,
             reduceMotion = reduceMotion,
             accessibilityDescription = cardAccessibilityDescription(card),
-            accessibilityActions =
-                buildList {
-                    add(CardAccessibilityAction("Keep") { onButtonCommit(SwipeVerdict.KEEP) })
-                    add(CardAccessibilityAction("Delete") { onButtonCommit(SwipeVerdict.DELETE) })
-                    add(CardAccessibilityAction("Skip") { onButtonCommit(SwipeVerdict.SKIP) })
-                    // FR-15: Undo rides the card only while there is something
-                    // to undo, mirroring the disabled state of the bar's button.
-                    if (canUndo) add(CardAccessibilityAction("Undo", onUndo))
-                },
-            onTap = {
-                // §5.6: a video tap toggles mute; a photo tap the chrome.
-                // With autoplay off the first tap starts playback instead
-                // (the poster + affordance state), later taps toggle mute.
-                when {
-                    !isVideo -> onToggleChrome()
-                    !autoplayVideos && !videoStarted -> onVideoStart()
-                    else -> onToggleMute()
-                }
-            },
+            accessibilityActions = decisionAccessibilityActions(onButtonCommit, canUndo, onUndo),
+            onTap = cardTapAction(card.type, autoplayVideos, videoStarted, onToggleChrome, onVideoStart, onToggleMute),
             onDoubleTap = onToggleFill,
             onLongPress = {
                 // FR-17: hold a Live Photo to play its paired video.
@@ -215,6 +197,45 @@ internal fun ColumnScope.CardStack(
         }
     }
 }
+
+/**
+ * The NFR-8 custom actions for the top card: Keep/Delete/Skip run the same
+ * [onButtonCommit] the ActionBar buttons take, and Undo (only while
+ * [canUndo], mirroring the disabled bar button — FR-15) the same
+ * [onUndo], so a VoiceOver decision is a button decision.
+ */
+private fun decisionAccessibilityActions(
+    onButtonCommit: (SwipeVerdict) -> Unit,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+): List<CardAccessibilityAction> =
+    buildList {
+        add(CardAccessibilityAction("Keep") { onButtonCommit(SwipeVerdict.KEEP) })
+        add(CardAccessibilityAction("Delete") { onButtonCommit(SwipeVerdict.DELETE) })
+        add(CardAccessibilityAction("Skip") { onButtonCommit(SwipeVerdict.SKIP) })
+        if (canUndo) add(CardAccessibilityAction("Undo", onUndo))
+    }
+
+/**
+ * The §5.6 tap behavior on the top card: a video tap toggles mute; a photo
+ * tap the chrome. With autoplay off the first tap starts playback instead
+ * (the poster + affordance state), later taps toggle mute.
+ */
+private fun cardTapAction(
+    type: MediaType,
+    autoplayVideos: Boolean,
+    videoStarted: Boolean,
+    onToggleChrome: () -> Unit,
+    onVideoStart: () -> Unit,
+    onToggleMute: () -> Unit,
+): () -> Unit =
+    {
+        when {
+            type != MediaType.VIDEO -> onToggleChrome()
+            !autoplayVideos && !videoStarted -> onVideoStart()
+            else -> onToggleMute()
+        }
+    }
 
 /**
  * The top card's live playback layers (FR-16, FR-17) — everything between
