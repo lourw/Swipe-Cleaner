@@ -42,12 +42,34 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | BOTH MERGED (9698ee5 · d873f01) — **M5 code-complete, Wave I complete** |
-| J | 6.2 Accessibility (6.1) | pending |
+| J | 6.2 Accessibility (6.1) | MERGED (5fbc471) — 6.3 next |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-6.2 (m6-accessibility) — verified APPROVE-WITH-MINOR, all 3 minors + 2 nits fixed, merged 5fbc471
+- Swipe card: `contentDescription` (date→type→duration→favorite, pure
+  `cardAccessibilityDescription`) + custom a11y actions Keep/Delete/Skip(/Undo-while-pending)
+  running the SAME `onButtonCommit` path as the ActionBar; pinned screen-level (fire Delete →
+  flight → `SwipeIntent.Delete`). `SystemActions.isReduceMotionEnabled()` (pre-existing WP-2.x
+  plumbing) now drives `SwipeCard(reduceMotion=…)` everywhere + crossfade-not-slide nav via new
+  `NavTransitions.kt`. `SemanticsAudit.assertAllClickablesLabeled()` helper + 10 per-screen
+  NFR-8 tests (real screens/VMs; vacuous-fixture guard). Scrubber label, play affordance,
+  badges, Months headings, Banner 44 dp floor fixed. Dynamic Type noted out-of-scope.
+- Review fixes (5fbc471): audit now rejects BLANK labels (mutation: `label = ""` fails the
+  Albums audit — killed); wired-action tests; format pinned; NFR-8 row names favorite flag;
+  plan example updated to the built date-then-type shape (spec edited in-branch — pre-existing
+  §5.7 wireframe `Mar 14, 2021 · 0:32` shape won over plan's type-first example; verifier
+  ruled ACCEPTED). 319 tests, 0 fail; `--full` passed twice.
+- Carried into later briefs:
+  - WP-6.3: signposts must not regress card commit paths; per-settle AVPlayer churn and the
+    7-enumeration Home refresh cycle (from WP-5.2/5.3 carry-forwards) are the top trace targets.
+  - 👤: VoiceOver session on device (card actions audible, crossfade under Reduce Motion toggle,
+    Accessibility Inspector reach on all 10 screens); CMP semantics→UIAccessibility bridge
+    fidelity for `customActions` unverifiable without a device.
+- Deferred nits: none blocking; `DebugSwipeCardDemo` intentionally unwired (commented).
 
 ### WP-6.1 (m6-settings) — verified APPROVE (2 nits: 1 fixed pre-merge, 1 recorded), merged d873f01 — **Wave I complete**
 - Real `SettingsScreen` (placeholder replaced): 3 `ToggleRow`s over a new token-built
