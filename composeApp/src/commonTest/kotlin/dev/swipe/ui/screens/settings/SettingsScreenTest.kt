@@ -26,6 +26,7 @@ import dev.swipe.presentation.settings.SettingsEvent
 import dev.swipe.presentation.settings.SettingsIntent
 import dev.swipe.presentation.settings.SettingsUiState
 import dev.swipe.presentation.settings.SettingsViewModel
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.Dispatchers
@@ -212,4 +213,16 @@ class SettingsScreenTest {
             viewModel = SettingsViewModel(settings, store, FakeSystemActions())
         }
     }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    TestScreen(SettingsUiState())
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
+        }
 }

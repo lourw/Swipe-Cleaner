@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,5 +44,17 @@ class DeleteSuccessScreenTest {
                 }
             }
             onNodeWithText("128").assertExists()
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    DeleteSuccessScreen(deleted = 4, onBackHome = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

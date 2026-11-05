@@ -16,6 +16,7 @@ import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.model.Stats
 import dev.swipe.presentation.home.HomeIntent
 import dev.swipe.presentation.home.HomeUiState
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -222,5 +223,17 @@ class HomeScreenTest {
                 listOf<HomeIntent>(HomeIntent.SetTypeFilter(MediaTypeFilter.VIDEOS)),
                 intents,
             )
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    HomeScreen(state = HomeUiState(), onIntent = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

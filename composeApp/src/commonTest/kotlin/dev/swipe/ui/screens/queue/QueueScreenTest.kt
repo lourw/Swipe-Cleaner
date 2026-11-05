@@ -33,6 +33,7 @@ import dev.swipe.presentation.queue.QueueIntent
 import dev.swipe.presentation.queue.QueueTile
 import dev.swipe.presentation.queue.QueueUiState
 import dev.swipe.presentation.queue.QueueViewModel
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.Dispatchers
@@ -362,4 +363,16 @@ class QueueScreenTest {
             )
         }
     }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    TestScreen(queueState(3))
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
+        }
 }

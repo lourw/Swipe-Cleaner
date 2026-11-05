@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -75,5 +76,17 @@ class SummaryScreenTest {
             onNodeWithContentDescription("Back home").performClick()
             waitForIdle()
             assertEquals(1, home)
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    SummaryScreen(kept = 92, queued = 18, skipped = 4, onBackHome = {}, onReviewQueue = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

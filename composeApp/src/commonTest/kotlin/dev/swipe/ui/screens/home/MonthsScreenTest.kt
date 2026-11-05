@@ -13,6 +13,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.domain.model.MonthBucket
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,5 +90,17 @@ class MonthsScreenTest {
             onNodeWithContentDescription("Back").performClick()
             waitForIdle()
             assertEquals(1, backTaps)
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(state = MonthsUiState(buckets = listOf(march, december, may)), onIntent = {}, onBack = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

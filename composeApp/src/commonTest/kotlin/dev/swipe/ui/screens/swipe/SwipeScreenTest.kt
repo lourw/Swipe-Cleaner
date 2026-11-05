@@ -31,6 +31,7 @@ import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.components.swipe.FLY_OFF_MS
 import dev.swipe.ui.components.swipe.NUDGE_MS
 import dev.swipe.ui.theme.SwipeTheme
@@ -347,4 +348,16 @@ class SwipeScreenTest {
             )
         }
     }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    TestScreen(deckState())
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
+        }
 }

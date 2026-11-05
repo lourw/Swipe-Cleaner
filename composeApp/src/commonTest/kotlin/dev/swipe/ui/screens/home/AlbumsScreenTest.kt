@@ -14,6 +14,7 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.presentation.albums.AlbumsIntent
 import dev.swipe.presentation.albums.AlbumsUiState
 import dev.swipe.presentation.home.HomeAlbumRow
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -100,5 +101,17 @@ class AlbumsScreenTest {
             onNodeWithContentDescription("Back").performClick()
             waitForIdle()
             assertEquals(1, backTaps)
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(state = AlbumsUiState(rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

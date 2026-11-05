@@ -78,6 +78,9 @@ fun Banner(
                 style = SwipeTheme.typography.callout.copy(color = colors.accent),
                 modifier =
                     Modifier
+                        // §5.5: the action is its own control, so it meets
+                        // the 44 dp floor itself, not just via the row.
+                        .heightIn(min = SwipeTheme.sizes.minTouchTarget)
                         .clickable(onClick = onAction)
                         .padding(SwipeTheme.spacing.s)
                         .semantics {

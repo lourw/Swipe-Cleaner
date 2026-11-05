@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,5 +31,17 @@ class DeniedScreenTest {
             ).assertExists()
             onNodeWithText("Open Settings").performClick()
             assertEquals(1, taps)
+        }
+
+    @Test
+    fun `NFR-8 every screen's clickable nodes have content descriptions`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    DeniedScreen(onOpenSettings = {})
+                }
+            }
+            waitForIdle()
+            assertAllClickablesLabeled()
         }
 }

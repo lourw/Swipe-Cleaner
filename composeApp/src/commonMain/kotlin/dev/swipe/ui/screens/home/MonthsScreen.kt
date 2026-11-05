@@ -11,6 +11,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import dev.swipe.domain.model.MonthBucket
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
@@ -106,7 +108,10 @@ private fun YearHeader(year: Int) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SwipeTheme.spacing.gutter, vertical = SwipeTheme.spacing.xs),
+                .padding(horizontal = SwipeTheme.spacing.gutter, vertical = SwipeTheme.spacing.xs)
+                // NFR-8: VoiceOver announces this as a heading while the
+                // month list scrolls, so the user knows where they are.
+                .semantics { heading() },
     )
 }
 

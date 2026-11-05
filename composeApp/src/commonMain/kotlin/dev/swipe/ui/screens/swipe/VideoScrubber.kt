@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeTheme
@@ -66,6 +67,7 @@ internal fun VideoScrubber(
                     .semantics {
                         // VoiceOver reads the position; the drag itself is
                         // pointer-only, matching the card's gesture stack.
+                        contentDescription = "Video scrubber"
                         progressBarRangeInfo = ProgressBarRangeInfo(fraction.coerceIn(0f, 1f), 0f..1f)
                     }.pointerInput(durationMs) {
                         // An unprepared item (duration still unknown) has no
