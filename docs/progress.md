@@ -43,11 +43,37 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
 | I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | BOTH MERGED (9698ee5 · d873f01) — **M5 code-complete, Wave I complete** |
 | J | 6.2 Accessibility (6.1) | MERGED (5fbc471) — 6.3 next |
-| K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | 6.3 MERGED (08324a8) — device measures 👤 open · 6.4 next |
+| K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | 6.3 MERGED (08324a8) · 6.4 MERGED — all WPs done, v1 gated on 👤 device runs |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-6.4 (m6-release-sweep) — verified REQUEST-CHANGES → all findings fixed, merged 255226e
+- **Debug gate (task 5):** gallery needs debug build AND `-gallery` arg — Swift passes `debugBuild`
+  via `#if DEBUG`, pure `debugGalleryRequested()` predicate + `DebugGalleryGateTest` (3 tests).
+- **Safe areas (task 1):** all 13 full-screen surfaces get `statusBarsPadding`/`navigationBarsPadding`
+  (deck split: TopBar status-only, ActionBar home-indicator-only; card image stays full-bleed per
+  FR-11); backgrounds paint edge-to-edge; REQUIREMENTS §5.1 principle 5 added. `SafeAreaBoundsTest`
+  (12 tests) pins content-in-window only — headless insets are zero, so inset PRESENCE is guarded by
+  new `check-rules.sh` guard 9 (mutation-proven; strips line comments first; file-level: one of two
+  identical call sites commented out is not caught — noted).
+- **Resume under-count fix (carried from 6.3, FR-20/21/26):** `sessionCounts.reviewed` now
+  `COALESCE(COUNT(*),0)` — committed (DELETED) rows count in the resume base; both layers
+  mutation-killed; no migration (query-only). New edge test: fully-committed session retries the
+  FR-21 summary.
+- **Coverage audit (task 2):** `docs/coverage.md` — 31/31 FRs have named tests; NFR-2 is the only
+  requirement with no automated test (device frame timing → perf.md); NFR-6 static-guarded
+  (check-rules 6); verifier spot-checked 16 IDs, all real.
+- **§2 open questions (task 3):** Live Photo long-press YES (FR-17), iCloud-only YES behind FR-29
+  toggle, storage estimate DEFERRED post-v1 (R3, no reliable API).
+- **AGENTS.md commands (task 4):** all re-run 2026-11-05, date bumped.
+- **Review blocker fixed:** Release configuration didn't compile (Kotlin default params aren't
+  exported to Obj-C — `#else` branch called a nonexistent overload); `--full` now builds Debug AND
+  Release so this can't recur.
+- 341 tests, 0 fail; `--full` passed on branch and on `main` after merge.
+- 👤 open (v1 gates): full `docs/manual-test.md` run + free Apple ID install (§8.1); safe-area pixel
+  checklist; debug gallery on device; WP-6.3 perf pass (perf.md Results rows + NFR-2 hitches).
 
 ### WP-6.3 (m6-performance) — verified APPROVE-WITH-MINOR, all 7 findings fixed, merged 08324a8
 - `PerfTrace` seam (commonMain `data/`, `PerfSpan` enum, `NoPerfTrace` for tests, Koin) +
