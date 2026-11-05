@@ -41,13 +41,44 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 | F | 2.3 Swipe screen assembly (2.1,2.2) | MERGED (8173e25) — **M2 code-complete** |
 | G | 3.1 commit-deletions (1.3) · 3.2 PhotoKit delete (1.4) · 4.1 VideoPlayer (1.9) · 5.1 PhotoKit sources (1.4,1.6) | ALL MERGED (7d07bad · b239d2d · 21fcfda · beabe1a) — Wave G complete |
 | H | 3.3 Queue UI (3.1,3.2,2.3) · 4.2 Video UX (4.1,2.3) · 5.2 HomeVM (5.1,1.3) | ALL MERGED (dfc92e2 · 07c9c3d · c5c2faa) — **M3 + M4 code-complete, Wave H complete** |
-| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | 5.3 next |
+| I | 5.3 Home screens (5.2,1.7) · 6.1 Settings (5.3) — 6.1 after 5.3 | 5.3 MERGED (9698ee5) — **M5 code-complete** · 6.1 next |
 | J | 6.2 Accessibility (6.1) | pending |
 | K | 6.3 Perf pass (6.2) · 6.4 Release sweep (6.3) | pending |
 
 ## WP status log
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
+
+### WP-5.3 (m5-home-screens) — verified APPROVE-WITH-MINOR, findings 1–3 fixed, merged 9698ee5 — **M5 code-complete**
+- Home per §5.8: header + gear, stats line (FR-10 all three numbers — see spec edit), queue +
+  limited banners (limited first, pinned by test), All/Photos/Videos `SegmentedControl`,
+  Shuffle/Albums/By month rows, SMART FILTERS caption + 5 rows from `smartRows` (titles via
+  `smartFilterTitle`, order = `SmartFilter.entries`), em-dash placeholders. New `SourceRow`
+  component (64 dp, 40 dp cover thumb via `MediaLoader.image` small-target LRU bypass, chevron).
+  `AlbumsViewModel` + `MonthsViewModel` (lazy: `months(type)` only while open, year sections
+  newest-first FR-7); `HomeDestinations` collects `HomeViewModel.events` + the two screen events
+  into nav (routes carry the type filter name-encoded, like `Swipe`). `SmartFiltersScreen` dropped
+  as redundant — §5.8 screen map updated in-branch (plan-sanctioned). Minimal
+  `SettingsScreen` placeholder registered so the gear lands somewhere (WP-6.1 replaces it).
+  KDoc "persists across launches" claim dropped from `SetTypeFilter`. 286 tests, 0 fail;
+  `validate.sh --full` passed. Verifier mutation-checked: banner order + months year headers.
+- Spec edits (call out): §5.8 stats wireframe → `1,204 reviewed · 892 kept · 312 deleted`
+  (FR-10 text listed three numbers; wireframe shorthand omitted kept — wireframe now matches FR);
+  §5.8 screen map lost the Smart-filters branch.
+- Carried into later briefs:
+  - WP-6.1: replace the `ui/screens/settings/SettingsScreen.kt` placeholder (header +
+    "Settings are coming soon.", gear route already works); no `typeFilter` field exists in
+    `SettingsStore` and Home no longer claims persistence — only add one if FR-29/§5.8 grows it.
+  - WP-6.2: the new Home/Albums/Months screens have had NO a11y pass — SourceRow counts/chevron,
+    banner announcements, segmented control selection semantics, `ScreenHeader` back button,
+    Months year headers as section semantics.
+  - WP-6.3: `AlbumsViewModel` re-fetches album counts per open; `MonthsViewModel` pays the full
+    `months()` enumeration per open (by design, FR-7) — time it at 50k.
+  - Spec tidy-up: §5.8 says 🎉 is "the one allowed emoji" but the queue-banner wireframe itself
+    shows 🗑 — implementation follows the wireframe; reconcile wording someday.
+- 👤 visual checkpoints (all text-verified only): Home vs §5.8 (spacing, toggle, row order);
+  both banners stacked with limited on top; em-dash → tabular numbers without layout jitter;
+  album cover sharpness at 40 dp on a real library; Months ordering feel on a large library.
 
 ### WP-5.2 (m5-home-viewmodel) — verified APPROVE-WITH-MINOR, findings 1–5 + nits fixed, merged c5c2faa — **Wave H complete**
 - `LoadSourcesUseCase(type)` progressive ladder: `albums()` estimates → ids-only Shuffle →
