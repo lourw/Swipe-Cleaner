@@ -7,6 +7,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.NoPerfTrace
+import dev.swipe.data.PerfSpan
+import dev.swipe.data.PerfTrace
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.albums.AlbumsEvent
@@ -54,10 +57,16 @@ internal fun HomeDestination(
     permissionState: StateFlow<PermissionUiState>,
     onManageLimitedAccess: () -> Unit,
     homeViewModel: HomeViewModel = koinViewModel(),
+    perfTrace: PerfTrace = NoPerfTrace,
 ) {
     val onIntent: (HomeIntent) -> Unit = remember(homeViewModel) { homeViewModel::onIntent }
     val state by homeViewModel.uiState.collectAsState()
     val permission by permissionState.collectAsState()
+    // NFR-4: Home's first composition is the interactive frame — the type
+    // toggle and rows are on screen, only counts may still stream in (the
+    // progressive ladder keeps them out of the critical path, §6.5). Best
+    // effort at the composable level, per WP-6.3; docs/perf.md.
+    LaunchedEffect(Unit) { perfTrace.end(PerfSpan.COLD_START_HOME) }
     LaunchedEffect(homeViewModel) {
         homeViewModel.events.collect { event ->
             when (event) {

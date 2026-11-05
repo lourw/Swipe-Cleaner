@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.PerfTrace
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
@@ -139,7 +140,12 @@ internal fun PermissionFlowContent(
     swipeDestination: @Composable (Swipe) -> Unit = { route -> SwipeDestination(route, navController) },
     queueDestination: @Composable () -> Unit = { QueueContainer(navController) },
     homeDestination: @Composable () -> Unit = {
-        HomeDestination(navController, state, { onIntent(PermissionIntent.ManageLimitedAccess) })
+        HomeDestination(
+            navController,
+            state,
+            { onIntent(PermissionIntent.ManageLimitedAccess) },
+            perfTrace = koinInject(),
+        )
     },
     albumsDestination: @Composable (Albums) -> Unit = { route -> AlbumsDestination(route, navController) },
     monthsDestination: @Composable (Months) -> Unit = { route -> MonthsDestination(route, navController) },
@@ -298,6 +304,7 @@ private fun SwipeContainer(
     systemActions: SystemActions = koinInject(),
     haptics: Haptics = koinInject(),
     settings: SettingsStore = koinInject(),
+    perfTrace: PerfTrace = koinInject(),
 ) {
     val viewModel: SwipeViewModel =
         koinViewModel(
@@ -326,6 +333,7 @@ private fun SwipeContainer(
         onIntent = onIntent,
         mediaLoader = mediaLoader,
         haptics = haptics,
+        perfTrace = perfTrace,
         reduceMotion = reduceMotion,
         onClose = onClose,
         onOpenQueue = onOpenQueue,

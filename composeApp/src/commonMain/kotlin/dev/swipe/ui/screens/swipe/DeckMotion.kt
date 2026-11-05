@@ -118,6 +118,7 @@ internal fun ColumnScope.CardStack(
     next: CardState?,
     cardState: SwipeCardState,
     mediaLoader: MediaLoader,
+    latency: CommitLatencyTrace,
     reduceMotion: Boolean,
     chromeVisible: Boolean,
     fillMode: Boolean,
@@ -173,7 +174,7 @@ internal fun ColumnScope.CardStack(
             onThresholdCrossed = onThresholdCrossed,
             modifier = Modifier.matchParentSize().testTag(SWIPE_CARD_TEST_TAG),
         ) {
-            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = fillMode)
+            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = fillMode, latency = latency)
             TopCardPlayback(
                 card = card,
                 cardState = cardState,
@@ -290,6 +291,7 @@ private fun BoxScope.cardMedia(
     card: CardState,
     loader: MediaLoader,
     fillMode: Boolean,
+    latency: CommitLatencyTrace,
 ): LoadedImage? {
     val loaded =
         rememberMediaImage(
@@ -304,6 +306,9 @@ private fun BoxScope.cardMedia(
             contentScale = if (fillMode) ContentScale.FillBounds else ContentScale.Fit,
             modifier = Modifier.matchParentSize(),
         )
+        // NFR-1 span ends ride the emissions, after the frame they draw in
+        // (CommitLatencyTrace; no-ops outside a pending commit).
+        LaunchedEffect(image) { latency.onImage(image.isDegraded) }
     }
     return loaded
 }

@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.NoPerfTrace
+import dev.swipe.data.PerfTrace
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.swipe.CardState
@@ -98,6 +100,7 @@ fun SwipeScreen(
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    perfTrace: PerfTrace = NoPerfTrace,
     autoplayVideos: Boolean = true,
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
@@ -145,6 +148,7 @@ fun SwipeScreen(
                     onIntent = onIntent,
                     mediaLoader = mediaLoader,
                     haptics = haptics,
+                    perfTrace = perfTrace,
                     reduceMotion = reduceMotion,
                     onClose = onClose,
                     onOpenQueue = onOpenQueue,
@@ -188,6 +192,27 @@ private fun ToastSlot(
 }
 
 /**
+ * The deck's NFR-1 span tracker plus the shared commit lambda both the
+ * gesture and the ActionBar paths take: open both next-card spans, fire the
+ * §5.6 haptic, then the intent — the ViewModel persists before the deck
+ * advances (NFR-7). The emissions in cardMedia close the spans.
+ */
+@Composable
+internal fun rememberCommit(
+    perfTrace: PerfTrace,
+    haptics: Haptics,
+    onIntent: (SwipeIntent) -> Unit,
+): Pair<CommitLatencyTrace, (SwipeVerdict) -> Unit> {
+    val latency = remember(perfTrace) { CommitLatencyTrace(perfTrace) }
+    val commit: (SwipeVerdict) -> Unit = { verdict ->
+        latency.onCommit()
+        verdict.fireHaptic(haptics)
+        onIntent(verdict.toIntent())
+    }
+    return latency to commit
+}
+
+/**
  * The deck column: TopBar, the card stack, and the ActionBar, with the
  * hoisted `SwipeCardState` driving every card animation.
  */
@@ -198,6 +223,7 @@ private fun DeckContent(
     onIntent: (SwipeIntent) -> Unit,
     mediaLoader: MediaLoader,
     haptics: Haptics,
+    perfTrace: PerfTrace,
     reduceMotion: Boolean,
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
@@ -209,12 +235,8 @@ private fun DeckContent(
     var chromeVisible by remember(state.current?.id) { mutableStateOf(true) }
     var fillMode by remember(state.current?.id) { mutableStateOf(false) }
 
-    // Shared commit for both paths: the §5.6 haptic, then the intent — the
-    // ViewModel persists before the deck advances (NFR-7).
-    val commit: (SwipeVerdict) -> Unit = { verdict ->
-        verdict.fireHaptic(haptics)
-        onIntent(verdict.toIntent())
-    }
+    // NFR-1 spans and the shared commit: see [rememberCommit].
+    val (latency, commit) = rememberCommit(perfTrace, haptics, onIntent)
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
     // same commit a gesture makes.
     val buttonCommit: (SwipeVerdict) -> Unit = { verdict ->
@@ -240,6 +262,7 @@ private fun DeckContent(
                 state = state,
                 cardState = cardState,
                 mediaLoader = mediaLoader,
+                latency = latency,
                 haptics = haptics,
                 reduceMotion = reduceMotion,
                 chromeVisible = chromeVisible,
@@ -323,6 +346,7 @@ private fun ColumnScope.DeckStage(
     state: SwipeUiState,
     cardState: SwipeCardState,
     mediaLoader: MediaLoader,
+    latency: CommitLatencyTrace,
     haptics: Haptics,
     reduceMotion: Boolean,
     chromeVisible: Boolean,
@@ -342,6 +366,7 @@ private fun ColumnScope.DeckStage(
         next = state.next,
         cardState = cardState,
         mediaLoader = mediaLoader,
+        latency = latency,
         reduceMotion = reduceMotion,
         chromeVisible = chromeVisible,
         fillMode = fillMode,

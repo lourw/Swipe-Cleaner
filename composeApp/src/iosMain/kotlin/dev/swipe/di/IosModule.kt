@@ -6,6 +6,7 @@ import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.PerfTrace
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.data.VideoPreloader
@@ -13,6 +14,7 @@ import dev.swipe.data.image.BitmapLruCache
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.platform.DatabaseDriverFactory
 import dev.swipe.platform.IosHaptics
+import dev.swipe.platform.IosPerfTrace
 import dev.swipe.platform.IosSystemActions
 import dev.swipe.platform.NSUserDefaultsSettingsStore
 import dev.swipe.platform.PhotoKitMediaLibrary
@@ -48,6 +50,11 @@ val iosModule: Module =
         single<SystemActions> { IosSystemActions() }
         single<SettingsStore> { NSUserDefaultsSettingsStore() }
         single<Haptics> { IosHaptics(settings = get()) }
+
+        // Signpost tracing (WP-6.3, NFR-1, NFR-4): one shared object so the
+        // cold-start span can begin at MainViewController before Koin resolves
+        // anything, and the UI ends/closes spans through the graph.
+        single<PerfTrace> { IosPerfTrace }
 
         // Image pipeline (WP-1.5): the decoded-bitmap cache is a singleton so all loaders
         // share the one NFR-3 budget of 5, and evicted bitmaps release their native pixels
