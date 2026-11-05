@@ -32,9 +32,8 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
 import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_play_arrow
 import dev.swipe.ui.components.SwipeIcon
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.SeekTarget
 import dev.swipe.ui.components.media.VideoPlayerSlot
@@ -264,7 +263,7 @@ private fun BoxScope.TopCardPlayback(
         if (!autoplayVideos && !videoStarted) {
             // R2 wiring: poster + play affordance until the first tap.
             SwipeIcon(
-                Res.drawable.ic_play_arrow,
+                SwipeIcons.PLAY_ARROW,
                 contentDescription = null,
                 size = SwipeTheme.componentSizes.videoPlayAffordance,
                 modifier = Modifier.align(Alignment.Center).testTag(VIDEO_PLAY_AFFORDANCE_TEST_TAG),

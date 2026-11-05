@@ -16,7 +16,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import dev.swipe.ui.theme.SwipeTheme
-import org.jetbrains.compose.resources.DrawableResource
 
 /**
  * The §5.7 circular icon button: a full-round icon inside [size] (Skip 48 dp,
@@ -28,7 +27,7 @@ import org.jetbrains.compose.resources.DrawableResource
  */
 @Composable
 fun CircleIconButton(
-    resource: DrawableResource,
+    symbol: String,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -75,7 +74,7 @@ fun CircleIconButton(
                     ),
         ) {
             SwipeIcon(
-                resource = resource,
+                symbol = symbol,
                 size = iconSize,
                 tint = tint,
                 contentDescription = null,

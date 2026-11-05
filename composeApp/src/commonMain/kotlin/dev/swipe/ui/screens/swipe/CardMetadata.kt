@@ -15,11 +15,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_cloud
-import dev.swipe.resources.ic_favorite
-import dev.swipe.resources.ic_live
 import dev.swipe.ui.components.SwipeIcon
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -75,7 +72,7 @@ fun CardMetadata(
             )
             if (card.type == MediaType.LIVE_PHOTO) {
                 SwipeIcon(
-                    Res.drawable.ic_live,
+                    SwipeIcons.LIVE,
                     contentDescription = null,
                     size = SwipeTheme.sizes.icon,
                     tint = colors.textPrimary,
@@ -84,7 +81,7 @@ fun CardMetadata(
             }
             if (isCloudOnly) {
                 SwipeIcon(
-                    Res.drawable.ic_cloud,
+                    SwipeIcons.CLOUD,
                     contentDescription = null,
                     size = SwipeTheme.sizes.icon,
                     tint = colors.textPrimary,
@@ -93,7 +90,7 @@ fun CardMetadata(
             }
             if (card.isFavorite) {
                 SwipeIcon(
-                    Res.drawable.ic_favorite,
+                    SwipeIcons.FAVORITE,
                     contentDescription = null,
                     size = SwipeTheme.sizes.icon,
                     tint = colors.textPrimary,

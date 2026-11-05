@@ -22,11 +22,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_upward
-import dev.swipe.resources.ic_check
-import dev.swipe.resources.ic_close
-import dev.swipe.resources.ic_undo
 import dev.swipe.ui.components.swipe.SwipeCard
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
@@ -108,24 +103,24 @@ private fun GallerySwipeActionRow(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.l)) {
         CircleIconButton(
-            Res.drawable.ic_close,
+            SwipeIcons.CLOSE,
             label = "Delete",
             onClick = { onCommit(SwipeVerdict.DELETE) },
             contentColor = SwipeTheme.colors.delete,
         )
         CircleIconButton(
-            Res.drawable.ic_undo,
+            SwipeIcons.UNDO,
             label = "Undo",
             onClick = onUndo,
         )
         CircleIconButton(
-            Res.drawable.ic_check,
+            SwipeIcons.CHECK,
             label = "Keep",
             onClick = { onCommit(SwipeVerdict.KEEP) },
             contentColor = SwipeTheme.colors.keep,
         )
         CircleIconButton(
-            Res.drawable.ic_arrow_upward,
+            SwipeIcons.ARROW_UPWARD,
             label = "Skip",
             onClick = { onCommit(SwipeVerdict.SKIP) },
             contentColor = SwipeTheme.colors.skip,

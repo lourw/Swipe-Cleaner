@@ -7,9 +7,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_back
 import dev.swipe.ui.components.CircleIconButton
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.theme.SwipeTheme
 
 /**
@@ -32,7 +31,7 @@ fun ScreenHeader(
                 .padding(horizontal = spacing.gutter - spacing.xs, vertical = spacing.xs),
     ) {
         CircleIconButton(
-            resource = Res.drawable.ic_arrow_back,
+            symbol = SwipeIcons.ARROW_BACK,
             label = "Back",
             onClick = onBack,
         )

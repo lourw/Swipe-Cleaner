@@ -25,7 +25,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.delay
-import org.jetbrains.compose.resources.DrawableResource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -39,7 +38,7 @@ import kotlin.time.Duration.Companion.milliseconds
 fun Toast(
     text: String,
     modifier: Modifier = Modifier,
-    icon: DrawableResource? = null,
+    icon: String? = null,
     iconTint: Color = SwipeTheme.colors.textPrimary,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
@@ -72,7 +71,7 @@ fun Toast(
                 },
     ) {
         if (icon != null) {
-            SwipeIcon(resource = icon, tint = iconTint, contentDescription = null)
+            SwipeIcon(symbol = icon, tint = iconTint, contentDescription = null)
         }
         BasicText(
             text = text,

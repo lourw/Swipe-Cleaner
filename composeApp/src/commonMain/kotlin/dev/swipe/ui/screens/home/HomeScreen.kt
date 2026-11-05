@@ -25,18 +25,13 @@ import dev.swipe.domain.model.Stats
 import dev.swipe.presentation.home.HomeIntent
 import dev.swipe.presentation.home.HomeSmartRow
 import dev.swipe.presentation.home.HomeUiState
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_calendar_month
-import dev.swipe.resources.ic_filter_list
-import dev.swipe.resources.ic_photo_library
-import dev.swipe.resources.ic_settings
-import dev.swipe.resources.ic_shuffle
 import dev.swipe.ui.components.Banner
 import dev.swipe.ui.components.COUNT_PLACEHOLDER
 import dev.swipe.ui.components.CircleIconButton
 import dev.swipe.ui.components.LimitedAccessBanner
 import dev.swipe.ui.components.SegmentedControl
 import dev.swipe.ui.components.SourceRow
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.formatCount
 import dev.swipe.ui.screens.swipe.groupDigits
 import dev.swipe.ui.theme.SwipeTheme
@@ -104,17 +99,17 @@ fun HomeScreen(
         SourceRow(
             title = "Shuffle everything",
             count = formatCount(state.shuffleCount),
-            icon = Res.drawable.ic_shuffle,
+            icon = SwipeIcons.SHUFFLE,
             onClick = { onIntent(HomeIntent.OpenSource.Shuffle) },
         )
         SourceRow(
             title = "Albums",
-            icon = Res.drawable.ic_photo_library,
+            icon = SwipeIcons.PHOTO_LIBRARY,
             onClick = { onIntent(HomeIntent.OpenAlbums) },
         )
         SourceRow(
             title = "By month",
-            icon = Res.drawable.ic_calendar_month,
+            icon = SwipeIcons.CALENDAR_MONTH,
             onClick = { onIntent(HomeIntent.OpenMonths) },
         )
         SmartFiltersSection(rows = state.smartRows) { kind ->
@@ -162,7 +157,7 @@ private fun SmartFiltersSection(
             SourceRow(
                 title = smartFilterTitle(row.kind),
                 count = formatCount(row.count),
-                icon = Res.drawable.ic_filter_list,
+                icon = SwipeIcons.FILTER_LIST,
                 onClick = { onOpen(row.kind) },
             )
         }
@@ -188,7 +183,7 @@ private fun HomeHeaderRow(onOpenSettings: () -> Unit) {
                     .padding(start = SwipeTheme.spacing.xs, top = SwipeTheme.spacing.m, bottom = SwipeTheme.spacing.xs),
         )
         CircleIconButton(
-            resource = Res.drawable.ic_settings,
+            symbol = SwipeIcons.SETTINGS,
             label = "Settings",
             onClick = onOpenSettings,
         )

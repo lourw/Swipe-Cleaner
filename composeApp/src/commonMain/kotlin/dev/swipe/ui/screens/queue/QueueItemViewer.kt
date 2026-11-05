@@ -13,10 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import dev.swipe.data.MediaLoader
 import dev.swipe.presentation.queue.QueueTile
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_check
-import dev.swipe.resources.ic_close
 import dev.swipe.ui.components.CircleIconButton
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.components.tileDescription
 import dev.swipe.ui.theme.SwipeTheme
@@ -59,7 +57,7 @@ fun QueueItemViewer(
             )
         }
         CircleIconButton(
-            resource = Res.drawable.ic_close,
+            symbol = SwipeIcons.CLOSE,
             label = "Close",
             onClick = onClose,
             modifier =
@@ -71,7 +69,7 @@ fun QueueItemViewer(
                     .padding(SwipeTheme.spacing.gutter),
         )
         CircleIconButton(
-            resource = Res.drawable.ic_check,
+            symbol = SwipeIcons.CHECK,
             label = "Restore",
             onClick = onRestore,
             size = sizes.actionButtonLarge,

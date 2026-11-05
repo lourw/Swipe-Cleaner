@@ -28,10 +28,9 @@ import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_favorite
 import dev.swipe.ui.components.DEFAULT_AUTO_DISMISS
 import dev.swipe.ui.components.NEVER_AUTO_DISMISS
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.Toast
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.SeekTarget
@@ -177,7 +176,7 @@ private fun ToastSlot(
     val confirm = message == ToastMessage.FavoriteConfirm
     Toast(
         text = toastText(message),
-        icon = if (confirm) Res.drawable.ic_favorite else null,
+        icon = if (confirm) SwipeIcons.FAVORITE else null,
         iconTint = SwipeTheme.colors.warning,
         // §5.7: a confirm-style toast stays until the user acts or the deck
         // moves on; a 3 s fuse would silently cancel the confirmation window.

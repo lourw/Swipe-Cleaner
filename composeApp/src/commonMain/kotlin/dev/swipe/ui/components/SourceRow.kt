@@ -22,13 +22,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import dev.swipe.data.MediaLoader
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_chevron_right
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.screens.swipe.groupDigits
 import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.TABULAR_FIGURES
-import org.jetbrains.compose.resources.DrawableResource
 
 /**
  * The §5.7 `SourceRow`: a 64 dp row on `surface` with a 40 dp leading slot —
@@ -51,7 +48,7 @@ fun SourceRow(
     count: String? = null,
     coverAssetId: String? = null,
     mediaLoader: MediaLoader? = null,
-    icon: DrawableResource? = null,
+    icon: String? = null,
 ) {
     val colors = SwipeTheme.colors
     val tokens = SwipeTheme.componentSizes
@@ -76,7 +73,7 @@ fun SourceRow(
                 modifier = Modifier.size(tokens.sourceRowThumbnail),
             ) {
                 SwipeIcon(
-                    resource = icon,
+                    symbol = icon,
                     tint = colors.accent,
                     modifier = Modifier.size(SwipeTheme.sizes.icon),
                 )
@@ -101,7 +98,7 @@ fun SourceRow(
             )
         }
         SwipeIcon(
-            resource = Res.drawable.ic_chevron_right,
+            symbol = SwipeIcons.CHEVRON_RIGHT,
             tint = colors.textSecondary,
             modifier = Modifier.size(SwipeTheme.sizes.icon).padding(start = SwipeTheme.spacing.xs),
         )

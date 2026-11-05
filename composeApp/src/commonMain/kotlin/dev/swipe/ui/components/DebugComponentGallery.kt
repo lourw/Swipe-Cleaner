@@ -17,14 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_upward
-import dev.swipe.resources.ic_check
-import dev.swipe.resources.ic_close
-import dev.swipe.resources.ic_cloud
-import dev.swipe.resources.ic_delete
-import dev.swipe.resources.ic_favorite
-import dev.swipe.resources.ic_undo
 import dev.swipe.ui.theme.SwipeTheme
 
 private enum class GalleryFilter { All, Photos, Videos }
@@ -68,11 +60,11 @@ private fun GalleryIconSection() {
     Column {
         GalleryHeading("1 · SwipeIcon")
         Row(horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.l)) {
-            SwipeIcon(Res.drawable.ic_check, tint = SwipeTheme.colors.keep, contentDescription = "Keep")
-            SwipeIcon(Res.drawable.ic_close, tint = SwipeTheme.colors.delete, contentDescription = "Delete")
-            SwipeIcon(Res.drawable.ic_arrow_upward, tint = SwipeTheme.colors.skip, contentDescription = "Skip")
-            SwipeIcon(Res.drawable.ic_undo, tint = SwipeTheme.colors.accent, contentDescription = "Undo")
-            SwipeIcon(Res.drawable.ic_cloud, tint = SwipeTheme.colors.warning, contentDescription = "Wait")
+            SwipeIcon(SwipeIcons.CHECK, tint = SwipeTheme.colors.keep, contentDescription = "Keep")
+            SwipeIcon(SwipeIcons.CLOSE, tint = SwipeTheme.colors.delete, contentDescription = "Delete")
+            SwipeIcon(SwipeIcons.ARROW_UPWARD, tint = SwipeTheme.colors.skip, contentDescription = "Skip")
+            SwipeIcon(SwipeIcons.UNDO, tint = SwipeTheme.colors.accent, contentDescription = "Undo")
+            SwipeIcon(SwipeIcons.CLOUD, tint = SwipeTheme.colors.warning, contentDescription = "Wait")
         }
     }
 }
@@ -112,10 +104,10 @@ private fun GalleryBannerSection() {
 private fun GalleryToastSection() {
     Column {
         GalleryHeading("4 · Toast")
-        Toast(text = "Undone — card returned", icon = Res.drawable.ic_undo, autoDismissDelay = NEVER_AUTO_DISMISS)
+        Toast(text = "Undone — card returned", icon = SwipeIcons.UNDO, autoDismissDelay = NEVER_AUTO_DISMISS)
         Toast(
             text = "This is a favorite — delete anyway?",
-            icon = Res.drawable.ic_favorite,
+            icon = SwipeIcons.FAVORITE,
             iconTint = SwipeTheme.colors.warning,
             actionLabel = "Delete",
             onAction = {},
@@ -143,23 +135,23 @@ private fun GalleryIconButtonSection() {
     Column {
         GalleryHeading("6 · CircleIconButton")
         Row(horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.l)) {
-            CircleIconButton(Res.drawable.ic_close, label = "Close", onClick = {})
+            CircleIconButton(SwipeIcons.CLOSE, label = "Close", onClick = {})
             CircleIconButton(
-                Res.drawable.ic_delete,
+                SwipeIcons.DELETE,
                 label = "Delete",
                 onClick = {},
                 container = SwipeTheme.colors.delete.copy(alpha = tokens.tintedFillAlpha),
                 contentColor = SwipeTheme.colors.delete,
             )
             CircleIconButton(
-                Res.drawable.ic_check,
+                SwipeIcons.CHECK,
                 label = "Keep",
                 onClick = {},
                 container = SwipeTheme.colors.keep.copy(alpha = tokens.tintedFillAlpha),
                 contentColor = SwipeTheme.colors.keep,
             )
             CircleIconButton(
-                Res.drawable.ic_arrow_upward,
+                SwipeIcons.ARROW_UPWARD,
                 label = "Skip",
                 onClick = {},
                 contentColor = SwipeTheme.colors.skip,

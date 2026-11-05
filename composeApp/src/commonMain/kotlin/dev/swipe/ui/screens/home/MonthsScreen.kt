@@ -18,9 +18,8 @@ import androidx.compose.ui.semantics.semantics
 import dev.swipe.domain.model.MonthBucket
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_calendar_month
 import dev.swipe.ui.components.SourceRow
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.screens.swipe.groupDigits
 import dev.swipe.ui.theme.SwipeTheme
 
@@ -65,7 +64,7 @@ fun MonthsScreen(
                         SourceRow(
                             title = monthName(item.bucket.month),
                             count = groupDigits(item.bucket.count),
-                            icon = Res.drawable.ic_calendar_month,
+                            icon = SwipeIcons.CALENDAR_MONTH,
                             onClick = { onIntent(MonthsIntent.OpenMonth(item.bucket)) },
                         )
                     }

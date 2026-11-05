@@ -9,6 +9,8 @@ kotlinx-datetime = "0.8.0"
 koin = "4.2.2"
 sqldelight = "2.4.1"
 turbine = "1.2.1"
+# Icons: real Google Material Symbols from bundled variable fonts (REQUIREMENTS §5.5)
+compose-material-symbols = "1.1.6"
 # Lint (REQUIREMENTS §8.3). detekt 2.x is the line that supports Kotlin 2.4 sources
 # and is what compose-rules 0.6.x is built against.
 detekt = "2.0.0-alpha.6"
@@ -38,6 +40,8 @@ koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", ver
 
 sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
+
+compose-material-symbols = { module = "dev.vicart:compose-material-symbols", version.ref = "compose-material-symbols" }
 
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }

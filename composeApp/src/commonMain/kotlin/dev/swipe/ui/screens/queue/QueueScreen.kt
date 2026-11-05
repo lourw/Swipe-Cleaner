@@ -32,12 +32,11 @@ import dev.swipe.presentation.queue.QueueEvent
 import dev.swipe.presentation.queue.QueueIntent
 import dev.swipe.presentation.queue.QueueTile
 import dev.swipe.presentation.queue.QueueUiState
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_back
 import dev.swipe.ui.components.CircleIconButton
 import dev.swipe.ui.components.ConfirmDialog
 import dev.swipe.ui.components.GridTile
 import dev.swipe.ui.components.PrimaryButton
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.Toast
 import dev.swipe.ui.screens.swipe.EmptyState
 import dev.swipe.ui.theme.SwipeTheme
@@ -193,7 +192,7 @@ private fun QueueHeader(
                     .padding(horizontal = SwipeTheme.spacing.gutter - SwipeTheme.spacing.xs, vertical = SwipeTheme.spacing.xs),
         ) {
             CircleIconButton(
-                resource = Res.drawable.ic_arrow_back,
+                symbol = SwipeIcons.ARROW_BACK,
                 label = "Back",
                 onClick = onBack,
             )

@@ -16,11 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.domain.model.Progress
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_close
-import dev.swipe.resources.ic_delete
 import dev.swipe.ui.components.CircleIconButton
 import dev.swipe.ui.components.QueueBadge
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.TABULAR_FIGURES
 
@@ -63,13 +61,13 @@ fun TopBar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircleIconButton(
-                    resource = Res.drawable.ic_close,
+                    symbol = SwipeIcons.CLOSE,
                     label = "Close",
                     onClick = onClose,
                 )
                 Box(contentAlignment = Alignment.TopEnd) {
                     CircleIconButton(
-                        resource = Res.drawable.ic_delete,
+                        symbol = SwipeIcons.DELETE,
                         label = if (queueCount > 0) "$queueCount queued — open the queue" else "To delete queue",
                         onClick = onOpenQueue,
                     )

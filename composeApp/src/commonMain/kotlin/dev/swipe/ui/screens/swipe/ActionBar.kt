@@ -9,12 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import dev.swipe.resources.Res
-import dev.swipe.resources.ic_arrow_upward
-import dev.swipe.resources.ic_check
-import dev.swipe.resources.ic_close
-import dev.swipe.resources.ic_undo
 import dev.swipe.ui.components.CircleIconButton
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 
@@ -53,7 +49,7 @@ fun ActionBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CircleIconButton(
-                resource = Res.drawable.ic_close,
+                symbol = SwipeIcons.CLOSE,
                 label = "Delete",
                 onClick = onDelete,
                 size = sizes.actionButtonLarge,
@@ -62,7 +58,7 @@ fun ActionBar(
                 iconSize = SwipeTheme.sizes.actionBarIcon,
             )
             CircleIconButton(
-                resource = Res.drawable.ic_arrow_upward,
+                symbol = SwipeIcons.ARROW_UPWARD,
                 label = "Skip",
                 onClick = onSkip,
                 size = sizes.actionButtonSkip,
@@ -71,7 +67,7 @@ fun ActionBar(
                 iconSize = SwipeTheme.sizes.actionBarIcon,
             )
             CircleIconButton(
-                resource = Res.drawable.ic_check,
+                symbol = SwipeIcons.CHECK,
                 label = "Keep",
                 onClick = onKeep,
                 size = sizes.actionButtonLarge,
@@ -81,7 +77,7 @@ fun ActionBar(
             )
         }
         CircleIconButton(
-            resource = Res.drawable.ic_undo,
+            symbol = SwipeIcons.UNDO,
             label = "Undo",
             onClick = onUndo,
             size = sizes.actionButtonUndo,
