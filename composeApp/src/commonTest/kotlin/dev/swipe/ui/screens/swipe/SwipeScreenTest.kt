@@ -295,6 +295,22 @@ class SwipeScreenTest {
         }
 
     @Test
+    fun `FR-11 the deck composes the current card with the next one underneath it`() =
+        runComposeUiTest {
+            val loader = FakeMediaLoader()
+            setContent {
+                TestScreen(deckState(), mediaLoader = loader)
+            }
+            waitForIdle()
+            // FR-11: two cards are on screen at once — the current item and
+            // the next one already rendered underneath it (composition order,
+            // back to front). The full-bleed layout of each card is pinned by
+            // SafeAreaBoundsTest; the under-card scale/alpha by SwipeMathTest.
+            assertEquals(setOf("current-id", "next-id"), loader.imageRequests.map { it.first }.toSet())
+            assertEquals(2, loader.imageRequests.size)
+        }
+
+    @Test
     fun `NFR-3 recomposition does not add a second image collector per card`() =
         runComposeUiTest {
             val loader = FakeMediaLoader()
