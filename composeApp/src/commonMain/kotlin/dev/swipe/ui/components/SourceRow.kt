@@ -27,6 +27,7 @@ import dev.swipe.resources.ic_chevron_right
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.screens.swipe.groupDigits
 import dev.swipe.ui.theme.SwipeTheme
+import dev.swipe.ui.theme.TABULAR_FIGURES
 import org.jetbrains.compose.resources.DrawableResource
 
 /**
@@ -92,7 +93,11 @@ fun SourceRow(
         if (count != null) {
             BasicText(
                 text = count,
-                style = SwipeTheme.typography.callout.copy(color = colors.textSecondary),
+                style =
+                    SwipeTheme.typography.callout.copy(
+                        color = colors.textSecondary,
+                        fontFeatureSettings = TABULAR_FIGURES,
+                    ),
             )
         }
         SwipeIcon(

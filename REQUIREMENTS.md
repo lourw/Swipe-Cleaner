@@ -234,7 +234,7 @@ Home ──► Settings
 ```
 ┌──────────────────────────────┐
 │ Swipe Cleaner            ⚙   │  title
-│ 1,204 reviewed · 312 deleted │  callout, textSecondary
+│ 1,204 reviewed · 892 kept · 312 deleted │  callout, textSecondary (FR-10 lists all three; tabular figures)
 │ ┌──────────────────────────┐ │
 │ │ 🗑 18 waiting to delete › │ │  Banner (only when queue > 0)
 │ └──────────────────────────┘ │

@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.Role
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
+import dev.swipe.domain.model.Stats
 import dev.swipe.presentation.home.HomeIntent
 import dev.swipe.presentation.home.HomeSmartRow
 import dev.swipe.presentation.home.HomeUiState
@@ -37,6 +38,7 @@ import dev.swipe.ui.components.SourceRow
 import dev.swipe.ui.components.formatCount
 import dev.swipe.ui.screens.swipe.groupDigits
 import dev.swipe.ui.theme.SwipeTheme
+import dev.swipe.ui.theme.TABULAR_FIGURES
 
 /**
  * Home, the session-setup screen (§5.8 wireframe, FR-4, FR-5, FR-10, FR-2):
@@ -72,13 +74,7 @@ fun HomeScreen(
                 .padding(bottom = spacing.l),
     ) {
         HomeHeaderRow(onOpenSettings = { onIntent(HomeIntent.OpenSettings) })
-        val reviewed = state.stats?.reviewed?.let(::groupDigits) ?: COUNT_PLACEHOLDER
-        val deleted = state.stats?.deleted?.let(::groupDigits) ?: COUNT_PLACEHOLDER
-        BasicText(
-            text = "$reviewed reviewed · $deleted deleted",
-            style = SwipeTheme.typography.callout.copy(color = colors.textSecondary),
-            modifier = Modifier.padding(horizontal = spacing.gutter),
-        )
+        HomeStatsLine(stats = state.stats)
         HomeBanners(
             state = state,
             limitedItemCount = limitedItemCount,
@@ -117,6 +113,26 @@ fun HomeScreen(
             onIntent(HomeIntent.OpenSource.Smart(kind))
         }
     }
+}
+
+/**
+ * The FR-10 lifetime stats line: `reviewed · kept · deleted` with grouping
+ * separators and tabular figures (§5.4, §5.8). Em dashes until `stats` lands.
+ */
+@Composable
+private fun HomeStatsLine(stats: Stats?) {
+    val reviewed = stats?.reviewed?.let(::groupDigits) ?: COUNT_PLACEHOLDER
+    val kept = stats?.kept?.let(::groupDigits) ?: COUNT_PLACEHOLDER
+    val deleted = stats?.deleted?.let(::groupDigits) ?: COUNT_PLACEHOLDER
+    BasicText(
+        text = "$reviewed reviewed · $kept kept · $deleted deleted",
+        style =
+            SwipeTheme.typography.callout.copy(
+                color = SwipeTheme.colors.textSecondary,
+                fontFeatureSettings = TABULAR_FIGURES,
+            ),
+        modifier = Modifier.padding(horizontal = SwipeTheme.spacing.gutter),
+    )
 }
 
 /** The §5.8 **SMART FILTERS** caption and its five rows (FR-4, FR-6). */

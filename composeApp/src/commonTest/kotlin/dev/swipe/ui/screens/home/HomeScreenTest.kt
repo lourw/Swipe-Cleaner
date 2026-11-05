@@ -132,6 +132,18 @@ class HomeScreenTest {
                 }
             }
             onNodeWithText("You've given access to 7 items.").assertDoesNotExist()
+            // The count is still loading: even under limited access the banner
+            // stays hidden until there is a number to show.
+            setContent {
+                SwipeTheme {
+                    HomeScreen(
+                        state = HomeUiState(access = LibraryAccess.LIMITED),
+                        onIntent = {},
+                        limitedItemCount = null,
+                    )
+                }
+            }
+            onNodeWithText("You've given access to 7 items.").assertDoesNotExist()
         }
 
     /** §5.8 / WP-5.3 task 2: both banners show when both apply, limited first. */
@@ -173,7 +185,7 @@ class HomeScreenTest {
         }
 
     @Test
-    fun `5-8 stats line shows reviewed and deleted with grouping separators`() =
+    fun `5-8 stats line shows reviewed kept and deleted with grouping separators`() =
         runComposeUiTest {
             setContent {
                 SwipeTheme {
@@ -187,7 +199,7 @@ class HomeScreenTest {
                     )
                 }
             }
-            onNodeWithText("1,204 reviewed · 312 deleted").assertExists()
+            onNodeWithText("1,204 reviewed · 892 kept · 312 deleted").assertExists() // FR-10 lists all three
             onNodeWithText("1,204").assertExists() // the Shuffle row's grouped count
         }
 
