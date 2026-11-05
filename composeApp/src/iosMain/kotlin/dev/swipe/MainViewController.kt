@@ -22,7 +22,7 @@ private var koinStarted = false
  * never reach the gallery, launch argument or not (WP-6.4).
  */
 @Suppress("FunctionName", "ktlint:standard:function-naming") // Swift calls this like a type initialiser.
-fun MainViewController(debugBuild: Boolean = false): UIViewController {
+fun MainViewController(debugBuild: Boolean): UIViewController {
     // NFR-4 cold-start span: this is the earliest Kotlin runs, a floor for
     // the real process spawn (dyld + Swift runtime start before it). It ends
     // at Home's first composition — see HomeDestination. docs/perf.md.

@@ -19,7 +19,10 @@ struct ComposeView: UIViewControllerRepresentable {
         #if DEBUG
         return MainViewControllerKt.MainViewController(debugBuild: true)
         #else
-        return MainViewControllerKt.MainViewController()
+        // Kotlin default parameters are not exported to the Obj-C header, so
+        // the Release configuration must pass `debugBuild` explicitly — the
+        // parameterless overload does not exist from Swift.
+        return MainViewControllerKt.MainViewController(debugBuild: false)
         #endif
     }
 
