@@ -10,7 +10,7 @@ Instructions for coding agents working in this repo. The product spec is in [`RE
 
 ## Commands
 
-All of these were run and verified on 2026-11-01 (Xcode 26.6, iOS 26.5 simulator, JDK 21 from `mise.toml`).
+All of these were run and verified on 2026-11-05 (Xcode 26.6, iOS 26.5 simulator, JDK 21 from `mise.toml`).
 
 **Setup (once per machine)**
 
