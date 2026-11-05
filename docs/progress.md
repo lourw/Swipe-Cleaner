@@ -49,6 +49,23 @@ Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.
 
 (append one line per WP when merged: branch, merge commit, deviations, open 👤 checkpoints)
 
+### Icon fix (fix-material-symbols-icons) — user-reported, verified APPROVE-WITH-MINOR, merged e30e938
+- 👤 2026-11-06 (device screenshot): swipe-up icon = thin stick, trash bin = white blob. Root cause:
+  all 16 `composeResources/drawable/*.xml` were script-converted from Material Symbols SVGs with
+  **corrupted path data** (coordinates like `v36.4` in a 24-unit viewport; most files affected).
+- Fix per user direction ("use a defined icon lib"): all 16 XMLs deleted; icons render through
+  `dev.vicart:compose-material-symbols:1.1.6` (real Material Symbols variable fonts, iOS target,
+  Apache-2.0) via refactored `SwipeIcon(symbol, …)` + new `SwipeIcons` constants; `Outlined.Rounded`
+  wght-400 = the exact variant the originals came from (verifier proved from the deleted paths —
+  no style regression). Spec §5.5 sentence + third-party.md attribution updated.
+- **NFR-8:** library renders ligature text → glyph names could leak into VoiceOver; wrapper uses
+  `clearAndSetSemantics`; 4 new `SwipeIconTest` tests, mutation-proven (dropping the wrapper fails
+  exactly those 4). 343 tests green, `--full` passed (branch and post-merge fixes).
+- Tradeoff documented: +34 MB Debug bundle (library ships all 3 font styles; only Rounded used;
+  no consumer-side strip exists — subsetting/fork is the lever if it ever matters).
+- 👤 open: glyphs in the debug gallery (`-gallery` launch arg) — no-vision limitation; log check
+  showed zero font/resource load errors.
+
 ### WP-6.4 (m6-release-sweep) — verified REQUEST-CHANGES → all findings fixed, merged 255226e
 - **Debug gate (task 5):** gallery needs debug build AND `-gallery` arg — Swift passes `debugBuild`
   via `#if DEBUG`, pure `debugGalleryRequested()` predicate + `DebugGalleryGateTest` (3 tests).
