@@ -309,6 +309,58 @@ class SwipeViewModelSessionTest {
         }
 
     @Test
+    fun `FR-20 FR-21 FR-26 resuming a fully committed session retries the summary`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            // The durable state as process death strikes: session-1 open, both cards
+            // queued (FR-26) and the queue then committed, so the rows read DELETED
+            // and the assets are gone from the library — but the FR-21 summary was
+            // never delivered and the row was never ended.
+            val clock = FakeClock()
+            val skips = FakeSessionSkips()
+            val store = FakeDecisionStore(clock, skips)
+            val sessionStore = FakeSessionStore(clock, skips)
+            val library = FakeMediaLibrary(photos(2))
+            val sessionId = sessionStore.create(SOURCE, MediaTypeFilter.ALL, SEED)
+            store.record("asset-1", Decision.DELETE, sessionId)
+            store.record("asset-2", Decision.DELETE, sessionId)
+            library.delete(listOf("asset-1", "asset-2"))
+            store.markDeleted(listOf("asset-1", "asset-2"))
+
+            // A fresh screen resumes the session (FR-20): the rebuild is empty
+            // because nothing is left in the library, and only `reviewed` counting
+            // the committed DELETED rows keeps the base above zero — with the old
+            // kept + queued base this reopens as an empty screen instead of
+            // retrying the summary.
+            val resumed =
+                SwipeViewModel(
+                    source = SOURCE,
+                    typeFilter = MediaTypeFilter.ALL,
+                    buildDeck = BuildDeckUseCase(library, store),
+                    recordDecision = RecordDecisionUseCase(store),
+                    undoDecision = UndoDecisionUseCase(store),
+                    mediaLibrary = library,
+                    mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
+                    decisions = store,
+                    sessionStore = sessionStore,
+                    seedProvider = { SEED },
+                )
+            advanceUntilIdle()
+
+            val s = resumed.uiState.value
+            // The retried FR-21 summary: the committed rows are no longer queued.
+            assertEquals(SessionSummary(kept = 0, queued = 0, skipped = 0), s.finished)
+            assertNull(s.current)
+            assertNull(s.next)
+            // The reviewed base counts both committed rows: 2 of 2, deck rebuilt empty.
+            assertEquals(Progress(2, 2), s.progress)
+            // Retrying the summary ends the session row, and no new row was created.
+            assertEquals(listOf("session-1"), sessionStore.endCalls)
+            assertEquals(1, sessionStore.createCalls.size)
+        }
+
+    @Test
     fun `6-5 a source mismatch starts a fresh session instead of resuming`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
