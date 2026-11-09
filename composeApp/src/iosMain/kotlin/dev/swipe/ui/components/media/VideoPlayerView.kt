@@ -21,6 +21,8 @@ import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
+import platform.AVFoundation.asset
+import platform.AVFoundation.audioMix
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
@@ -29,7 +31,10 @@ import platform.AVFoundation.play
 import platform.AVFoundation.removeTimeObserver
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
+import platform.AVFoundation.setAudioMix
+import platform.AVFoundation.setVideoComposition
 import platform.AVFoundation.setVolume
+import platform.AVFoundation.videoComposition
 import platform.AVFoundation.volume
 import platform.CoreGraphics.CGRectMake
 import platform.CoreMedia.CMTimeGetSeconds
@@ -171,9 +176,8 @@ private class VideoPlayerSurface(
         endObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
         endObserver = null
         player?.pause()
-        // The item is cached and reused by the next mount of this card, and AVPlayer
-        // throws if an item still belongs to another player. Dropping our reference
-        // is not enough: the old player only lets go when it is deallocated (FR-16).
+        // Each mount gets its own item (freshItem), so this is belt and braces: let
+        // go of the item now rather than when the player is deallocated (FR-16).
         player?.replaceCurrentItemWithPlayerItem(null)
         playerLayer.player = null
         player = null
@@ -196,7 +200,20 @@ private class VideoPlayerSurface(
         if (livePhoto) {
             cache.livePhotoVideo(id)?.let { AVPlayerItem(uRL = it) }
         } else {
-            cache.item(id)
+            cache.item(id)?.let(::freshItem)
+        }
+
+    /**
+     * A new item over the cached one's asset, so no two players ever share an item
+     * (FR-16). Detaching in [release] is not enough on device: AVPlayer can still
+     * own the item when the next mount attaches it, and `initWithPlayerItem:` throws.
+     * The asset stays warm in the cache; PhotoKit's composition and audio mix carry
+     * over so edited and slo-mo videos keep their look.
+     */
+    private fun freshItem(cached: AVPlayerItem): AVPlayerItem =
+        AVPlayerItem(asset = cached.asset).apply {
+            videoComposition = cached.videoComposition
+            audioMix = cached.audioMix
         }
 
     private fun attach(item: AVPlayerItem?) {
