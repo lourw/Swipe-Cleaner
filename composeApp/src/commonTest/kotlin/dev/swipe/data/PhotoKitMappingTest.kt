@@ -97,4 +97,38 @@ class PhotoKitMappingTest {
         // Unknown future statuses fall back to NOT_DETERMINED rather than locking the user out.
         assertEquals(LibraryAccess.NOT_DETERMINED, photoKitLibraryAccess(99))
     }
+
+    // PHAssetResourceType: 1 photo, 2 video, 3 audio, 5 fullSizePhoto, 6 fullSizeVideo,
+    // 7 adjustmentData, 9 pairedVideo, 10 fullSizePairedVideo.
+
+    @Test
+    fun `FR-32 a photo shares its current photo resource`() {
+        assertEquals(listOf(1), photoKitShareResourceTypes(mediaTypeId = 1, subtypes = 0, availableTypes = listOf(1)))
+        // Edited: the full-size rendition wins over the original, as in Photos.
+        assertEquals(listOf(5), photoKitShareResourceTypes(1, 0, listOf(1, 7, 5)))
+        // Nothing shareable: the caller reports a failure.
+        assertEquals(emptyList(), photoKitShareResourceTypes(1, 0, listOf(7)))
+    }
+
+    @Test
+    fun `FR-32 a video shares its video resource not a still frame`() {
+        assertEquals(listOf(2), photoKitShareResourceTypes(mediaTypeId = 2, subtypes = 0, availableTypes = listOf(2, 3)))
+        assertEquals(listOf(6), photoKitShareResourceTypes(2, 0, listOf(2, 6, 7)))
+        assertEquals(emptyList(), photoKitShareResourceTypes(2, 0, listOf(1)))
+    }
+
+    @Test
+    fun `FR-32 a Live Photo shares its photo and paired video`() {
+        val live = 1 shl 0
+        assertEquals(listOf(1, 9), photoKitShareResourceTypes(mediaTypeId = 1, subtypes = live, availableTypes = listOf(9, 1)))
+        assertEquals(listOf(5, 10), photoKitShareResourceTypes(1, live, listOf(1, 9, 5, 10, 7)))
+        // A missing paired video still shares the photo; a missing photo shares nothing.
+        assertEquals(listOf(1), photoKitShareResourceTypes(1, live, listOf(1)))
+        assertEquals(emptyList(), photoKitShareResourceTypes(1, live, listOf(9)))
+    }
+
+    @Test
+    fun `FR-32 an unknown media type shares nothing`() {
+        assertEquals(emptyList(), photoKitShareResourceTypes(mediaTypeId = 3, subtypes = 0, availableTypes = listOf(1, 2)))
+    }
 }
