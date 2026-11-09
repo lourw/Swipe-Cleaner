@@ -34,7 +34,8 @@ WPs in the same wave don't depend on each other. Run one subagent at a time (AGE
 
 - **Wave A:** WP-7.1, WP-7.2, WP-7.3
 - **Wave B (only if device numbers call for it):** the conditional items in §4
-- **New features:** wave assigned when each one is added to §5
+- **Wave C:** WP-8.1, then WP-8.2 (both need a decision first, see §5)
+- **Wave D:** WP-8.3, WP-8.4
 
 ## 2. Code follow-ups
 
@@ -85,11 +86,55 @@ Do these only if a §3 measurement misses its target. File each as a WP when tha
 
 ## 5. New features
 
-_None chosen yet. Add each as a WP with requirement IDs, and add the behavior to `REQUIREMENTS.md` in the same change._
+Add each feature's behavior to `REQUIREMENTS.md` in the same branch as its code. Run WP-8.1 before WP-8.2.
 
-Already on record as a candidate:
+### WP-8.1 Open the current item in Photos
 
-- **Storage-freed estimate.** Deferred in v1 because there is no reliable API for it (REQUIREMENTS §2, Risk R3).
+**Branch:** `fr-32-open-in-photos`. **Requirements:** new FR-32, §5.8 Swipe.
+
+A button on the swipe screen that takes the user to the current photo or video outside the deck. **Blocked on a decision:** iOS has no documented way to open one specific asset in the Photos app. The undocumented `photos-redirect://` scheme opens Photos but has been reported not to target an asset, and could break in any iOS release.
+
+- Option A: open the Photos app with `photos-redirect://`, landing wherever Photos was last left.
+- Option B: an in-app full-screen view with zoom, plus the system share sheet.
+- Goes through `SystemActions` (hard rule 5). Opening must not record a decision or advance the deck (NFR-7).
+- **Tests:** `FR-32` case showing the intent leaves the deck index and decisions unchanged.
+
+### WP-8.2 Hide sensitive photos by default
+
+**Branch:** `fr-33-hide-sensitive`. **Depends on:** WP-8.1. **Requirements:** new FR-33, FR-29, NFR-1, NFR-3, NFR-6; §1 non-goals.
+
+A Settings toggle, on by default, that keeps sensitive items out of the swipe UI. **Blocked on a decision:** the detection method.
+
+- Option A: Apple's on-device `SensitiveContentAnalysis`. Detects nudity only, needs the `com.apple.developer.sensitivecontentanalysis.client` entitlement, works only on a physical device, and reports nothing unless the user has turned on Sensitive Content Warning or Communication Safety in iOS Settings. The app must show when analysis is unavailable rather than imply items are being hidden.
+- Option B: a bundled on-device Core ML classifier. No system setting needed and it can cover more categories, but it adds model size, licensing review, and false positives and misses.
+- Either option changes the §1 "no ML" non-goal, which needs a spec edit. Analysis must stay on-device (NFR-6).
+- Analysis needs pixels, so a whole-library scan is ruled out (hard rule 6). Analyse within the prefetch window and skip a flagged card before it is shown, without recording a decision. Measure against NFR-1.
+- Define what happens to source counts, which cannot know about unscanned items.
+- **Tests:** `FR-33` cases with a fake analyzer for on, off, flagged, and analysis unavailable.
+
+### WP-8.3 Fix the empty Bursts deck
+
+**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-25, §6.5, §6.8.
+
+The Bursts count and deck ids enumerate every frame with `includeAllBurstAssets = true` (`PhotoKitSourceFetches.kt:145`), but later id lookups pass nil options (`PhotoKitMediaLibrary.kt:241`, `:268`, `PhotoKitMediaLoader.kt:117`, `:197`, `VideoItemCache.kt:189`). Likely cause, not yet confirmed on a device: nil options leave out non-representative frames, so metadata comes back empty and `SwipeScreen` shows its empty state.
+
+- Reproduce on a device with real bursts first. Whether `includeAllBurstAssets` applies to local-identifier fetches is not documented. If it doesn't, resolve frames another way, such as `fetchAssetsWithBurstIdentifier`.
+- Use one shared lookup for all five call sites.
+- **Check `delete` carefully.** It treats zero fetched assets as `Deleted` (`PhotoKitMediaLibrary.kt:271`), so a frame the lookup misses would be marked `DELETED` while staying in the library.
+- Hard rule 1 still applies: `CommitDeletionsUseCase` remains the only caller.
+- **Tests:** `FR-6` case for a deck whose metadata page is partly or wholly missing; `FR-25` case that an unresolved id isn't reported as deleted.
+
+### WP-8.4 Show storage freed (nice to have)
+
+**Branch:** `fr-34-storage-freed`. **Requirements:** new FR-34, FR-25, Risk R3, §2 open question.
+
+Show the total size of the items being deleted on the deletion confirmation.
+
+- Sizes come from `PHAssetResource` `fileSize`, which is undocumented KVC (R3). Sum on `Dispatchers.Default` for the queue only.
+- If any size can't be read, leave the line out or mark it as partial. Never block a delete on it (R3).
+- Wording must be honest: items stay in Recently Deleted for 30 days, and iCloud-only items may not free device space. For example, "About 1.2 GB. Space is freed after Recently Deleted clears."
+- Update §2 and R3. Doesn't change the delete path (hard rule 1, NFR-5).
+- **Tests:** `FR-34` cases for totals, an unreadable size, and an empty queue.
 
 ## Tracker
 
@@ -98,3 +143,7 @@ Already on record as a candidate:
 | 7.1 | Bitmap lifetime | [ ] |
 | 7.2 | Undo vs in-flight decision | [ ] |
 | 7.3 | Fresh empty deck session | [ ] |
+| 8.1 | Open item in Photos | [ ] |
+| 8.2 | Hide sensitive photos | [ ] |
+| 8.3 | Fix empty Bursts deck | [ ] |
+| 8.4 | Storage freed (nice to have) | [ ] |
