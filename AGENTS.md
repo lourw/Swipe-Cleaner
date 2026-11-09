@@ -97,6 +97,16 @@ Use subagents for implementation and verification wherever you can. The main age
   git branch -d <branch>
   ```
 
+## Releases
+
+Xcode Cloud builds from the `release` branch, not `main`. To ship, fast-forward `release` to a validated `main` commit and push it:
+
+```bash
+git push origin main:release     # main must already be pushed and pass scripts/validate.sh --full
+```
+
+Pushing `release` starts a TestFlight build, so only do it when the user asks. Never commit directly to `release`.
+
 ## Conventions
 
 - Reference requirement IDs in commit messages and test names, for example `FR-15 undo restores last card`.
