@@ -83,7 +83,7 @@ Use subagents for implementation and verification wherever you can. The main age
 - **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0, each in its own worktree and branch (see Git workflow).
 - **Pick tasks that can run in parallel.** Two WPs can run side by side only if neither depends on the other (`plan.md` §1 waves and each WP's "Depends on") and they won't conflict: they don't edit the same files, the same SQLDelight schema or migration, or the same Koin module or navigation graph. To fill a slot, walk down the queue in order and take the first WP that is unblocked and doesn't conflict with the running one. Skip WPs that depend on or overlap with running work; they stay queued for a later slot. If nothing fits, leave the slot empty.
 - **Verification.** When a WP is done, a *separate* subagent reviews it against the REQUIREMENTS sections the WP cites, the hard rules above, and the `plan.md` §0 definition of done. Give it the branch diff and the WP, not the implementer's summary, so it reviews the code rather than confirming the summary. Send its findings back to the implementer, or to a new fix-up subagent, before merging.
-- **Main agent.** It owns the branch merge, the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
+- **Main agent.** It owns the branch merges (including resolving conflicts between parallel branches, see Git workflow), the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
 - **Exception: small changes.** A change of a few lines (a typo, a one-line fix, a docs tweak) can be done directly, because writing the brief would cost more than making the change.
 
 ## Git workflow
@@ -104,7 +104,9 @@ Use subagents for implementation and verification wherever you can. The main age
   git branch -d <branch>
   ```
 
-  With two subagents running, the second branch to finish usually needs that rebase. Don't leave worktrees around after merging. `git worktree list` should show only `main` and the branches still in progress.
+  Don't leave worktrees around after merging.
+- **Merging parallel work.** When both parallel subagents are done, the main agent merges both branches itself; it doesn't hand this back to a subagent or ask the user first. Merge the first branch as above. Then rebase the second onto the new `main` in its worktree and resolve any conflicts so the result contains **both** changes: keep each branch's behavior, combine edits to shared files, and renumber colliding SQLDelight migrations or schema versions. Re-run `scripts/validate.sh --full` on the combined result, then merge it.
+  - **Ask the user only if the two changes are incompatible**, meaning you can't keep both without changing what one of them does. Examples: they implement contradicting behavior for the same requirement, or one removes or redesigns something the other relies on. In that case, stop before merging the second branch, say what conflicts, and offer options. Merge conflicts that just need both sides combined are not a reason to ask. `git worktree list` should show only `main` and the branches still in progress.
 
 ## Releases
 
