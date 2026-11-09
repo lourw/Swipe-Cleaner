@@ -83,6 +83,9 @@ internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
  * - **Video scrubber** (FR-16): videos only, below the card in the
  *   action-bar area — [VideoScrubber] seeks through a [SeekTarget] while the
  *   finger drags (Live Photos show none; they play once, no loop).
+ * - **Share** (FR-32): the ActionBar's share button sends
+ *   [SwipeIntent.Share] straight away — no fly-off, haptic, or verdict —
+ *   and shows its loading state while [SwipeUiState.sharing].
  *
  * With no card and no summary to show the screen renders the §5.8
  * [EmptyState]; a moment of it during the deck's first load is accepted.
@@ -293,6 +296,9 @@ private fun DeckContent(
             onDelete = { buttonCommit(SwipeVerdict.DELETE) },
             onSkip = { buttonCommit(SwipeVerdict.SKIP) },
             onUndo = { onIntent(SwipeIntent.Undo) },
+            // FR-32: straight to the intent — no fly-off, no haptic, no verdict.
+            onShare = { onIntent(SwipeIntent.Share) },
+            sharing = state.sharing,
         )
     }
 }

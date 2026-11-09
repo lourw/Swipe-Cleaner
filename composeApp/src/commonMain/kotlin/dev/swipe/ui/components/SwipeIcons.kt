@@ -26,4 +26,10 @@ object SwipeIcons {
     const val SHUFFLE: String = "shuffle"
     const val PHOTO_LIBRARY: String = "photo_library"
     const val CALENDAR_MONTH: String = "calendar_month"
+
+    /** FR-32 share button: the iOS-style share glyph. */
+    const val SHARE: String = "ios_share"
+
+    /** FR-32 share button while the media loads (e.g. an iCloud download). */
+    const val SHARE_LOADING: String = "downloading"
 }
