@@ -23,6 +23,11 @@ import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
  *
  * Undo is disabled while the deck's undo stack is empty (§6.6 `canUndo`);
  * the disabled [CircleIconButton] keeps its touch target and label (NFR-8).
+ *
+ * Share (40 dp, FR-32) mirrors Undo at the right edge. It opens the share sheet
+ * directly — no fly-off, no verdict, the card stays put. While [sharing] (the
+ * media is loading) it shows the loading glyph, reads "Preparing to share", and
+ * is disabled so a second tap can't start another load.
  */
 @Composable
 fun ActionBar(
@@ -31,7 +36,9 @@ fun ActionBar(
     onDelete: () -> Unit,
     onSkip: () -> Unit,
     onUndo: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier,
+    sharing: Boolean = false,
 ) {
     val colors = SwipeTheme.colors
     val sizes = SwipeTheme.componentSizes
@@ -84,5 +91,28 @@ fun ActionBar(
             enabled = canUndo,
             modifier = Modifier.align(Alignment.CenterStart),
         )
+        ShareButton(
+            sharing = sharing,
+            onShare = onShare,
+            modifier = Modifier.align(Alignment.CenterEnd),
+        )
     }
+}
+
+/** FR-32: the share button, with its loading state while the media loads. */
+@Composable
+private fun ShareButton(
+    sharing: Boolean,
+    onShare: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CircleIconButton(
+        symbol = if (sharing) SwipeIcons.SHARE_LOADING else SwipeIcons.SHARE,
+        label = if (sharing) "Preparing to share" else "Share",
+        onClick = onShare,
+        // §5.7: same 40 dp edge-button size as Undo, which it mirrors.
+        size = SwipeTheme.componentSizes.actionButtonUndo,
+        enabled = !sharing,
+        modifier = modifier,
+    )
 }

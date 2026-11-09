@@ -274,6 +274,46 @@ class SwipeScreenTest {
             onNodeWithContentDescription("Delete").assertExists()
             onNodeWithContentDescription("Skip").assertExists()
             onNodeWithContentDescription("Undo").assertExists()
+            onNodeWithContentDescription("Share").assertExists()
+        }
+
+    @Test
+    fun `FR-32 share button sends only the Share intent`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            val haptics = FakeHaptics()
+            setContent {
+                TestScreen(deckState(), onIntent = { intents.add(it) }, haptics = haptics)
+            }
+            onNodeWithContentDescription("Share").assertIsEnabled()
+            onNodeWithContentDescription("Share").performClick()
+            waitForIdle()
+            // No verdict, no fly-off commit, no verdict haptic — the card stays put.
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Share), intents)
+            assertEquals(emptyList(), haptics.events)
+        }
+
+    @Test
+    fun `FR-32 share button shows a disabled loading state while the media loads`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(deckState().copy(sharing = true), onIntent = { intents.add(it) })
+            }
+            onNodeWithContentDescription("Share").assertDoesNotExist()
+            onNodeWithContentDescription("Preparing to share").assertIsNotEnabled()
+            onNodeWithContentDescription("Preparing to share").performClick()
+            waitForIdle()
+            assertEquals(emptyList(), intents)
+        }
+
+    @Test
+    fun `FR-32 share-failed toast surfaces the load failure`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(deckState().copy(toast = ToastMessage.ShareFailed))
+            }
+            onNodeWithContentDescription("Couldn't load this item to share — try again").assertExists()
         }
 
     @Test
