@@ -25,8 +25,12 @@ class FakeMediaSharer : MediaSharer {
     /** When non-null, [share] suspends on it before answering. */
     var gate: CompletableDeferred<Unit>? = null
 
+    /** When non-null, [share] throws this straight away instead of answering. */
+    var throwOnShare: Throwable? = null
+
     override suspend fun share(id: String): ShareResult {
         shareCalls += id
+        throwOnShare?.let { throw it }
         try {
             gate?.await()
         } catch (cancellation: CancellationException) {

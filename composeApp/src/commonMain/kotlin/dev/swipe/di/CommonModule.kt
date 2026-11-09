@@ -68,6 +68,7 @@ val commonModule: Module =
                 mediaLibrary = get(),
                 mediaLoader = get(),
                 videoPreloader = get(),
+                mediaSharer = get(),
                 decisions = get(),
                 sessionStore = get(),
                 seedProvider = { Random.nextLong() },

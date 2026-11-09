@@ -12,6 +12,7 @@ import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
@@ -135,6 +136,7 @@ class SwipeViewModelUndoTest {
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
                     decisions = store,
                     sessionStore = FakeSessionStore(clock, skips),
                     seedProvider = { SEED },
