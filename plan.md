@@ -17,7 +17,7 @@ A WP is **complete** only when all of the following are true. The per-WP "Done w
 5. **Tests.** Every use case and ViewModel change has a `commonTest` using the fakes in `commonTest/kotlin/dev/swipe/fakes/` (no mocking libraries), with Turbine for Flows, `runTest` virtual time, `FakeClock`, and fixed seeds. Every FR/NFR the WP implements that has logic behind it has at least one test whose name starts with its ID.
 6. **Spec stays in sync.** If the WP changes an interface, a token, a gesture constant, or behavior described in REQUIREMENTS.md, the spec is updated **in the same branch**, and the WP's final summary calls the change out. (Several WPs below already flag expected spec edits.)
 7. **Extra checks from REQUIREMENTS §8.4** for the kinds of files touched have been done. For example: screens get run on the simulator and compared to their §5.8 wireframe; `.sq` changes get a migration and a schema snapshot. Anything that needs a **physical device or Instruments** is listed as a 👤 *human checkpoint*. The sub-agent can't do it, so it writes down exactly what to check and leaves it open in the summary.
-8. **Merged.** `git checkout main && git merge --ff-only <branch> && git branch -d <branch>`. If `main` has moved on, rebase, re-validate, then merge.
+8. **Merged by the main agent.** The sub-agent works in its own worktree (`../swipe-app-wt/<branch>`) and does not merge. The main agent merges per AGENTS.md "Git workflow": `git merge --ff-only <branch>`, then `git worktree remove` and `git branch -d`. If `main` has moved on, it rebases, resolves conflicts, re-validates, then merges.
 9. **Summary handed back.** The sub-agent reports: what was built, the test names added, any spec edits, any open 👤 checkpoints, and anything it deferred.
 
 ### Sub-agent brief template
@@ -30,7 +30,7 @@ When dispatching a WP, give the sub-agent:
 
 ## 1. Waves
 
-WPs in the same wave don't depend on each other. Run one subagent at a time (AGENTS.md).
+WPs in the same wave don't depend on each other. Up to 2 subagents run at once (AGENTS.md); pair WPs that also don't touch the same files.
 
 - **Wave A:** WP-7.1, WP-7.2, WP-7.3
 - **Wave B (only if device numbers call for it):** the conditional items in §4
