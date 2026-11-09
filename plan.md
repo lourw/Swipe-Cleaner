@@ -36,6 +36,7 @@ WPs in the same wave don't depend on each other. Run one subagent at a time (AGE
 - **Wave B (only if device numbers call for it):** the conditional items in §4
 - **Wave C:** WP-8.1, then WP-8.2
 - **Wave D:** WP-8.3, WP-8.4
+- **Wave E:** WP-8.5, then WP-8.6
 
 ## 2. Code follow-ups
 
@@ -141,6 +142,30 @@ Show the total size of the items being deleted on the deletion confirmation.
 - Update §2 and R3. Doesn't change the delete path (hard rule 1, NFR-5).
 - **Tests:** `FR-34` cases for totals, an unreadable size, and an empty queue.
 
+### WP-8.5 Show a card's place in its duplicate set
+
+**Branch:** `fr-35-duplicate-set-label`. **Requirements:** new FR-35, FR-6, §5.8 Swipe, §6.5, §6.6, NFR-8.
+
+In the Likely Duplicates deck, label each card with its place in the set, for example "2 of 4 in this set".
+
+- `DuplicateGrouper.group` returns a flat id list, so groups have to be exposed to the deck and `CardState`. Keep `BuildDeckUseCase`'s deck contents and order, and Home's counts, unchanged.
+- **Groups must include decided items.** §6.5 subtracts decided ids before grouping, so after a resume a set would look smaller than it is. Work out set membership from the unfiltered candidates, and use it only for the label and WP-8.6.
+- Keep to metadata and the existing candidate scan (NFR-4, hard rule 6). The label uses `SwipeTheme` tokens and is read by VoiceOver.
+- Other decks show no label.
+- **Tests:** `FR-35` cases for the numbering, a resumed session with decided members, and non-duplicate decks.
+
+### WP-8.6 Warn before queueing the last copy in a set
+
+**Branch:** `fr-36-last-copy-warning`. **Depends on:** WP-8.5. **Requirements:** new FR-36, FR-22, NFR-5, NFR-7.
+
+In the Likely Duplicates deck, a Delete on an item asks for confirmation first when every other member of its set is already queued for deletion or deleted.
+
+- Follow the FR-22 favorite flow: nothing is written, the card returns, and a toast asks for confirmation. Generalize `pendingFavoriteDelete` rather than adding a parallel path, and cover both gestures and buttons (`decide`).
+- Check against the stored decisions at swipe time, so undo and resumed sessions give the right answer. A kept or skipped member means no warning.
+- A card that is both a favorite and the last copy gets one confirmation, not two.
+- This adds a confirmation only. It doesn't change the delete path (hard rule 1).
+- **Tests:** `FR-36` cases for last copy, a member kept or skipped, undo of an earlier delete, resume, favorite plus last copy, and accepting or dismissing the confirmation.
+
 ## Tracker
 
 | WP | Title | Status |
@@ -152,3 +177,5 @@ Show the total size of the items being deleted on the deletion confirmation.
 | 8.2 | Hide sensitive photos | [ ] |
 | 8.3 | Fix empty Bursts deck | [ ] |
 | 8.4 | Storage freed (nice to have) | [ ] |
+| 8.5 | Duplicate set label | [ ] |
+| 8.6 | Last-copy warning | [ ] |
