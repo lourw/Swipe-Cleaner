@@ -636,6 +636,8 @@ Limits of free provisioning: up to 3 apps per device, no TestFlight, and no paid
 2. Raise the build number (`CURRENT_PROJECT_VERSION`) for every upload.
 3. In Xcode, select **Any iOS Device (arm64)**, choose Product → Archive, then Distribute App → TestFlight & App Store.
 
+Xcode Cloud builds need no version edits: `iosApp/ci_scripts/ci_post_clone.sh` installs the JDK and stamps `MARKETING_VERSION` as `<major>.<minor>.<Xcode Cloud build number>` in the build's checkout only, and Xcode Cloud assigns the build number. Change major or minor in the Xcode project. Set `SWIPE_TEAM_ID` and `SWIPE_BUNDLE_ID` as workflow environment variables.
+
 Release metadata lives in `iosApp/iosApp/PrivacyInfo.xcprivacy`, which must declare any required-reason API the app uses (currently `NSUserDefaults`), and `iosApp/Info.plist`, which declares no non-exempt encryption. Revisit both if NFR-6 or the app's API use changes.
 
 ### 8.2 Testing
