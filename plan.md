@@ -34,7 +34,7 @@ WPs in the same wave don't depend on each other. Run one subagent at a time (AGE
 
 - **Wave A:** WP-7.1, WP-7.2, WP-7.3
 - **Wave B (only if device numbers call for it):** the conditional items in §4
-- **Wave C:** WP-8.1 (needs a decision first, see §5), then WP-8.2
+- **Wave C:** WP-8.1, then WP-8.2
 - **Wave D:** WP-8.3, WP-8.4
 
 ## 2. Code follow-ups
@@ -88,16 +88,18 @@ Do these only if a §3 measurement misses its target. File each as a WP when tha
 
 Add each feature's behavior to `REQUIREMENTS.md` in the same branch as its code. Run WP-8.1 before WP-8.2.
 
-### WP-8.1 Open the current item in Photos
+### WP-8.1 Share button on the swipe screen
 
-**Branch:** `fr-32-open-in-photos`. **Requirements:** new FR-32, §5.8 Swipe.
+**Branch:** `fr-32-share-button`. **Requirements:** new FR-32, §1 non-goals, §5.8 Swipe, NFR-7.
 
-A button on the swipe screen that takes the user to the current photo or video outside the deck. **Blocked on a decision:** iOS has no documented way to open one specific asset in the Photos app. The undocumented `photos-redirect://` scheme opens Photos but has been reported not to target an asset, and could break in any iOS release.
+A share button on the swipe screen that opens the iOS share sheet (`UIActivityViewController`) for the current photo or video. Decided 2026-11-09: this replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
 
-- Option A: open the Photos app with `photos-redirect://`, landing wherever Photos was last left.
-- Option B: an in-app full-screen view with zoom, plus the system share sheet.
-- Goes through `SystemActions` (hard rule 5). Opening must not record a decision or advance the deck (NFR-7).
-- **Tests:** `FR-32` case showing the intent leaves the deck index and decisions unchanged.
+- Remove "sharing" from the §1 non-goals and add FR-32 and the button to §5.8. Icon and placement use `SwipeTheme` tokens (hard rule 3).
+- Share the original media through a platform interface in `data/`, implemented in `iosMain/platform/` (hard rule 5). Videos and Live Photos must share as real media, not a still frame.
+- Load the asset only when the button is tapped, and release any temp file afterwards. iCloud-only items need a loading state and a clear failure toast.
+- Opening, completing, or cancelling the share sheet must not record a decision or advance the deck.
+- **Tests:** `FR-32` cases showing share leaves the deck index and decisions unchanged, and that a load failure shows the toast. Use a fake share interface.
+- 👤 On a device: share a photo, a video, and a Live Photo.
 
 ### WP-8.2 Hide sensitive photos by default
 
@@ -146,7 +148,7 @@ Show the total size of the items being deleted on the deletion confirmation.
 | 7.1 | Bitmap lifetime | [ ] |
 | 7.2 | Undo vs in-flight decision | [ ] |
 | 7.3 | Fresh empty deck session | [ ] |
-| 8.1 | Open item in Photos | [ ] |
+| 8.1 | Share button | [ ] |
 | 8.2 | Hide sensitive photos | [ ] |
 | 8.3 | Fix empty Bursts deck | [ ] |
 | 8.4 | Storage freed (nice to have) | [ ] |
