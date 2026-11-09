@@ -181,6 +181,44 @@ Open straight to Home on first launch, with the iOS photo access prompt shown im
 - Run on a reset simulator for Allow Full Access, Limit Access, and Don't Allow.
 - **Tests:** `FR-1` cases in `PermissionViewModelTest` for auto-request once on `NOT_DETERMINED`, routing for each outcome, and no prompt for a returning user.
 
+### WP-8.8 Center the media type selector
+
+**Branch:** `fr-5-center-selector`. **Requirements:** FR-5, §5.7, §5.8 Home.
+
+The All / Photos / Videos segments sit at the left of a full-width track on Home. Center them.
+
+- `SegmentedControl` is a full-width `Row` with the default start arrangement, and its segments wrap their labels. Center the segments within the track in the shared component, and keep the 44 dp touch targets.
+- Update §5.7 to say the segments are centered.
+- **Tests:** `FR-5` layout case showing equal space on both sides of the segments.
+
+### WP-8.9 Make the favorite confirmation a subtle, dismissible callout
+
+**Branch:** `fr-22-favorite-callout`. **Requirements:** FR-22, FR-15, §5.3, §5.7, NFR-5, NFR-8. **Run before WP-8.6**, which reuses this confirmation.
+
+The favorite confirmation has off-center text and can't be dismissed, so the only way to see the photo properly is to press Delete and then go back. The user must be able to see which photo they are confirming.
+
+- Replace the toast treatment with a smaller, quieter callout that never covers or resizes the current card. Use `SwipeTheme` tokens only (hard rule 3). Update FR-22 and §5.7.
+- Center the callout's text. `Toast` currently leaves it start-aligned in a `weight(1f)` slot.
+- Add a visible dismiss control that sends `SwipeIntent.DismissToast`. That intent already clears `pendingFavoriteDelete`, but a confirm-style toast never fires it because it has no timeout. Dismissing records nothing and leaves the card on screen.
+- The callout still stays until the user acts or the deck moves on. Delete stays explicit, with no auto-accept (NFR-5). This doesn't change the delete path (hard rule 1).
+- Keep the VoiceOver announcement, and label the dismiss control (NFR-8).
+- **Tests:** `FR-22` cases for dismiss recording nothing and keeping the card, confirm still queueing the delete, and the callout clearing when the deck moves.
+
+### WP-8.10 Let users exclude albums from Shuffle
+
+**Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4.
+
+Shuffle everything draws from the whole library, including photos that are in albums. Let the user choose albums to leave out of Shuffle. Nothing is excluded by default.
+
+- Add a per-album toggle on the Albums screen and persist the excluded album ids locally. Schema changes need a migration.
+- Exclusion applies only to Shuffle. Opening an excluded album directly, By month, and smart filters still include its items.
+- An item in any excluded album is left out of Shuffle, even if it is also in an album that isn't excluded.
+- PhotoKit has no "not in album" predicate, so fetch the excluded albums' asset ids (ids only, hard rule 6) and subtract them. Subtract after the seeded shuffle, as decided ids are, so a resumed session keeps its order (FR-20). An album the user has since deleted is ignored.
+- The Home Shuffle count must match the deck the row opens (FR-9) and must refresh when exclusions change or the library changes.
+- Toggling mid-session affects the next deck or rebuild only. It must not move the card on screen.
+- This doesn't remove anything from the deletion path. Deleting a Shuffle item still removes it from the library and every album.
+- **Tests:** `FR-37` cases for exclusion on and off, an item in two albums, the Shuffle count, a resumed session, a deleted album, and the type filter (FR-5).
+
 ## Tracker
 
 | WP | Title | Status |
@@ -195,3 +233,6 @@ Open straight to Home on first launch, with the iOS photo access prompt shown im
 | 8.5 | Duplicate set label | [ ] |
 | 8.6 | Last-copy warning | [ ] |
 | 8.7 | Remove intro screen | [ ] |
+| 8.8 | Center media type selector | [ ] |
+| 8.9 | Favorite confirmation callout | [ ] |
+| 8.10 | Exclude albums from Shuffle | [ ] |
