@@ -37,6 +37,7 @@ WPs in the same wave don't depend on each other. Run one subagent at a time (AGE
 - **Wave C:** WP-8.1, then WP-8.2
 - **Wave D:** WP-8.3, WP-8.4
 - **Wave E:** WP-8.5, then WP-8.6
+- **Wave F:** WP-8.7
 
 ## 2. Code follow-ups
 
@@ -166,6 +167,20 @@ In the Likely Duplicates deck, a Delete on an item asks for confirmation first w
 - This adds a confirmation only. It doesn't change the delete path (hard rule 1).
 - **Tests:** `FR-36` cases for last copy, a member kept or skipped, undo of an earlier delete, resume, favorite plus last copy, and accepting or dismissing the confirmation.
 
+### WP-8.7 Remove the intro screen
+
+**Branch:** `fr-1-remove-onboarding`. **Requirements:** FR-1, FR-2, FR-3, §5.8 screen map, §6.4.
+
+Open straight to Home on first launch, with the iOS photo access prompt shown immediately instead of after an intro screen.
+
+- `NOT_DETERMINED` currently routes to `OnboardingScreen`, whose button is the only thing that fires `RequestAccess` (`PermissionViewModel`). Request access automatically once on launch, and don't fire it again while a request is in flight.
+- Home must render sensibly while access is undecided, without fetching the library or showing an error, then load once access is granted (NFR-4).
+- Delete `OnboardingScreen`, the `Onboarding` route, and `onboardingSeen` from `SettingsStore` and its implementations, with their tests. Leaving a stale `NSUserDefaults` key on existing installs is fine.
+- Keep `DeniedScreen` for `DENIED` (FR-3) and the limited-access banner (FR-2).
+- Update FR-1, the §5.8 screen map, and §6.4 in the same branch. Check that the photo library usage string in `iosApp/Info.plist` clearly explains why access is needed, since nothing else will.
+- Run on a reset simulator for Allow Full Access, Limit Access, and Don't Allow.
+- **Tests:** `FR-1` cases in `PermissionViewModelTest` for auto-request once on `NOT_DETERMINED`, routing for each outcome, and no prompt for a returning user.
+
 ## Tracker
 
 | WP | Title | Status |
@@ -179,3 +194,4 @@ In the Likely Duplicates deck, a Delete on an item asks for confirmation first w
 | 8.4 | Storage freed (nice to have) | [ ] |
 | 8.5 | Duplicate set label | [ ] |
 | 8.6 | Last-copy warning | [ ] |
+| 8.7 | Remove intro screen | [ ] |
