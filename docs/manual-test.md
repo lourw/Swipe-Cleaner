@@ -124,6 +124,24 @@ Step-by-step checks for every §5.6 row, plus the screen assembly (§5.7, §5.8)
 29. ☐ Close × returns Home **without clearing the session**; starting the same
     source again resumes (FR-20, §6.5).
 
+**Share (FR-32, 👤 on a device)**
+
+30. ☐ Tap **Share** (right edge of the action bar) on a **photo**: the iOS
+    share sheet opens with the photo. AirDrop or Save Image delivers the
+    original (check its format and size in the receiving app). Cancel the
+    sheet: the same card is still up, the progress count is unchanged, and
+    Undo is no more enabled than before.
+31. ☐ Share a **video**: the receiver gets the playable video, not a still.
+32. ☐ Share a **Live Photo** (for example AirDrop to another device or Save to
+    Files and back): it arrives as a Live Photo with its motion.
+33. ☐ Share an **iCloud-only** item with "Include iCloud-only items" on: the
+    button shows its loading glyph ("Preparing to share") until the download
+    finishes, then the sheet opens. With the setting off, or in airplane
+    mode, the toast "Couldn't load this item to share — try again" appears
+    and the card stays put.
+34. ☐ Complete a share (send it somewhere): back on the deck, nothing was
+    recorded and the card did not advance.
+
 ## Delete
 
 Step-by-step checks for the review queue and committed deletion (FR-23–28,

@@ -1,6 +1,6 @@
 # Swipe Cleaner — Requirements, Design & Architecture
 
-_Last updated: 2026-11-01 · Status: approved for implementation_
+_Last updated: 2026-11-09 · Status: approved for implementation_
 
 Swipe Cleaner is a personal iPhone app, built with **Kotlin Multiplatform + Compose Multiplatform**. It cleans up the photo library one item at a time, using a card-swipe interface:
 
@@ -25,7 +25,7 @@ Deleted items go to iOS **Recently Deleted**, where they stay recoverable for 30
 **Non-goals for v1**
 
 - No in-app accounts, cloud sync, or analytics.
-- No editing, sharing, favoriting, or album management.
+- No editing, favoriting, or album management. (Sharing the current item through the iOS share sheet was added on 2026-11-09, FR-32.)
 - No ML-based duplicate or blur detection. Smart filters use metadata only.
 
 ## 2. Decisions
@@ -83,6 +83,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-20** Every decision is saved immediately, so killing the app loses nothing.
 - **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue.
 - **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left shows an inline confirm toast, "This is a favorite — delete anyway?", before it is queued.
+- **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
 
 ### Review and delete
 - **FR-23** The Review Queue shows queued items in a 3-column grid, newest decision first.
@@ -205,14 +206,14 @@ Other gestures on the card:
 | --- | --- |
 | `SwipeCard` | Full width minus 2 × 8 dp, height = space between top bar and action bar. Radius 24, `bg` fill. Media is aspect-fit by default. The bottom 96 dp has a `scrim` gradient with date (`caption`, `textPrimary`) and badges. |
 | `VerdictStamp` | Bordered uppercase `stamp` text, 3 dp stroke, radius 8, 8/16 dp padding. |
-| `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. |
+| `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
 | `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
-| `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone" and the favorite confirm. |
+| `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone", the favorite confirm, and errors (save failed, share failed). |
 
 ### 5.8 Screens
 
@@ -269,7 +270,7 @@ Home ──► Settings
 │ │ Mar 14, 2021 · 0:32  ☁ ◉ │ │  metadata on scrim
 │ └──────────────────────────┘ │
 │  ──●──────────── 0:12        │  video scrubber (videos only)
-│ ↶     ( ✕ )  (↑)  ( ✓ )      │  ActionBar: undo, delete, skip, keep
+│ ↶     ( ✕ )  (↑)  ( ✓ )    ⇪ │  ActionBar: undo, delete, skip, keep, share (FR-32)
 └──────────────────────────────┘
 ```
 
@@ -452,6 +453,10 @@ interface SettingsStore {                                   // NSUserDefaults; d
     fun setOnboardingSeen(seen: Boolean)
 }
 
+interface MediaSharer {                                     // FR-32; iosMain impl PhotoKitMediaSharer
+    suspend fun share(id: String): ShareResult              // export originals to temp files on tap (networkAccessAllowed per includeCloudOnly), present UIActivityViewController; returns PRESENTED once the sheet is up or FAILED; temp files deleted when the sheet finishes
+}
+
 interface Haptics {                                         // §5.6; silent while SettingsStore.haptics is off
     fun selection()                                         // threshold crossed
     fun impactLight()                                       // keep / skip committed
@@ -503,17 +508,25 @@ data class SwipeUiState(
     val finished: SessionSummary?,  // set once the deck runs out (FR-21)
     val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
     val pendingFavoriteDelete: String?, // the favorite awaiting confirm, else null (FR-22)
+    val sharing: Boolean,           // the current item's media is loading for the share sheet (FR-32)
 )
-sealed interface SwipeIntent { Keep; Delete; Skip; Undo; ToggleMute; ConfirmFavoriteDelete; DismissToast }
-sealed interface ToastMessage { SaveFailed; Undone; FavoriteConfirm; StartFailed }
+sealed interface SwipeIntent { Keep; Delete; Skip; Undo; ToggleMute; ConfirmFavoriteDelete; DismissToast; Share }
+sealed interface ToastMessage { SaveFailed; Undone; FavoriteConfirm; StartFailed; ShareFailed }
 sealed interface SwipeEvent { data class ReturnCard(val decision: Decision) }
 ```
 
 `ToastMessage` variants: `SaveFailed` (NFR-7, the decision write failed and the card
 reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22, "delete anyway?" — while it is up
 `pendingFavoriteDelete` holds the id, and `ConfirmFavoriteDelete` records the DELETE that
-the first tap refused to record), and `StartFailed` (the session could not be opened or
-resumed; the screen stays empty instead of crashing).
+the first tap refused to record), `StartFailed` (the session could not be opened or
+resumed; the screen stays empty instead of crashing), and `ShareFailed` (FR-32, the
+current item's media could not be loaded for the share sheet).
+
+`Share` (FR-32) hands the current card's id to `MediaSharer.share` with `sharing` up
+until the sheet is on screen or the load fails. It is single-flight (taps while
+`sharing` are ignored), writes nothing to `DecisionStore` or `SessionStore`, and leaves
+`index` and the undo stack alone. Every deck move cancels a share that is still
+loading, so a sheet never opens for a card that has left.
 
 One-shot ViewModel → UI events ride a `Channel` exposed as `Flow<SwipeEvent>`, so each
 event is delivered to exactly one collector and never replays on recomposition — unlike a
