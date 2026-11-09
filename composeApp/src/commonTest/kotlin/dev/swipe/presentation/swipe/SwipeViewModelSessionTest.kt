@@ -15,6 +15,7 @@ import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
@@ -221,6 +222,7 @@ class SwipeViewModelSessionTest {
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
                     decisions = store,
                     sessionStore = sessionStore,
                     seedProvider = { SEED },
@@ -297,6 +299,7 @@ class SwipeViewModelSessionTest {
                     mediaLibrary = f.library,
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
                     decisions = f.store,
                     sessionStore = f.sessionStore,
                     seedProvider = { SEED },
@@ -342,6 +345,7 @@ class SwipeViewModelSessionTest {
                     mediaLibrary = library,
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
                     decisions = store,
                     sessionStore = sessionStore,
                     seedProvider = { SEED },
@@ -380,6 +384,7 @@ class SwipeViewModelSessionTest {
                     mediaLibrary = f.library,
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
                     decisions = f.store,
                     sessionStore = f.sessionStore,
                     seedProvider = { SEED },
@@ -397,6 +402,7 @@ class SwipeViewModelSessionTest {
                 mediaLibrary = f.library,
                 mediaLoader = FakeMediaLoader(),
                 videoPreloader = FakeVideoPreloader(),
+                mediaSharer = FakeMediaSharer(),
                 decisions = f.store,
                 sessionStore = f.sessionStore,
                 seedProvider = { SEED },
@@ -424,6 +430,7 @@ class SwipeViewModelSessionTest {
                 mediaLibrary = f.library,
                 mediaLoader = FakeMediaLoader(),
                 videoPreloader = FakeVideoPreloader(),
+                mediaSharer = FakeMediaSharer(),
                 decisions = f.store,
                 sessionStore = f.sessionStore,
                 seedProvider = { SEED },

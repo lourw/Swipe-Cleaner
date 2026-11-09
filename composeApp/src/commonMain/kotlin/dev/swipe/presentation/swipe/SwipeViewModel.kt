@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.MediaSharer
 import dev.swipe.data.SessionStore
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
@@ -53,6 +54,11 @@ import kotlinx.coroutines.launch
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
  * session's stored counts and ends the session row.
  *
+ * **Share** (FR-32): [SwipeIntent.Share] hands the current card to [MediaSharer]
+ * with [SwipeUiState.sharing] up while the media loads, and shows
+ * [ToastMessage.ShareFailed] if it cannot. It never records a decision, moves the
+ * index, or touches the undo stack; a deck move during the load abandons it.
+ *
  * **Prefetch** (§6.5 step 3): after every move the window of current + next 3 is
  * requested from [MediaLoader.prefetch] and ids that left the window are cancelled.
  *
@@ -72,6 +78,7 @@ class SwipeViewModel(
     private val mediaLibrary: MediaLibrary,
     private val mediaLoader: MediaLoader,
     private val videoPreloader: VideoPreloader,
+    private val mediaSharer: MediaSharer,
     private val decisions: DecisionStore,
     private val sessionStore: SessionStore,
     private val seedProvider: () -> Long,
@@ -122,6 +129,23 @@ class SwipeViewModel(
     /** FR-15: the popped step whose removal is in flight; further Undo taps are ignored. */
     private var undoInFlight: UndoEntry? = null
 
+    /**
+     * FR-32: the single-flight share. Nothing here writes a decision or moves the
+     * deck — the share sheet's outcome is not even reported back. A failed load
+     * shows [ToastMessage.ShareFailed]; every deck move cancels a share still
+     * loading ([publish], [finish]), so a late sheet never opens for a card that
+     * is no longer up.
+     */
+    private val shareLauncher =
+        ShareLauncher(
+            scope = viewModelScope,
+            sharer = mediaSharer,
+            onLoading = { loading -> _uiState.update { it.copy(sharing = loading) } },
+            onFailed = {
+                _uiState.update { it.copy(toast = ToastMessage.ShareFailed, pendingFavoriteDelete = null) }
+            },
+        )
+
     init {
         // The queue badge tracks the shared delete queue live (FR-10, FR-23).
         viewModelScope.launch {
@@ -171,6 +195,11 @@ class SwipeViewModel(
 
             SwipeIntent.DismissToast -> {
                 _uiState.update { it.copy(toast = null, pendingFavoriteDelete = null) }
+            }
+
+            SwipeIntent.Share -> {
+                // FR-32: the current card only; no card, nothing to share.
+                deck.getOrNull(index)?.let(shareLauncher::launch)
             }
         }
     }
@@ -374,6 +403,7 @@ class SwipeViewModel(
                 null
             }
         undoStack.clear()
+        shareLauncher.cancel()
         _uiState.update {
             it.copy(
                 current = null,
@@ -383,6 +413,7 @@ class SwipeViewModel(
                 canUndo = false,
                 toast = if (summary == null) ToastMessage.SaveFailed else null,
                 pendingFavoriteDelete = null,
+                sharing = false,
             )
         }
         if (summary == null) {
@@ -446,9 +477,11 @@ class SwipeViewModel(
 
     /**
      * Emit the deck slice. A move always clears the favorite confirm (its card is no
-     * longer up); [toast], when given, replaces the message (the "Undone" notice).
+     * longer up) and abandons a loading share (FR-32); [toast], when given, replaces
+     * the message (the "Undone" notice).
      */
     private fun publish(toast: ToastMessage? = null) {
+        shareLauncher.cancel()
         _uiState.update {
             it.copy(
                 current = cardAt(index),
@@ -457,6 +490,7 @@ class SwipeViewModel(
                 canUndo = undoStack.isNotEmpty(),
                 toast = toast,
                 pendingFavoriteDelete = null,
+                sharing = false,
             )
         }
     }

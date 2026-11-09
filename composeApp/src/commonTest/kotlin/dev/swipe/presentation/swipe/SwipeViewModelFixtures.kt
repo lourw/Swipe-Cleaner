@@ -17,6 +17,7 @@ import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
@@ -71,6 +72,7 @@ internal class Fixture(
     val library = FakeMediaLibrary(items ?: photos(itemCount, favoriteIds))
     val loader = FakeMediaLoader()
     val videoPreloader = FakeVideoPreloader()
+    val sharer = FakeMediaSharer()
     val viewModel =
         SwipeViewModel(
             source = SOURCE,
@@ -81,6 +83,7 @@ internal class Fixture(
             mediaLibrary = library,
             mediaLoader = loader,
             videoPreloader = videoPreloader,
+            mediaSharer = sharer,
             decisions = store,
             sessionStore = sessionStore,
             seedProvider = { seed },

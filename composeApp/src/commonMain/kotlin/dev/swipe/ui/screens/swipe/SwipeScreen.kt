@@ -409,4 +409,5 @@ private fun toastText(message: ToastMessage): String =
         ToastMessage.Undone -> "Undone"
         ToastMessage.FavoriteConfirm -> "This is a favorite — delete anyway?"
         ToastMessage.StartFailed -> "Couldn't load your library — try again"
+        ToastMessage.ShareFailed -> "Couldn't load this item to share — try again"
     }

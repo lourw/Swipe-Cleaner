@@ -39,6 +39,11 @@ data class SwipeUiState(
      * finds nothing pending), by [SwipeIntent.DismissToast], and by any deck move.
      */
     val pendingFavoriteDelete: String? = null,
+    /**
+     * Whether the current card's media is loading for the share sheet (FR-32); the
+     * share button shows its loading state and ignores taps while it is up.
+     */
+    val sharing: Boolean = false,
 )
 
 /**
@@ -62,4 +67,10 @@ sealed interface ToastMessage {
      * (§6.5 step 1 failed): the screen stays empty instead of crashing.
      */
     data object StartFailed : ToastMessage
+
+    /**
+     * FR-32: the current card's media could not be loaded for the share sheet (for
+     * example an iCloud-only original that could not download); nothing was shared.
+     */
+    data object ShareFailed : ToastMessage
 }

@@ -28,4 +28,10 @@ sealed interface SwipeIntent {
 
     /** Toast timeout or manual dismissal: clears [SwipeUiState.toast] and any favorite confirm. */
     data object DismissToast : SwipeIntent
+
+    /**
+     * Share button: opens the iOS share sheet for the current card (FR-32). Records
+     * no decision and never moves the deck.
+     */
+    data object Share : SwipeIntent
 }
