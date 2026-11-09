@@ -27,6 +27,7 @@ import platform.AVFoundation.duration
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.removeTimeObserver
+import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.volume
@@ -170,6 +171,10 @@ private class VideoPlayerSurface(
         endObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
         endObserver = null
         player?.pause()
+        // The item is cached and reused by the next mount of this card, and AVPlayer
+        // throws if an item still belongs to another player. Dropping our reference
+        // is not enough: the old player only lets go when it is deallocated (FR-16).
+        player?.replaceCurrentItemWithPlayerItem(null)
         playerLayer.player = null
         player = null
         if (livePhoto) cache.releaseLivePhotoVideo(id)
