@@ -34,7 +34,7 @@ WPs in the same wave don't depend on each other. Run one subagent at a time (AGE
 
 - **Wave A:** WP-7.1, WP-7.2, WP-7.3
 - **Wave B (only if device numbers call for it):** the conditional items in §4
-- **Wave C:** WP-8.1, then WP-8.2 (both need a decision first, see §5)
+- **Wave C:** WP-8.1 (needs a decision first, see §5), then WP-8.2
 - **Wave D:** WP-8.3, WP-8.4
 
 ## 2. Code follow-ups
@@ -103,11 +103,14 @@ A button on the swipe screen that takes the user to the current photo or video o
 
 **Branch:** `fr-33-hide-sensitive`. **Depends on:** WP-8.1. **Requirements:** new FR-33, FR-29, NFR-1, NFR-3, NFR-6; §1 non-goals.
 
-A Settings toggle, on by default, that keeps sensitive items out of the swipe UI. **Blocked on a decision:** the detection method.
+A Settings toggle, on by default, that keeps sensitive items out of the swipe UI.
 
-- Option A: Apple's on-device `SensitiveContentAnalysis`. Detects nudity only, needs the `com.apple.developer.sensitivecontentanalysis.client` entitlement, works only on a physical device, and reports nothing unless the user has turned on Sensitive Content Warning or Communication Safety in iOS Settings. The app must show when analysis is unavailable rather than imply items are being hidden.
-- Option B: a bundled on-device Core ML classifier. No system setting needed and it can cover more categories, but it adds model size, licensing review, and false positives and misses.
-- Either option changes the §1 "no ML" non-goal, which needs a spec edit. Analysis must stay on-device (NFR-6).
+**Decided (2026-11-09):**
+
+- Detection uses Apple's on-device `SensitiveContentAnalysis`. It detects nudity only, needs the `com.apple.developer.sensitivecontentanalysis.client` entitlement, and works only on a physical device. It reports nothing unless the user has turned on Sensitive Content Warning or Communication Safety in iOS Settings, so the app must show when analysis is unavailable rather than imply items are being hidden.
+- A flagged item is skipped silently: it never appears in the deck and no decision is recorded. It comes back when the toggle is turned off.
+
+- This changes the §1 "no ML" non-goal, which needs a spec edit. Analysis must stay on-device (NFR-6).
 - Analysis needs pixels, so a whole-library scan is ruled out (hard rule 6). Analyse within the prefetch window and skip a flagged card before it is shown, without recording a decision. Measure against NFR-1.
 - Define what happens to source counts, which cannot know about unscanned items.
 - **Tests:** `FR-33` cases with a fake analyzer for on, off, flagged, and analysis unavailable.
