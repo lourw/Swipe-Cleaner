@@ -6,6 +6,7 @@ import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
+import dev.swipe.data.MediaSharer
 import dev.swipe.data.PerfTrace
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
@@ -19,6 +20,7 @@ import dev.swipe.platform.IosSystemActions
 import dev.swipe.platform.NSUserDefaultsSettingsStore
 import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.PhotoKitMediaLoader
+import dev.swipe.platform.PhotoKitMediaSharer
 import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -67,4 +69,7 @@ val iosModule: Module =
         // instance from the graph, so preloaded items mount warm.
         single { VideoItemCache(settings = get()) }
         single<VideoPreloader> { get<VideoItemCache>() }
+
+        // Share sheet (WP-8.1, FR-32): exports originals on tap, network per FR-29.
+        single<MediaSharer> { PhotoKitMediaSharer(settings = get()) }
     }
