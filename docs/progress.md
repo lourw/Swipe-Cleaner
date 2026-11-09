@@ -29,7 +29,7 @@ Not a spec — `docs/archive/plan-v1.md` and `REQUIREMENTS.md` are the source of
 
 ## Wave plan
 
-Subagents run strictly ONE AT A TIME (AGENTS.md). Serial queue order: 1.2 → 1.3 → 1.6 → 1.4 → 1.5 → 1.7 → 1.8 → ...
+Up to 2 subagents run at once (AGENTS.md); fill slots with non-conflicting WPs in this queue order: 1.2 → 1.3 → 1.6 → 1.4 → 1.5 → 1.7 → 1.8 → ...
 
 | Wave | WPs | Status |
 | --- | --- | --- |

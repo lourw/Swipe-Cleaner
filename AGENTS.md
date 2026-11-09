@@ -78,24 +78,33 @@ Run `scripts/validate.sh` before declaring a code change done, plus any extra ch
 
 Use subagents for implementation and verification wherever you can. The main agent plans, sends out the work, merges, and checks each result. It doesn't write the feature code itself.
 
-**Run only 1 subagent at a time.** Never dispatch a subagent while another is running; queue the rest and dispatch the next as each finishes.
+**Run at most 2 subagents at a time**, on top of the main (orchestrating) agent. Implementers and verifiers both count toward the pool. When a slot frees up, fill it with the next task from the queue.
 
-- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0, each in its own worktree and branch. WPs in the same wave (`plan.md` §1) don't depend on each other, so any order within a wave is fine — but still one at a time.
+- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0, each in its own worktree and branch (see Git workflow).
+- **Pick tasks that can run in parallel.** Two WPs can run side by side only if neither depends on the other (`plan.md` §1 waves and each WP's "Depends on") and they won't conflict: they don't edit the same files, the same SQLDelight schema or migration, or the same Koin module or navigation graph. To fill a slot, walk down the queue in order and take the first WP that is unblocked and doesn't conflict with the running one. Skip WPs that depend on or overlap with running work; they stay queued for a later slot. If nothing fits, leave the slot empty.
 - **Verification.** When a WP is done, a *separate* subagent reviews it against the REQUIREMENTS sections the WP cites, the hard rules above, and the `plan.md` §0 definition of done. Give it the branch diff and the WP, not the implementer's summary, so it reviews the code rather than confirming the summary. Send its findings back to the implementer, or to a new fix-up subagent, before merging.
 - **Main agent.** It owns the branch merge, the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
 - **Exception: small changes.** A change of a few lines (a typo, a one-line fix, a docs tweak) can be done directly, because writing the brief would cost more than making the change.
 
 ## Git workflow
 
-- **Never commit directly to `main`.** Start every feature, fix, or doc change on a branch from an up-to-date `main`, for example `git checkout -b m1-library-access`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`.
-- **Commit as you go.** Make small commits, each one with a working build, rather than one large commit at the end.
-- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes on the branch. Docs-only branches skip validation and can be merged directly. Then:
+- **Never commit directly to `main`.** Every feature, fix, or doc change gets its own branch **and its own worktree**, created from an up-to-date `main`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`. Worktrees live outside the repo in `../swipe-app-wt/<branch>`:
 
   ```bash
-  git checkout main
-  git merge --ff-only <branch>     # if main has moved on: git rebase main <branch>, re-validate, then merge
+  git worktree add ../swipe-app-wt/<branch> -b <branch> main
+  ```
+
+  The main checkout stays on `main`. Work, validation, and commits for the branch happen only inside its worktree.
+- **Commit as you go.** Make small commits, each one with a working build, rather than one large commit at the end.
+- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes in the worktree. Docs-only branches skip validation and can be merged directly. Then, from the main checkout, merge and **always remove the worktree**:
+
+  ```bash
+  git merge --ff-only <branch>     # if main has moved on: rebase <branch> onto main in its worktree, re-validate, then merge
+  git worktree remove ../swipe-app-wt/<branch>
   git branch -d <branch>
   ```
+
+  With two subagents running, the second branch to finish usually needs that rebase. Don't leave worktrees around after merging. `git worktree list` should show only `main` and the branches still in progress.
 
 ## Releases
 
