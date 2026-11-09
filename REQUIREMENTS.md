@@ -24,7 +24,7 @@ Deleted items go to iOS **Recently Deleted**, where they stay recoverable for 30
 
 **Non-goals for v1**
 
-- No App Store release, accounts, cloud sync, or analytics.
+- No in-app accounts, cloud sync, or analytics.
 - No editing, sharing, favoriting, or album management.
 - No ML-based duplicate or blur detection. Smart filters use metadata only.
 
@@ -35,7 +35,7 @@ Deleted items go to iOS **Recently Deleted**, where they stay recoverable for 30
 | UI stack | Compose Multiplatform shared UI | All screens are written in Kotlin. Video playback uses a UIKit interop view. PhotoKit is called from Kotlin/Native (`platform.Photos`). |
 | Deletion | Batch delete at the end | Left swipes go into a persisted queue. A single `PHAssetChangeRequest.deleteAssets` call means a single iOS confirmation dialog. |
 | Deck scope | Shuffle, album or month, smart filters | The default deck is the whole library, shuffled. Picking a source or a filter narrows it. |
-| Install | Free Apple ID through Xcode | Builds must be re-signed every 7 days. No TestFlight. No paid entitlements are needed. |
+| Install | TestFlight with a paid Apple Developer account, or a free Apple ID through Xcode | TestFlight builds last 90 days. Free-provisioned builds must be re-signed every 7 days and can't use TestFlight. No paid entitlements are needed. |
 | Min OS | iOS 17.0 | Uses modern PhotoKit, including limited-library APIs. |
 | Platforms | iOS only for v1 | `androidMain` exists as a stub so the structure stays honest. |
 
@@ -629,6 +629,14 @@ CREATE TABLE session_skip (
 6. **Every 7 days**, plug in and press Run again to re-sign. App data is kept.
 
 Limits of free provisioning: up to 3 apps per device, no TestFlight, and no paid-only entitlements (none are needed here).
+
+**Installing with TestFlight (paid Apple Developer account)**
+
+1. Set your team ID and registered bundle ID in `iosApp/Configuration/Local.xcconfig`, and create the app in App Store Connect with that bundle ID.
+2. Raise the build number (`CURRENT_PROJECT_VERSION`) for every upload.
+3. In Xcode, select **Any iOS Device (arm64)**, choose Product → Archive, then Distribute App → TestFlight & App Store.
+
+Release metadata lives in `iosApp/iosApp/PrivacyInfo.xcprivacy`, which must declare any required-reason API the app uses (currently `NSUserDefaults`), and `iosApp/Info.plist`, which declares no non-exempt encryption. Revisit both if NFR-6 or the app's API use changes.
 
 ### 8.2 Testing
 

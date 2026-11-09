@@ -1,6 +1,7 @@
-// Copy to Local.xcconfig (gitignored) and fill in to run on a device with a free Apple ID.
-// Find your team ID in Xcode → Settings → Accounts, or pick your Personal Team once in
-// Signing & Capabilities and copy the DEVELOPMENT_TEAM value it writes.
+// Copy to Local.xcconfig (gitignored) and fill in for device or TestFlight builds.
+// Paid account: use the Team ID from developer.apple.com → Membership and a registered bundle ID.
+// Free Apple ID: pick your Personal Team once in Signing & Capabilities and copy the
+// DEVELOPMENT_TEAM value it writes.
 
 TEAM_ID = ABCDE12345
 BUNDLE_ID = dev.yourname.swipecleaner

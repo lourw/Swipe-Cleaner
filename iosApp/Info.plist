@@ -7,5 +7,7 @@
 	<!-- Lets Compose drive ProMotion displays at 120 Hz (NFR-2). -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
