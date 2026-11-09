@@ -1,7 +1,7 @@
 # Implementation progress (working notes)
 
-Living scratchpad for the main agent while implementing plan.md. Updated at each merge.
-Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
+Living scratchpad for the main agent while implementing docs/archive/plan-v1.md. Updated at each merge.
+Not a spec — `docs/archive/plan-v1.md` and `REQUIREMENTS.md` are the source of truth.
 
 ## Environment notes
 
@@ -17,7 +17,7 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
   `git worktree remove ../swipe-app-wt/wp-<id>`.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
-## Workflow per WP (from AGENTS.md + plan.md §0)
+## Workflow per WP (from AGENTS.md + plan-v1.md §0)
 
 0. Before dispatching: `ps aux | grep opencode` and check worktree mtimes — on 2026-11-01 a stale
    duplicate session was found editing wp-1-2 concurrently (killed with user approval). Never
@@ -25,7 +25,7 @@ Not a spec — `plan.md` and `REQUIREMENTS.md` are the source of truth.
 1. `git worktree add ../swipe-app-wt/wp-N -b <branch> main` (after deps merged).
 2. Dispatch implementer subagent (brief: read AGENTS.md + plan §0 + the WP + cited REQUIREMENTS §s; work only in that worktree; DEVELOPER_DIR export; validate; commit per §0; report §0.9; do NOT merge).
 3. Main agent reviews diff; verification subagent for high-risk WPs (2.x gestures, 3.x delete path).
-4. Merge `--ff-only` into main (rebase first if main moved), remove worktree, tick tracker here + plan.md.
+4. Merge `--ff-only` into main (rebase first if main moved), remove worktree, tick tracker here + plan-v1.md.
 
 ## Wave plan
 

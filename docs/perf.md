@@ -126,7 +126,7 @@ Simulator smoke numbers (2026-11-05, `iPhone 17` simulator, debug build,
 2. Fill each TODO(👤) row: measured value (P95 for NFR-1 spans, peak
    footprint for NFR-3, total launch for NFR-4), device model/OS, library
    size, date.
-3. Any miss → file a follow-up WP (plan.md §WP-6.3 task 4: prefetch window,
+3. Any miss → file a follow-up WP (docs/archive/plan-v1.md §WP-6.3 task 4: prefetch window,
    decode size, etc.) and link it from the row.
 
 ## What to watch (hot paths)
