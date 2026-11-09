@@ -95,3 +95,58 @@ fun photoKitDeleteResult(
 
 /** Stand-in message when a PhotoKit failure carries no description at all. */
 private const val DELETE_FAILED_FALLBACK = "Delete failed"
+
+// Raw `PHAssetResourceType` values from `PHAssetResource.h` (FR-32).
+private const val PH_RESOURCE_PHOTO = 1
+private const val PH_RESOURCE_VIDEO = 2
+private const val PH_RESOURCE_FULL_SIZE_PHOTO = 5
+private const val PH_RESOURCE_FULL_SIZE_VIDEO = 6
+private const val PH_RESOURCE_PAIRED_VIDEO = 9
+private const val PH_RESOURCE_FULL_SIZE_PAIRED_VIDEO = 10
+
+/**
+ * Which of an asset's `PHAssetResource`s to share (FR-32), as raw resource types in
+ * share order. The *current* rendition wins, as in the Photos app: an edited asset's
+ * `fullSize…` resource, else the original. A photo shares its photo resource; a
+ * video its video resource; a Live Photo its photo plus its paired video, so the
+ * receiver gets the motion too (a Live Photo whose paired video is missing still
+ * shares its photo). An unknown media type, or an asset with none of the needed
+ * resources, yields an empty list — the caller reports a failure.
+ */
+fun photoKitShareResourceTypes(
+    mediaTypeId: Int,
+    subtypes: Int,
+    availableTypes: Collection<Int>,
+): List<Int> {
+    fun pick(
+        current: Int,
+        original: Int,
+    ): Int? =
+        when {
+            current in availableTypes -> current
+            original in availableTypes -> original
+            else -> null
+        }
+    val photo = pick(PH_RESOURCE_FULL_SIZE_PHOTO, PH_RESOURCE_PHOTO)
+    return when (photoKitMediaType(mediaTypeId, subtypes)) {
+        MediaType.PHOTO -> {
+            listOfNotNull(photo)
+        }
+
+        MediaType.LIVE_PHOTO -> {
+            if (photo == null) {
+                emptyList()
+            } else {
+                listOfNotNull(photo, pick(PH_RESOURCE_FULL_SIZE_PAIRED_VIDEO, PH_RESOURCE_PAIRED_VIDEO))
+            }
+        }
+
+        MediaType.VIDEO -> {
+            listOfNotNull(pick(PH_RESOURCE_FULL_SIZE_VIDEO, PH_RESOURCE_VIDEO))
+        }
+
+        null -> {
+            emptyList()
+        }
+    }
+}
