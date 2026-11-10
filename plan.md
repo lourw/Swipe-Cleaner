@@ -257,7 +257,7 @@ Reported by the user on a device, 2026-11-10: switching between All, Photos, and
 - Keep the NFR-4 rule that Home mounts without waiting for counts. If this changes the raw-then-exact behavior in §6.5, update the spec in the same branch.
 - **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late.
 
-### WP-8.13 Make video sound work
+### WP-8.13 Make video sound work, with a mute button and a default setting
 
 **Branch:** `fr-16-video-audio`. **Requirements:** FR-16, §5.6 (tap toggles mute), §6.5.
 
@@ -265,9 +265,10 @@ Reported by the user on a device, 2026-11-10: videos never play sound. FR-16 say
 
 - Reproduce on a device first, with the ring/silent switch in both positions. Likely cause, not confirmed: nothing sets an `AVAudioSession` category (no reference in `composeApp/src`), so playback uses the default category, which the silent switch mutes. The simulator has no silent switch, so it can't confirm this.
 - If that is the cause, set a playback category when the user unmutes, behind an interface in `data/` with the implementation in `iosMain/platform/` (hard rule 5). Muted autoplay must not interrupt other apps' audio. Decide what happens to other audio when the user unmutes and record it in FR-16.
-- Check that the mute state and how to change it are visible on a video card. If the tap works but nothing shows it, add an indicator from `SwipeTheme` tokens and update §5 in the same branch.
-- **Tests:** `FR-16` cases that the tap toggles mute, the state carries to the next video in the session, and the audio session is requested only on unmute (fake).
-- 👤 On a device: sound plays after a tap with the silent switch on and off, and music from another app keeps playing while videos are muted.
+- **Mute button (user, 2026-11-10).** Add a visible mute button on video cards that shows the current state and toggles sound. Use `SwipeTheme` tokens and a 44 dp target, and add it to §5 in the same branch. Decide whether tapping the video still toggles mute and record it in FR-16 and §5.6.
+- **Setting (user, 2026-11-10).** Add a "Play video sound by default" setting next to the existing ones in `SettingsStore`. **Off is the default.** Off: every session starts muted, as FR-16 says today. On: sessions start with sound. The mute button still overrides it for the rest of the session. Update FR-16 and the settings section of the spec.
+- **Tests:** `FR-16` cases that the button toggles mute, the state carries to the next video in the session, a new session starts from the setting (off and on), and the audio session is requested only when sound is on (fake).
+- 👤 On a device: sound plays after unmuting with the silent switch on and off, music from another app keeps playing while videos are muted, and the setting takes effect on the next session.
 
 ## Tracker
 
@@ -305,4 +306,4 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, 2026-11-10): top-priority next feature |
 | 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
 | 8.12 | Home count flicker on type switch | queued | | Priority 3 (user, 2026-11-10) |
-| 8.13 | Video sound | queued | | Reported by user 2026-11-10; reproduce on a device first |
+| 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
