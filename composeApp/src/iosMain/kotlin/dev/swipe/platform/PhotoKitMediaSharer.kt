@@ -86,10 +86,17 @@ class PhotoKitMediaSharer(
         val resources = shareResources(id)
         val networkAllowed = settings.includeCloudOnly.value
         val urls = mutableListOf<NSURL>()
+        val usedNames = mutableSetOf<String>()
         for ((index, resource) in resources.withIndex()) {
-            // One subdirectory per resource keeps the original filenames (what the
-            // receiver sees) without two resources ever colliding.
-            urls += writeInto("$directory/$index", resource, networkAllowed) ?: break
+            // All resources go directly into [directory] under their original
+            // filenames: receivers pair a Live Photo's photo and video halves by
+            // same-directory + same-basename proximity, so the halves must never be
+            // split into per-resource subfolders. In the unlikely case two
+            // resources report the same filename, the later one gets an index
+            // prefix so neither write clobbers the other.
+            val filename = resource.originalFilename
+            val name = if (usedNames.add(filename)) filename else "$index-$filename"
+            urls += writeInto(directory, name, resource, networkAllowed) ?: break
         }
         return urls.takeIf { it.isNotEmpty() && it.size == resources.size }
     }
@@ -105,17 +112,15 @@ class PhotoKitMediaSharer(
         ).mapNotNull { type -> resources.firstOrNull { it.type.toInt() == type } }
     }
 
-    /** [resource] written to [folder] under its original filename; null on failure. */
+    /** [resource] written into [directory] as [filename]; null on failure. */
     private suspend fun writeInto(
-        folder: String,
+        directory: String,
+        filename: String,
         resource: PHAssetResource,
         networkAllowed: Boolean,
     ): NSURL? {
-        val url = NSURL.fileURLWithPath("$folder/${resource.originalFilename}")
-        val written =
-            NSFileManager.defaultManager.createDirectoryAtPath(folder, true, null, null) &&
-                write(resource, url, networkAllowed)
-        return url.takeIf { written }
+        val url = NSURL.fileURLWithPath("$directory/$filename")
+        return url.takeIf { write(resource, url, networkAllowed) }
     }
 
     /**
