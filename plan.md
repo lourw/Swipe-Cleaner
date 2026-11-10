@@ -247,8 +247,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | — | | | | | |
-| 2 | — | | | | | |
+| 1 | 8.4 | fix | `fr-34-storage-freed` | ses_e3c706379ffeeK5LjA9Wxp9gut | 2026-11-09 | Review findings 1–3 + nits 4–5; KVC crash-guard decision: respondsToSelector check, no cinterop |
+| 2 | 7.3 | verify | `fr-21-empty-deck-session` | ses_e3c49f67dffejW6VM8ah50pQ6K | 2026-11-09 | Implement done (8329ed9, 94b80b8), validate.sh PASS; verifying now |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -260,15 +260,15 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | --- | --- | --- | --- | --- |
 | 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
-| 7.3 | Fresh empty deck session | queued | | |
+| 7.3 | Fresh empty deck session | verifying | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
 | 8.3 | Fix empty Bursts deck | queued | | |
-| 8.4 | Storage freed (nice to have) | in progress | `fr-34-storage-freed` | Main agent: set the exact status |
+| 8.4 | Storage freed (nice to have) | fixing | `fr-34-storage-freed` | Verified with findings (KVC crash guard, stale-estimate race, batching); fix in progress |
 | 8.5 | Duplicate set label | queued | | |
 | 8.6 | Last-copy warning | queued | | |
-| 8.7 | Remove intro screen | in progress | `fr-1-remove-onboarding` | Verified 2026-11-09, rebased on `main`. Main agent: set the exact status |
-| 8.8 | Center media type selector | in progress | `fr-5-center-selector` | Main agent: set the exact status |
+| 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
+| 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation callout | queued | | |
 | 8.10 | Exclude albums from Shuffle | queued | | |
 | 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
