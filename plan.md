@@ -257,6 +257,18 @@ Reported by the user on a device, 2026-11-10: switching between All, Photos, and
 - Keep the NFR-4 rule that Home mounts without waiting for counts. If this changes the raw-then-exact behavior in §6.5, update the spec in the same branch.
 - **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late.
 
+### WP-8.13 Make video sound work
+
+**Branch:** `fr-16-video-audio`. **Requirements:** FR-16, §5.6 (tap toggles mute), §6.5.
+
+Reported by the user on a device, 2026-11-10: videos never play sound. FR-16 says videos start muted and a tap turns sound on, so either the tap doesn't unmute or the unmuted player is still silent.
+
+- Reproduce on a device first, with the ring/silent switch in both positions. Likely cause, not confirmed: nothing sets an `AVAudioSession` category (no reference in `composeApp/src`), so playback uses the default category, which the silent switch mutes. The simulator has no silent switch, so it can't confirm this.
+- If that is the cause, set a playback category when the user unmutes, behind an interface in `data/` with the implementation in `iosMain/platform/` (hard rule 5). Muted autoplay must not interrupt other apps' audio. Decide what happens to other audio when the user unmutes and record it in FR-16.
+- Check that the mute state and how to change it are visible on a video card. If the tap works but nothing shows it, add an indicator from `SwipeTheme` tokens and update §5 in the same branch.
+- **Tests:** `FR-16` cases that the tap toggles mute, the state carries to the next video in the session, and the audio session is requested only on unmute (fake).
+- 👤 On a device: sound plays after a tap with the silent switch on and off, and music from another app keeps playing while videos are muted.
+
 ## Tracker
 
 The main agent keeps this section current so nobody loses track of running subagents, including after a restart or context compaction. Rules are in AGENTS.md "Working with subagents". Subagents never edit this section.
@@ -293,3 +305,4 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, 2026-11-10): top-priority next feature |
 | 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
 | 8.12 | Home count flicker on type switch | queued | | Priority 3 (user, 2026-11-10) |
+| 8.13 | Video sound | queued | | Reported by user 2026-11-10; reproduce on a device first |
