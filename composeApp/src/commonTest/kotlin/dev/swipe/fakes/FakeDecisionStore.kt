@@ -4,6 +4,7 @@ import dev.swipe.data.DecisionStore
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.SessionCounts
 import dev.swipe.domain.model.Stats
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -53,6 +54,14 @@ class FakeDecisionStore(
     var failNextMarkDeleted: Throwable? = null
     var failNextClearKeeps: Throwable? = null
 
+    /**
+     * When non-null, the next [record] suspends on it before writing anything —
+     * the "decision write still in flight" window (FR-15, WP-7.2). One-shot like
+     * the `failNext…` switches; a call cancelled while suspended propagates the
+     * cancellation.
+     */
+    var gateNextRecord: CompletableDeferred<Unit>? = null
+
     /** The current `decision` rows, in insertion order. */
     val entries: List<Entry> get() = rows.value
 
@@ -64,6 +73,10 @@ class FakeDecisionStore(
         sessionId: String,
     ) {
         recordCalls += Triple(id, decision, sessionId)
+        gateNextRecord?.let { gate ->
+            gateNextRecord = null
+            gate.await()
+        }
         failNextRecord?.let {
             failNextRecord = null
             throw it
