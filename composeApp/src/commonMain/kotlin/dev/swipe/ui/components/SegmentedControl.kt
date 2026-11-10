@@ -29,8 +29,8 @@ internal const val SEGMENTED_CONTROL_TRACK_TEST_TAG = "segmented-control-track"
  * full-round track and segments — buttons are fully round (§5.5) — on a
  * `surface` track. The label-wrapping segments are centered within the track
  * (FR-5); Home renders it full width, so they no longer sit at the left. The
- * selected segment fills with `accent` and draws its label in the
- * card-foreground color. Segments are selectable tabs with `selected`
+ * selected segment fills with `accent` and draws its label in
+ * `textPrimary`. Segments are selectable tabs with `selected`
  * semantics; each is at least 44 dp tall.
  */
 @Composable

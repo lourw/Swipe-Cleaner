@@ -210,7 +210,7 @@ Other gestures on the card:
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
 | `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. |
-| `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in the card-foreground color; unselected labels `textSecondary`. |
+| `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in `textPrimary`; unselected labels `textSecondary`. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
