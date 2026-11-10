@@ -221,7 +221,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Swipe Cleaner";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Swipe Cleaner shows your photos one at a time so you can keep or delete them.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Swipe Cleaner reads your photo library so you can review items one at a time and keep or delete them. Your photos and videos stay on this device — nothing is uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -261,7 +261,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Swipe Cleaner";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Swipe Cleaner shows your photos one at a time so you can keep or delete them.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Swipe Cleaner reads your photo library so you can review items one at a time and keep or delete them. Your photos and videos stay on this device — nothing is uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
