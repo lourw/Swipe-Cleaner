@@ -40,6 +40,12 @@ WPs in the same wave don't depend on each other. Up to 2 subagents run at once (
 - **Wave F:** WP-8.7
 - **Wave G:** WP-8.11, after WP-8.1 merges
 
+**Priority order (set by the user, 2026-11-10).** When a slot frees up, take these first, in this order, ahead of every other queued WP. The dependency and conflict rules in AGENTS.md still apply.
+
+1. **WP-8.10** Exclude albums from Shuffle. This is the top-priority next feature.
+2. **WP-8.3** Fix the empty Bursts deck and its Home count.
+3. **WP-8.12** Stop Home counts flickering on a media type switch.
+
 ## 2. Code follow-ups
 
 ### WP-7.1 Stop closing bitmaps that may still be on screen
@@ -122,12 +128,15 @@ A Settings toggle, on by default, that keeps sensitive items out of the swipe UI
 
 ### WP-8.3 Fix the empty Bursts deck
 
-**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-25, §6.5, §6.8.
+**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-9, FR-25, §6.5, §6.8. **Priority:** 2 (§1).
+
+Reported by the user on a device, 2026-11-10: opening the Bursts smart filter shows "no items", and they want the Bursts row on Home to show how many there are.
 
 The Bursts count and deck ids enumerate every frame with `includeAllBurstAssets = true` (`PhotoKitSourceFetches.kt:145`), but later id lookups pass nil options (`PhotoKitMediaLibrary.kt:241`, `:268`, `PhotoKitMediaLoader.kt:117`, `:197`, `VideoItemCache.kt:189`). Likely cause, not yet confirmed on a device: nil options leave out non-representative frames, so metadata comes back empty and `SwipeScreen` shows its empty state.
 
 - Reproduce on a device with real bursts first. Whether `includeAllBurstAssets` applies to local-identifier fetches is not documented. If it doesn't, resolve frames another way, such as `fetchAssetsWithBurstIdentifier`.
 - Use one shared lookup for all five call sites.
+- The Bursts row on Home shows a count, and that count matches the deck the row opens (FR-9). Default: count deck items (burst frames), like every other row. If the user wants the number of bursts instead, change FR-6 in the same branch.
 - **Check `delete` carefully.** It treats zero fetched assets as `Deleted` (`PhotoKitMediaLibrary.kt:271`), so a frame the lookup misses would be marked `DELETED` while staying in the library.
 - Hard rule 1 still applies: `CommitDeletionsUseCase` remains the only caller.
 - **Tests:** `FR-6` case for a deck whose metadata page is partly or wholly missing; `FR-25` case that an unresolved id isn't reported as deleted.
@@ -207,7 +216,7 @@ The favorite confirmation has off-center text and can't be dismissed, so the onl
 
 ### WP-8.10 Let users exclude albums from Shuffle
 
-**Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4.
+**Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4. **Priority:** 1, the top-priority next feature (§1).
 
 Shuffle everything draws from the whole library, including photos that are in albums. Let the user choose albums to leave out of Shuffle. Nothing is excluded by default.
 
@@ -237,6 +246,17 @@ A Hide button that hides the current item in iOS Photos, the same as tapping Hid
 - **Tests:** `FR-38` cases with `FakeMediaLibrary` for hide success advancing with no decision row, failure keeping the card and showing the toast, double-tap and in-flight guards, undo unhiding and returning the card, failed unhide, the summary counts, and the cleared favorite confirm.
 - 👤 On a device: hide a photo and a video, check that they show up in Photos › Hidden, undo one, and check whether iOS shows its own confirmation prompt for the hide (record what happens in FR-38).
 
+### WP-8.12 Stop Home counts flickering on a media type switch
+
+**Branch:** `fr-5-count-flicker`. **Requirements:** FR-5, FR-9, NFR-4, §6.5 *Home counts*. **Priority:** 3 (§1).
+
+Reported by the user on a device, 2026-11-10: switching between All, Photos, and Videos on Home makes a count jump to the total first and then settle on the filtered number.
+
+- Reproduce first and find which number shows in between. Likely cause, not confirmed: `HomeViewModel` shows PhotoKit's raw count for the new type and then replaces it with the exact FR-9 count, or a result for the previous type lands after the switch.
+- After a type switch, a row shows the placeholder until the count for the new type is ready. It never shows a number that belongs to another type or a number that is about to be replaced by a different one.
+- Keep the NFR-4 rule that Home mounts without waiting for counts. If this changes the raw-then-exact behavior in §6.5, update the spec in the same branch.
+- **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late.
+
 ## Tracker
 
 The main agent keeps this section current so nobody loses track of running subagents, including after a restart or context compaction. Rules are in AGENTS.md "Working with subagents". Subagents never edit this section.
@@ -263,12 +283,13 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.3 | Fresh empty deck session | verifying | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
-| 8.3 | Fix empty Bursts deck | queued | | |
+| 8.3 | Fix empty Bursts deck | queued | | Priority 2 (user, 2026-11-10); also the Home Bursts count |
 | 8.4 | Storage freed (nice to have) | fixing | `fr-34-storage-freed` | Verified with findings (KVC crash guard, stale-estimate race, batching); fix in progress |
 | 8.5 | Duplicate set label | queued | | |
 | 8.6 | Last-copy warning | queued | | |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation callout | queued | | |
-| 8.10 | Exclude albums from Shuffle | queued | | |
+| 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, 2026-11-10): top-priority next feature |
 | 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
+| 8.12 | Home count flicker on type switch | queued | | Priority 3 (user, 2026-11-10) |
