@@ -406,6 +406,9 @@ interface MediaLoader {
      * request never decodes more pixels than the display can show (NFR-2, R1). Full-screen-sized
      * (non-degraded) decodes go through an LRU of 5 keyed by `(id, targetPx)` (NFR-3, §6.5 step 3);
      * a cached decode at the same key is emitted directly, without a second PhotoKit request.
+     * When two requests for one key overlap, the LRU keeps the decode it already holds and releases
+     * the redundant one — a bitmap the cache handed out is closed only by eviction, never by a later
+     * put — and the caller emits the value the LRU holds (NFR-3, WP-7.1).
      * Requests for a smaller target — grid thumbnails — bypass the LRU entirely, so scrolling a
      * grid never evicts the deck's cached full-screen decodes (NFR-3, WP-3.3).
      */
