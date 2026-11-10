@@ -29,12 +29,14 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * The session half of [SwipeViewModel]: the favorite delete confirm (FR-22), mute
- * (FR-16), the session summary (FR-21), session resume and its fresh-start mismatches
+ * (FR-16), the session summary (FR-21) including the empty-deck close (WP-7.3),
+ * session resume and its fresh-start mismatches
  * (FR-20, §6.5 step 1), and the one-shot events channel (§6.6). Fixed seeds and
  * virtual time throughout (§8.2).
  */
@@ -199,6 +201,101 @@ class SwipeViewModelSessionTest {
             // The undo stack ends with the session, and the session row is ended.
             assertFalse(s.canUndo)
             assertEquals(listOf("session-1"), f.sessionStore.endCalls)
+        }
+
+    @Test
+    fun `FR-21 opening an empty deck shows the empty state and ends the session row`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(0)
+            advanceUntilIdle()
+
+            val s = f.viewModel.uiState.value
+            // §5.8 empty state: no card, and no summary — a deck that opens empty
+            // never ran out, so FR-21 has nothing to summarize.
+            assertNull(s.current)
+            assertNull(s.next)
+            assertNull(s.finished)
+            assertNull(s.toast)
+            assertEquals(Progress(0, 0), s.progress)
+            assertFalse(s.canUndo)
+            // The zero-review session is over as soon as it opened: no decisions,
+            // and the row is ended instead of staying open forever (FR-20).
+            assertEquals(emptyList(), f.store.recordCalls)
+            assertEquals(1, f.sessionStore.createCalls.size)
+            assertEquals(listOf("session-1"), f.sessionStore.endCalls)
+            assertNotNull(
+                f.sessionStore.stored
+                    .single()
+                    .endedAt,
+            )
+        }
+
+    @Test
+    fun `FR-21 a session with cards is not ended before the deck runs out`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(2)
+            advanceUntilIdle()
+
+            // Neither at start nor mid-deck is the row touched: it stays open so a
+            // reopen resumes the review (FR-20).
+            assertTrue(f.sessionStore.endCalls.isEmpty())
+            assertNull(
+                f.sessionStore.stored
+                    .single()
+                    .endedAt,
+            )
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            assertTrue(f.sessionStore.endCalls.isEmpty())
+
+            // Only running the deck out ends it — exactly once, with the summary.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            val s = f.viewModel.uiState.value
+            assertEquals(SessionSummary(kept = 2, queued = 0, skipped = 0), s.finished)
+            assertEquals(listOf("session-1"), f.sessionStore.endCalls)
+        }
+
+    @Test
+    fun `FR-20 FR-21 resuming a zero-review session with an empty deck ends the row without a summary`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            // A row created just before process death, nothing decided: the reopen
+            // resumes it (FR-20), the deck rebuilds empty, and the zero-review
+            // session closes right away — empty state, no summary, row ended (FR-21).
+            val clock = FakeClock()
+            val skips = FakeSessionSkips()
+            val store = FakeDecisionStore(clock, skips)
+            val sessionStore = FakeSessionStore(clock, skips)
+            val library = FakeMediaLibrary(emptyList())
+            sessionStore.create(SOURCE, MediaTypeFilter.ALL, SEED)
+
+            val reopened =
+                SwipeViewModel(
+                    source = SOURCE,
+                    typeFilter = MediaTypeFilter.ALL,
+                    buildDeck = BuildDeckUseCase(library, store),
+                    recordDecision = RecordDecisionUseCase(store),
+                    undoDecision = UndoDecisionUseCase(store),
+                    mediaLibrary = library,
+                    mediaLoader = FakeMediaLoader(),
+                    videoPreloader = FakeVideoPreloader(),
+                    mediaSharer = FakeMediaSharer(),
+                    decisions = store,
+                    sessionStore = sessionStore,
+                    seedProvider = { SEED },
+                )
+            advanceUntilIdle()
+
+            val s = reopened.uiState.value
+            assertNull(s.current)
+            assertNull(s.finished)
+            assertEquals(Progress(0, 0), s.progress)
+            // Resumed, not recreated — and the resumed row ends.
+            assertEquals(1, sessionStore.createCalls.size)
+            assertEquals(listOf("session-1"), sessionStore.endCalls)
         }
 
     @Test

@@ -27,7 +27,10 @@ interface SessionStore {
         position: Int,
     )
 
-    /** Stamp `ended_at` when the deck runs out (FR-21, §7). */
+    /**
+     * Stamp `ended_at` when the deck runs out (FR-21, §7), and immediately for a
+     * session whose deck opened empty with nothing reviewed (FR-21, WP-7.3).
+     */
     suspend fun end(id: String)
 
     /** The most recent session with no end time, for resume (FR-20); null if none. */
