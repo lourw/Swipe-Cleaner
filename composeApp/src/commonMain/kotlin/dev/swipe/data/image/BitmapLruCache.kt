@@ -33,9 +33,12 @@ data class BitmapCacheKey(
  * callers.
  *
  * **Ownership.** A value handed out by [get] or stored by [put] belongs to the cache: it
- * is closed only via [onEvict] (or a replaced [put]). Callers must treat emitted bitmaps
- * as borrowed and must not close them; keep at most one concurrent collector per key so
- * an in-flight render can never hold the eviction victim.
+ * is closed only via [onEvict], and only once it has left the map. Callers must treat
+ * emitted bitmaps as borrowed and must not close them. A [put] on a key the cache already
+ * holds keeps the existing value — it may be on screen — and releases the redundant new
+ * value through [onEvict] instead; callers emit the value [put] returns, never their own
+ * decode. Overlapping collectors on one key are therefore safe: a bitmap the cache has
+ * handed out is closed by eviction, never by a later put (WP-7.1; NFR-3).
  */
 class BitmapLruCache<V>(
     private val capacity: Int = DEFAULT_CAPACITY,
@@ -60,30 +63,44 @@ class BitmapLruCache<V>(
         }
 
     /**
-     * Stores [value] under [key] as most recently used. If [key] already held a different
-     * value, that value is evicted. Any entries over [capacity] after the insert are evicted,
-     * least recently used first; every evicted value is passed to [onEvict] off the lock.
+     * Stores [value] under [key] as most recently used and returns the value the cache holds
+     * for [key] afterwards — emit that, not [value]. If [key] already holds a value, the
+     * existing one is kept (it may already be drawn by the UI) and [value] is released
+     * through [onEvict] as redundant (WP-7.1; NFR-3). Any entries over [capacity] after an
+     * insert are evicted, least recently used first; every released value — evicted and
+     * redundant alike — is passed to [onEvict] off the lock.
      */
     suspend fun put(
         key: BitmapCacheKey,
         value: V,
-    ) {
+    ): V {
         val evicted = mutableListOf<Pair<BitmapCacheKey, V>>()
-        mutex.withLock {
-            entries.remove(key)?.let { evicted += key to it }
-            entries[key] = value
-            while (entries.size > capacity) {
-                // Copy key/value out of the entry view *before* removing it: on
-                // Kotlin/Native an EntryRef reads through to the backing map and
-                // throws ConcurrentModificationException once the map is modified.
-                val lru = entries.entries.first()
-                val lruKey = lru.key
-                val lruValue = lru.value
-                entries.remove(lruKey)
-                evicted += lruKey to lruValue
+        val held = mutex.withLock {
+            val existing = entries.remove(key)
+            if (existing != null) {
+                // Same-key put: re-insert the existing value at the MRU end and hand the
+                // redundant new one to onEvict. A value the cache has handed out is then
+                // closed only by eviction, never by a later put.
+                entries[key] = existing
+                evicted += key to value
+                existing
+            } else {
+                entries[key] = value
+                while (entries.size > capacity) {
+                    // Copy key/value out of the entry view *before* removing it: on
+                    // Kotlin/Native an EntryRef reads through to the backing map and
+                    // throws ConcurrentModificationException once the map is modified.
+                    val lru = entries.entries.first()
+                    val lruKey = lru.key
+                    val lruValue = lru.value
+                    entries.remove(lruKey)
+                    evicted += lruKey to lruValue
+                }
+                value
             }
         }
         evicted.forEach { (k, v) -> onEvict(k, v) }
+        return held
     }
 
     /** Number of entries currently held. */
