@@ -268,15 +268,24 @@ xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
 
 ## Permissions
 
-1. ☐ First launch shows the onboarding screen before any PhotoKit prompt.
-2. ☐ "Get started" triggers the iOS photo library permission dialog. **Allow**
-   → the app proceeds to Home.
-3. ☐ **Don't allow** → the denied screen appears with a route to iOS Settings;
-   the app never shows a broken empty library.
-4. ☐ iOS Settings → Photos → **Limited access**: pick 2–3 photos; the app
-   decks exactly those, and a "Manage/Edit photos" entry opens the system
-   picker. Adding more there updates the deck on return.
-5. ☐ Revoke fully in iOS Settings, reopen the app → back on the denied screen.
+The system prompt appears at most once per install, so start each check from a
+clean slate: uninstall the app (`xcrun simctl uninstall booted dev.swipe.cleaner`)
+and reinstall it.
+
+1. ☐ 👤 **Allow Full Access** (fresh install): first launch opens Home — no
+   onboarding screen — and the iOS photo library prompt appears over Home's
+   placeholder counts. Allow Full Access → the counts fill in.
+2. ☐ 👤 **Limit Access** (fresh install): pick Limited Access and 2–3 photos
+   → Home fills in and the "You've given access to N items. Manage." banner
+   shows; Manage opens the system picker, and adding more there updates the
+   deck on return.
+3. ☐ 👤 **Don't Allow** (fresh install): the denied screen appears with a
+   route to iOS Settings; the app never shows a broken empty library.
+4. ☐ 👤 After answering the prompt, quit and reopen the app: no prompt
+   appears again and Home loads directly.
+5. ☐ iOS Settings → Photos → **Limited access**: change the picked items; the
+   app decks exactly those.
+6. ☐ Revoke fully in iOS Settings, reopen the app → back on the denied screen.
 
 ## Settings
 
@@ -339,7 +348,7 @@ edge-to-edge behind both.
    of the Home Indicator; the toast sits above it.
 5. ☐ Albums / By month: headers clear the status bar; the lists scroll clear
    of the Home Indicator.
-6. ☐ Onboarding and Denied: copy clears the status bar; the CTA clears the
+6. ☐ Denied: copy clears the status bar; the CTA clears the
    Home Indicator.
 7. ☐ Summary and Delete-success: the centered content stays inside the safe
    area.

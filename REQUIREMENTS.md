@@ -51,8 +51,8 @@ All three were settled during the WP-6.4 release sweep (2026-11-05) against what
 
 IDs are stable. Reference them in commits and tests, for example `FR-12`.
 
-### Permissions and onboarding
-- **FR-1** On first launch, show an onboarding screen that explains what the app does, then request `PHAccessLevel.readWrite`.
+### Permissions
+- **FR-1** On first launch, open Home and request `PHAccessLevel.readWrite` automatically; the iOS prompt appears over Home's placeholder state. A user who has already answered the prompt is never asked again.
 - **FR-2** If access is **limited**, show a persistent banner: "You've given access to N items. Manage." Tapping it opens `presentLimitedLibraryPicker`.
 - **FR-3** If access is **denied**, show a blocking screen with an "Open Settings" button that opens `UIApplication.openSettingsURLString`.
 
@@ -220,18 +220,22 @@ Other gestures on the card:
 **Screen map**
 
 ```
-Onboarding ──► Permission ──► Home ─┬─► Albums ──────┐
-                  │                 ├─► By month ────┤
-             (denied)               │                │
-                  ▼                 │                ▼
-           Open-Settings            └──────────► Swipe ──► Session summary
-                                                   │              │
-                                                   ▼              ▼
-                                               Review queue ◄─────┘
-                                                   │
-                                     iOS confirm ──┴──► Delete success ──► Home
+Home ─┬─► Albums ──────┐
+      ├─► By month ────┤
+      │                │
+      │                ▼
+      └──────────► Swipe ──► Session summary
+                              │              │
+                              ▼              ▼
+                          Review queue ◄─────┘
+                              │
+                iOS confirm ──┴──► Delete success ──► Home
 Home ──► Settings
 ```
+
+First launch (FR-1): Home is the root from the first frame and shows its
+placeholder state while the iOS access prompt is up. Don't Allow routes to the
+denied screen (Open-Settings); every other answer stays on Home.
 
 **Home**
 
@@ -445,15 +449,13 @@ interface SessionStore {                                    // session + session
     suspend fun skippedIds(sessionId: String): Set<String>  // skips of this session (FR-14)
 }
 
-interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true, onboardingSeen = false
+interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true
     val haptics: StateFlow<Boolean>                         // FR-29
     val includeCloudOnly: StateFlow<Boolean>                // FR-29
     val autoplayVideos: StateFlow<Boolean>                  // FR-29
-    val onboardingSeen: StateFlow<Boolean>                  // FR-1
     fun setHaptics(enabled: Boolean)
     fun setIncludeCloudOnly(enabled: Boolean)
     fun setAutoplayVideos(enabled: Boolean)
-    fun setOnboardingSeen(seen: Boolean)
 }
 
 interface MediaSharer {                                     // FR-32; iosMain impl PhotoKitMediaSharer

@@ -84,7 +84,7 @@ main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
 #    modifiers. The headless CMP test window reports zero insets, so SafeAreaBoundsTest
 #    cannot pin a removed .statusBarsPadding()/.navigationBarsPadding() — this static
 #    guard is the regression net (REQUIREMENTS §8.3).
-#    The 13 surfaces: Home, Albums, Months, Onboarding, Denied, Queue, QueueItemViewer,
+#    The 12 surfaces: Home, Albums, Months, Denied, Queue, QueueItemViewer,
 #    Settings, Summary, DeleteSuccess and the shared EmptyState clear both bars; the
 #    deck splits its insets (TopBar clears only the status bar inside its scrim,
 #    SwipeScreen and ActionBar only the Home Indicator); the debug gallery's first
