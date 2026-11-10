@@ -81,7 +81,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-18** The card shows metadata: date, and the duration for videos. A badge marks Live Photos, iCloud items, and favorites.
 - **FR-19** The progress indicator shows `reviewed / total` for the session.
 - **FR-20** Every decision is saved immediately, so killing the app loses nothing.
-- **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue.
+- **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue. A deck that **opens** empty never runs out: the screen shows its §5.8 empty state instead of a summary, and the session row ends immediately — with no decisions and nothing to resume, the session is over as soon as it opened (WP-7.3).
 - **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left shows an inline confirm toast, "This is a favorite — delete anyway?", before it is queued.
 - **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
 
@@ -445,7 +445,7 @@ interface DecisionStore {
 interface SessionStore {                                    // session + session_skip rows (§7); timestamps from the injected kotlin.time.Clock
     suspend fun create(source: DeckSource, typeFilter: MediaTypeFilter, seed: Long): String
     suspend fun updatePosition(id: String, position: Int)   // resume position (FR-20)
-    suspend fun end(id: String)
+    suspend fun end(id: String)                                 // stamp ended_at: deck ran out (FR-21), or opened empty with nothing reviewed (WP-7.3)
     suspend fun openSession(): SessionRecord?
     suspend fun skippedIds(sessionId: String): Set<String>  // skips of this session (FR-14)
 }
@@ -495,6 +495,8 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
 4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top. `SwipeViewModel` calls `VideoPreloader.preload(id)` for video ids entering the same current + next 3 window (metadata `type == VIDEO` only) and `cancel(id)` for ids leaving it — alongside the image prefetch of step 3 (WP-4.1).
 5. On swipe, the ViewModel saves to `DecisionStore` first, then advances `index`. If the save fails, it emits an error and reverts the card (NFR-7).
+
+**Session lifecycle (FR-20, FR-21, WP-7.3).** A session row is open from `create` until something stamps `ended_at`. Running the deck out ends it, after the FR-21 summary. A resume that rebuilds an empty deck ends it too: with cards already reviewed it retries the undelivered summary (FR-21), and with nothing reviewed it shows the §5.8 empty state and stamps `ended_at` right away (a zero-review session), so `openSession()` never holds a session that has nothing to resume (FR-20). A failed start leaves the row's state alone — the deck build may succeed on the next open; a failed end leaves the row open, and the next open retries.
 
 **iCloud-only exclusion (FR-29, WP-6.1).** The "Include iCloud-only items" toggle blocks *loading*, not deck membership. `PHAsset.isCloudOnly` is cheap on an already-fetched asset, but the deck build is identifiers-only by design (WP-1.4), so a deck-time filter would need a per-asset metadata pass over the source (NFR-4) — ids therefore stay in the deck either way. The setting drives `isNetworkAccessAllowed` on every image request and `networkAccessAllowed` on video-item preloads (steps 3–4): with it off, an iCloud-only item never downloads and its card shows the degraded thumbnail (or the load-error placeholder when no local version exists) instead of fetching over the network; with it on, the original downloads behind the cloud badge as before.
 
