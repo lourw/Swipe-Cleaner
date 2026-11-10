@@ -24,7 +24,8 @@ interface MediaSharer {
      * media loads (the caller shows a loading state) and returns once the sheet is
      * on screen ([ShareResult.PRESENTED]) or the load failed ([ShareResult.FAILED]).
      * Cancelling the caller during the load abandons it and deletes any temp file;
-     * nothing is presented. Must be called from the main thread.
+     * nothing is presented. Callable from any coroutine context: the implementation
+     * moves to the main thread itself to present the sheet.
      */
     suspend fun share(id: String): ShareResult
 }
