@@ -54,7 +54,8 @@ import kotlinx.coroutines.launch
  * single-flight removal: the deck never rewinds under a completing write.
  *
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
- * session's stored counts and ends the session row.
+ * session's stored counts and ends the session row. A deck that opens empty shows no
+ * summary — the §5.8 empty state stands in — and its row ends immediately ([start]).
  *
  * **Share** (FR-32): [SwipeIntent.Share] hands the current card to [MediaSharer]
  * with [SwipeUiState.sharing] up while the media loads, and shows
@@ -228,6 +229,10 @@ class SwipeViewModel(
      * excluded so the screen reopens on the same card, and their count becomes the
      * [reviewedBase]. Anything else (no open session, mismatched source or filter)
      * creates a fresh session row with the stored seed.
+     *
+     * A deck that opens empty (fresh or resumed with nothing reviewed) publishes the
+     * §5.8 empty state and its row ends right away, so `openSession()` never holds a
+     * session with nothing to resume (FR-21, WP-7.3).
      */
     private suspend fun start() {
         try {
@@ -251,9 +256,36 @@ class SwipeViewModel(
             }
             ensureMetadataLoaded()
             refreshPrefetch()
-            // A resumed session that is already exhausted (every card disposed before
-            // process death, the summary never delivered) retries FR-21 right away.
-            if (deck.isEmpty() && reviewedBase > 0) finish() else publish()
+            when {
+                // A resumed session that is already exhausted (every card disposed before
+                // process death, the summary never delivered) retries FR-21 right away.
+                deck.isEmpty() && reviewedBase > 0 -> {
+                    finish()
+                }
+
+                // FR-21 (WP-7.3): a deck that opens empty never runs out, so there is no
+                // summary — the screen shows the §5.8 empty state — and with nothing to
+                // resume (FR-20) the row ends right away instead of staying open forever.
+                // Best effort: a failed end leaves the row open, and the next open
+                // resumes the still-empty, still-unreviewed deck and closes it again.
+                deck.isEmpty() -> {
+                    publish()
+                    val emptySessionId = sessionId
+                    if (emptySessionId != null) {
+                        try {
+                            sessionStore.end(emptySessionId)
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation // ViewModel teardown, not a failed end
+                        } catch (_: Exception) {
+                            // Ignored on purpose; see above.
+                        }
+                    }
+                }
+
+                else -> {
+                    publish()
+                }
+            }
         } catch (cancellation: CancellationException) {
             throw cancellation // ViewModel teardown, not a failed start
         } catch (_: Exception) {
