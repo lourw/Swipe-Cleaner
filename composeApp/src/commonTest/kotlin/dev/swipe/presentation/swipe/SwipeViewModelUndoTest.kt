@@ -16,6 +16,7 @@ import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -30,8 +31,9 @@ import kotlin.test.assertTrue
 
 /**
  * Undo (FR-15) for [SwipeViewModel]: removal before the index moves back, the 50-deep
- * stack, the single-flight guard against rapid taps, skip undo, and the empty-stack
- * no-op. Fixed seeds and virtual time throughout (§8.2).
+ * stack, the single-flight guard against rapid taps, the decide-in-flight guard
+ * (WP-7.2), skip undo, and the empty-stack no-op. Fixed seeds and virtual time
+ * throughout (§8.2).
  */
 class SwipeViewModelUndoTest {
     @AfterTest
@@ -246,5 +248,94 @@ class SwipeViewModelUndoTest {
                     ?.id,
             )
             assertEquals(1, f.viewModel.uiState.value.progress.reviewed)
+        }
+
+    @Test
+    fun `FR-15 undo is ignored while a decision write is in flight`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            val gate = CompletableDeferred<Unit>()
+            f.store.gateNextRecord = gate
+
+            f.viewModel.uiState.test {
+                awaitDeckReady()
+
+                f.viewModel.onIntent(SwipeIntent.Keep)
+                advanceUntilIdle()
+                // The write is suspended on the gate: nothing has moved (NFR-7).
+                expectNoEvents()
+
+                // Undo during the write is ignored (WP-7.2): rewinding now would
+                // re-show asset-1 while its KEEP is still completing.
+                f.viewModel.onIntent(SwipeIntent.Undo)
+                advanceUntilIdle()
+                expectNoEvents()
+                assertTrue(f.store.removeCalls.isEmpty())
+
+                // Once the write lands the card advances normally…
+                gate.complete(Unit)
+                val after = awaitItem()
+                assertEquals("asset-2", after.current?.id)
+                assertTrue(after.canUndo)
+
+                // …and Undo then works exactly as usual (FR-15).
+                f.viewModel.onIntent(SwipeIntent.Undo)
+                val undone = awaitItem()
+                assertEquals("asset-1", undone.current?.id)
+                assertEquals(ToastMessage.Undone, undone.toast)
+            }
+            // Exactly one removal, of the decided card, after the guard lifted.
+            assertEquals(listOf("asset-1"), f.store.removeCalls)
+        }
+
+    @Test
+    fun `FR-15 an undo dropped mid-write is not queued behind it`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            advanceUntilIdle()
+
+            // Decide asset-1 for real, so the undo stack is non-empty and it is
+            // the in-flight write, not an empty stack, that drops the next tap.
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+            assertEquals(
+                "asset-2",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
+
+            val gate = CompletableDeferred<Unit>()
+            f.store.gateNextRecord = gate
+            f.viewModel.onIntent(SwipeIntent.Keep)
+            advanceUntilIdle()
+
+            // Ignored while the asset-2 write is in flight: no removal, no rewind.
+            f.viewModel.onIntent(SwipeIntent.Undo)
+            advanceUntilIdle()
+            assertTrue(f.store.removeCalls.isEmpty())
+            val held = f.viewModel.uiState.value
+            assertEquals("asset-2", held.current?.id)
+            assertEquals(1, held.progress.reviewed)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(
+                "asset-3",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
+
+            // The dropped tap did not queue up: the next Undo rewinds exactly
+            // one step, back to asset-2 — not past it.
+            f.viewModel.onIntent(SwipeIntent.Undo)
+            advanceUntilIdle()
+            assertEquals(
+                "asset-2",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
+            assertEquals(listOf("asset-2"), f.store.removeCalls)
         }
 }

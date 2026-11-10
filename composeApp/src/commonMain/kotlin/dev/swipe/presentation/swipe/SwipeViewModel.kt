@@ -49,7 +49,9 @@ import kotlinx.coroutines.launch
  * **Undo** (FR-15) is the mirror image: the removal goes through
  * [UndoDecisionUseCase] *before* the index moves back — a failed removal leaves the
  * state untouched and shows the same error toast — and each successful decision
- * pushes an [UndoEntry] onto a 50-deep stack (oldest dropped).
+ * pushes an [UndoEntry] onto a 50-deep stack (oldest dropped). Undo is ignored
+ * while a decision write is in flight ([decideWritesInFlight]), the mirror of the
+ * single-flight removal: the deck never rewinds under a completing write.
  *
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
  * session's stored counts and ends the session row.
@@ -128,6 +130,16 @@ class SwipeViewModel(
 
     /** FR-15: the popped step whose removal is in flight; further Undo taps are ignored. */
     private var undoInFlight: UndoEntry? = null
+
+    /**
+     * FR-15: decision writes in flight (a double tap has two). While non-zero, [undo]
+     * is ignored — the mirror of [undoInFlight] holding further Undo taps. Rewinding
+     * under a completing write would re-show the card being decided, and that write's
+     * stale-advance guard would discard the advance, leaving a stored verdict behind a
+     * card the user then decides a second time; ignoring the tap keeps the deck and
+     * the stored rows in step (NFR-7).
+     */
+    private var decideWritesInFlight = 0
 
     /**
      * FR-32: the single-flight share. Nothing here writes a decision or moves the
@@ -277,6 +289,9 @@ class SwipeViewModel(
             }
             eventChannel.trySend(SwipeEvent.ReturnCard(Decision.DELETE))
         } else {
+            // FR-15: hold Undo for the duration of the write (WP-7.2); a double
+            // tap has two writes in flight, hence the counter.
+            decideWritesInFlight += 1
             viewModelScope.launch {
                 val saved =
                     try {
@@ -288,6 +303,12 @@ class SwipeViewModel(
                         // Any store failure reverts the card (NFR-7); it surfaces as the
                         // SaveFailed toast, and there is no logging (NFR-6).
                         false
+                    } finally {
+                        // Cleared the moment the write returns. Everything below runs to
+                        // the next suspension point on the ViewModel's single dispatcher,
+                        // so an Undo tap can never slip in between the write and the
+                        // index advance.
+                        decideWritesInFlight -= 1
                     }
                 if (!saved) {
                     _uiState.update {
@@ -328,11 +349,17 @@ class SwipeViewModel(
      * later push and the index monotonic between pop and completion, so a failed
      * removal can always restore stack order with a plain re-add, and the entry's
      * index is guaranteed to sit behind the deck head when the removal lands.
+     *
+     * A tap is likewise ignored while a [decide] write is in flight
+     * ([decideWritesInFlight], WP-7.2): rewinding under a completing write re-shows
+     * the card being decided, so the tap drops rather than rewinds or queues.
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
-        // FR-15: single-flight, and a no-op on an empty stack (§6.6 canUndo).
-        val entry = if (undoInFlight == null) undoStack.removeLastOrNull() else null
+        // FR-15: single-flight, no-op on an empty stack (§6.6 canUndo), and held
+        // while a decision write is in flight (WP-7.2).
+        val blocked = undoInFlight != null || decideWritesInFlight > 0
+        val entry = if (!blocked) undoStack.removeLastOrNull() else null
         entry ?: return
         undoInFlight = entry
         viewModelScope.launch {
