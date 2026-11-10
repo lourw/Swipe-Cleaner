@@ -67,7 +67,9 @@ import kotlin.math.roundToInt
  * `PHImageRequestID` in `awaitClose`.
  *
  * **Memory (NFR-3).** Every full-screen (non-degraded) decode goes through [cache]
- * (`BitmapLruCache`, capacity 5); evicted bitmaps are closed by the cache's `onEvict`.
+ * (`BitmapLruCache`, capacity 5); evicted bitmaps are closed by the cache's `onEvict`,
+ * and a decode the cache does not keep — the key already holds one — is released the same
+ * way, so the loader emits the value `put` returns rather than its own decode (WP-7.1).
  * Small-target requests bypass the cache in both directions — their decodes are the
  * queue grid's tiles (WP-3.3), and letting them evict (and close) a visible card's
  * bitmap would crash the frame; the tile bitmaps are small enough for Skia's
@@ -152,9 +154,16 @@ class PhotoKitMediaLoader(
                     if (decoded != null) {
                         // Only full-screen decodes enter the LRU (NFR-3 budgets full-screen
                         // bitmaps); degraded and small-target deliveries are left to
-                        // Skia's finalizer.
-                        if (!isDegraded && fullScreen) cache.put(key, decoded)
-                        send(LoadedImage(decoded, isDegraded = isDegraded, isCloud = isCloud))
+                        // Skia's finalizer. A same-key put keeps the cached bitmap — another
+                        // collector may already be drawing it — so emit the value the cache
+                        // holds, returned by put, never this decode (WP-7.1; NFR-3).
+                        val kept =
+                            if (!isDegraded && fullScreen) {
+                                cache.put(key, decoded)
+                            } else {
+                                decoded
+                            }
+                        send(LoadedImage(kept, isDegraded = isDegraded, isCloud = isCloud))
                     }
                     complete = !isDegraded
                 }

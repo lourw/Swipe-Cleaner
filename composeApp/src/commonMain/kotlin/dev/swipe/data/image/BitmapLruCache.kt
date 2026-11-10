@@ -75,30 +75,31 @@ class BitmapLruCache<V>(
         value: V,
     ): V {
         val evicted = mutableListOf<Pair<BitmapCacheKey, V>>()
-        val held = mutex.withLock {
-            val existing = entries.remove(key)
-            if (existing != null) {
-                // Same-key put: re-insert the existing value at the MRU end and hand the
-                // redundant new one to onEvict. A value the cache has handed out is then
-                // closed only by eviction, never by a later put.
-                entries[key] = existing
-                evicted += key to value
-                existing
-            } else {
-                entries[key] = value
-                while (entries.size > capacity) {
-                    // Copy key/value out of the entry view *before* removing it: on
-                    // Kotlin/Native an EntryRef reads through to the backing map and
-                    // throws ConcurrentModificationException once the map is modified.
-                    val lru = entries.entries.first()
-                    val lruKey = lru.key
-                    val lruValue = lru.value
-                    entries.remove(lruKey)
-                    evicted += lruKey to lruValue
+        val held =
+            mutex.withLock {
+                val existing = entries.remove(key)
+                if (existing != null) {
+                    // Same-key put: re-insert the existing value at the MRU end and hand the
+                    // redundant new one to onEvict. A value the cache has handed out is then
+                    // closed only by eviction, never by a later put.
+                    entries[key] = existing
+                    evicted += key to value
+                    existing
+                } else {
+                    entries[key] = value
+                    while (entries.size > capacity) {
+                        // Copy key/value out of the entry view *before* removing it: on
+                        // Kotlin/Native an EntryRef reads through to the backing map and
+                        // throws ConcurrentModificationException once the map is modified.
+                        val lru = entries.entries.first()
+                        val lruKey = lru.key
+                        val lruValue = lru.value
+                        entries.remove(lruKey)
+                        evicted += lruKey to lruValue
+                    }
+                    value
                 }
-                value
             }
-        }
         evicted.forEach { (k, v) -> onEvict(k, v) }
         return held
     }
