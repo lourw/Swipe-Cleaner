@@ -61,7 +61,7 @@ fun photoKitIsScreenshot(subtypes: Int): Boolean = subtypes and PH_SUBTYPE_SCREE
  * `PHAuthorizationStatus` → [LibraryAccess] (§6.4): `authorized` → FULL, `limited` →
  * LIMITED, `denied`/`restricted` → DENIED, `notDetermined` → NOT_DETERMINED. Any
  * status this app doesn't know yet is treated as NOT_DETERMINED — the conservative
- * choice: it re-runs the onboarding path instead of locking the user out (FR-1).
+ * choice: it re-runs the launch access request instead of locking the user out (FR-1).
  */
 fun photoKitLibraryAccess(status: Int): LibraryAccess =
     when (status) {

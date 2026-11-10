@@ -14,6 +14,6 @@ enum class LibraryAccess {
     /** The user refused (`denied` or `restricted`); Settings is the only way back (FR-3). */
     DENIED,
 
-    /** Not asked yet; the onboarding screen comes first (FR-1). */
+    /** Not asked yet; the system prompt is fired over Home at launch (FR-1). */
     NOT_DETERMINED,
 }
