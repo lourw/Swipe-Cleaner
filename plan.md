@@ -38,6 +38,7 @@ WPs in the same wave don't depend on each other. Up to 2 subagents run at once (
 - **Wave D:** WP-8.3, WP-8.4
 - **Wave E:** WP-8.5, then WP-8.6
 - **Wave F:** WP-8.7
+- **Wave G:** WP-8.11, after WP-8.1 merges
 
 ## 2. Code follow-ups
 
@@ -219,6 +220,23 @@ Shuffle everything draws from the whole library, including photos that are in al
 - This doesn't remove anything from the deletion path. Deleting a Shuffle item still removes it from the library and every album.
 - **Tests:** `FR-37` cases for exclusion on and off, an item in two albums, the Shuffle count, a resumed session, a deleted album, and the type filter (FR-5).
 
+### WP-8.11 Hide button on the swipe screen
+
+**Branch:** `fr-38-hide-button`. **Depends on:** WP-8.1, because both edit the swipe screen, `SwipeViewModel`, `SwipeIntent` / `ToastMessage`, and §5.7 / §5.8. **Requirements:** new FR-38, FR-15, FR-21, §5.2, §5.7 TopBar, §5.8 Swipe, §6.4, §6.6, NFR-7, NFR-8, hard rule 1.
+
+A Hide button that hides the current item in iOS Photos, the same as tapping Hide in the Photos app. The item moves to the Photos Hidden album and leaves the deck. Decided 2026-11-09: the button goes in the swipe `TopBar`, immediately left of the queue (trash) button. Share keeps the right edge of the action bar.
+
+- **Spec.** Add FR-38. FR-38 also states the existing behavior: hidden assets never appear in any deck or source count (PhotoKit's `includeHiddenAssets` defaults to false; nothing sets it). Update the §5.2 icon mapping (Hide = `visibility_off`), the §5.7 `TopBar` row, the §5.8 Swipe wireframe, `MediaLibrary` in §6.4, and `SwipeUiState` / `SwipeIntent` / `ToastMessage` in §6.6.
+- **Look.** Transparent icon button with a 44 dp touch target, `textPrimary` icon, `SwipeTheme` tokens only (hard rule 3). It isn't a verdict, so it must not use the `keep` / `delete` / `skip` colors.
+- **Hiding is immediate.** There's no queue and no in-app confirmation. Undo is the safety net. Add `MediaLibrary.setHidden(id, hidden)` in `data/`, implemented in `iosMain/platform/` with `performChanges { PHAssetChangeRequest(forAsset:).hidden = ... }` (hard rule 5).
+- **Deletion safety (hard rule 1).** The hide path changes only `hidden` and never calls `deleteAssets`. Update the "only place that can ever call `performChanges`" comment in `PhotoKitMediaLibrary.kt` and `scripts/check-rules.sh`: `deleteAssets` stays reachable only from `CommitDeletionsUseCase`, and the hide change request is the only other permitted `performChanges` call.
+- **Advance only after success (NFR-7, same rule as hard rule 2).** The deck advances only after the change succeeds. On failure the card stays and a toast says "Couldn't hide this item — try again". While a hide or a decision write is in flight, the button is disabled and extra taps are ignored.
+- **No decision.** Hiding writes no KEEP / DELETE / SKIP row and doesn't count toward kept, queued, or skipped in the FR-21 summary. It does advance the progress count like any other card that leaves the deck. A pending FR-22 favorite confirm is cleared.
+- **Undo (FR-15).** A hide pushes an entry onto the undo stack. Undo calls `setHidden(id, false)` and returns the card, fading and scaling it back in place, since it didn't leave by a side. Honour Reduce Motion. If unhiding fails, show a toast and keep the entry. After a hide, show a 3 s "Hidden in Photos" toast.
+- **Accessibility (NFR-8).** VoiceOver label "Hide from library". Add a Hide custom action on the card.
+- **Tests:** `FR-38` cases with `FakeMediaLibrary` for hide success advancing with no decision row, failure keeping the card and showing the toast, double-tap and in-flight guards, undo unhiding and returning the card, failed unhide, the summary counts, and the cleared favorite confirm.
+- 👤 On a device: hide a photo and a video, check that they show up in Photos › Hidden, undo one, and check whether iOS shows its own confirmation prompt for the hide (record what happens in FR-38).
+
 ## Tracker
 
 | WP | Title | Status |
@@ -236,3 +254,4 @@ Shuffle everything draws from the whole library, including photos that are in al
 | 8.8 | Center media type selector | [ ] |
 | 8.9 | Favorite confirmation callout | [ ] |
 | 8.10 | Exclude albums from Shuffle | [ ] |
+| 8.11 | Hide button | [ ] |
