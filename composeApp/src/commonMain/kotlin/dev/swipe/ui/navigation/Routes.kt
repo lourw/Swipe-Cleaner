@@ -1,17 +1,12 @@
 // Type-safe navigation routes for the §5.8 screen map, used with the
 // `navigation-compose` serializable-route API (REQUIREMENTS §6.2). Only the
-// permission-flow destinations (Onboarding, Denied, Home) have screens
-// registered so far (WP-1.7); the rest are declared here and get wired up by
-// the work packages that own their screens (WP-1.9, WP-2.2, WP-3.3, WP-5.3,
-// WP-6.1).
+// permission-flow destinations (Denied, Home) have screens registered so far
+// (WP-1.7); the rest are declared here and get wired up by the work packages
+// that own their screens (WP-1.9, WP-2.2, WP-3.3, WP-5.3, WP-6.1).
 
 package dev.swipe.ui.navigation
 
 import kotlinx.serialization.Serializable
-
-/** First-launch explanation, then the `PHAccessLevel.readWrite` request (FR-1). */
-@Serializable
-data object Onboarding
 
 /** Blocking screen when photo access is denied; offers Open Settings (FR-3). */
 @Serializable

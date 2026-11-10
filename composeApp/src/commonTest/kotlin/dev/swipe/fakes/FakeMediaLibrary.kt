@@ -108,6 +108,13 @@ class FakeMediaLibrary(
      */
     var nextRequestAuthorizationResult: LibraryAccess? = null
 
+    /**
+     * When non-null, [requestAuthorization] records the call and then suspends
+     * until this completes — models the system prompt still showing while the
+     * user has not answered, so tests can hold a request in flight (FR-1).
+     */
+    var requestAuthorizationGate: CompletableDeferred<Unit>? = null
+
     private val changesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 64)
 
     override suspend fun authorization(): LibraryAccess {
@@ -125,6 +132,7 @@ class FakeMediaLibrary(
             failNextRequestAuthorization = null
             throw it
         }
+        requestAuthorizationGate?.await()
         nextRequestAuthorizationResult?.let {
             nextRequestAuthorizationResult = null
             // The prompt decision is the library's state from now on, as with PhotoKit.

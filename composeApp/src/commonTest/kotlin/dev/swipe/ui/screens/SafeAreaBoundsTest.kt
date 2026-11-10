@@ -28,7 +28,6 @@ import dev.swipe.ui.screens.home.AlbumsScreen
 import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.home.MonthsScreen
 import dev.swipe.ui.screens.onboarding.DeniedScreen
-import dev.swipe.ui.screens.onboarding.OnboardingScreen
 import dev.swipe.ui.screens.queue.QueueScreen
 import dev.swipe.ui.screens.settings.SettingsScreen
 import dev.swipe.ui.screens.summary.DeleteSuccessScreen
@@ -199,15 +198,6 @@ class SafeAreaBoundsTest {
             waitForIdle()
             assertInsideWindow(onNodeWithText("By month"))
             assertInsideWindow(onNodeWithText("October"))
-        }
-
-    @Test
-    fun `WP-6-4 onboarding title and CTA sit inside the window`() =
-        runComposeUiTest {
-            setContent { SwipeTheme { OnboardingScreen(onAllowAccess = {}) } }
-            waitForIdle()
-            assertInsideWindow(onNodeWithText("Swipe Cleaner"))
-            assertInsideWindow(onNodeWithText("Allow access"))
         }
 
     @Test

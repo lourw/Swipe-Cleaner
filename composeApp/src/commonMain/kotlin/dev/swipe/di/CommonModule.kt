@@ -38,7 +38,7 @@ val commonModule: Module =
         single<SessionStore> { SqlSessionStore(database = get(), clock = get()) }
 
         // Permission flow (WP-1.7); its data interfaces bind in the platform module.
-        viewModel { PermissionViewModel(mediaLibrary = get(), settingsStore = get(), systemActions = get()) }
+        viewModel { PermissionViewModel(mediaLibrary = get(), systemActions = get()) }
 
         // Deck use cases (WP-1.6), bound for the Swipe pipeline (WP-1.8).
         single { BuildDeckUseCase(library = get(), decisions = get()) }

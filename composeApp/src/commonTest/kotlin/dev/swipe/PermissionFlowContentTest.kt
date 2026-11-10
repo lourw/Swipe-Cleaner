@@ -11,6 +11,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -47,6 +49,9 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
@@ -56,7 +61,8 @@ import kotlin.time.Instant
  * behind the [PermissionFlowContent.homeDestination] hook, so the Home-side
  * navigation tests (FR-4, FR-5, FR-10, FR-29) run the real
  * [HomeViewModel] over the fakes, with the sub-screen destinations stubbed to
- * capture the routes.
+ * capture the routes. WP-8.7 (FR-1): the flow opens straight to Home; while
+ * access is undecided Home shows its placeholder and mounts nothing.
  */
 class PermissionFlowContentTest {
     @AfterTest
@@ -70,22 +76,8 @@ class PermissionFlowContentTest {
             setContent {
                 PermissionFlowContent(state = MutableStateFlow(PermissionUiState()), onIntent = {})
             }
-            onNodeWithText("Allow access").assertDoesNotExist()
             onNodeWithText("Shuffle everything").assertDoesNotExist()
-        }
-
-    @Test
-    fun `FR-1 flow starts on onboarding and allow access sends RequestAccess`() =
-        runComposeUiTest {
-            val intents = mutableListOf<PermissionIntent>()
-            setContent {
-                PermissionFlowContent(
-                    state = MutableStateFlow(PermissionUiState(startScreen = PermissionScreen.ONBOARDING)),
-                    onIntent = { intents.add(it) },
-                )
-            }
-            onNodeWithText("Allow access").performClick()
-            assertEquals(listOf<PermissionIntent>(PermissionIntent.RequestAccess), intents)
+            onNodeWithText("Open Settings").assertDoesNotExist()
         }
 
     @Test
@@ -122,7 +114,12 @@ class PermissionFlowContentTest {
                     onIntent = { intents.add(it) },
                     navController = nav,
                     homeDestination = {
-                        HomeDestination(nav, state, { intents.add(PermissionIntent.ManageLimitedAccess) }, home.viewModel)
+                        HomeDestination(
+                            nav,
+                            state,
+                            { intents.add(PermissionIntent.ManageLimitedAccess) },
+                            homeViewModel = { home.viewModel },
+                        )
                     },
                 )
             }
@@ -131,53 +128,131 @@ class PermissionFlowContentTest {
             assertEquals(listOf<PermissionIntent>(PermissionIntent.ManageLimitedAccess), intents)
         }
 
+    /**
+     * FR-1 + NFR-4: first launch is Home with the prompt over it — the
+     * interactive frame with placeholder counts, and the library stays
+     * untouched: the [HomeViewModel] is not even mounted while access is
+     * undecided.
+     */
     @Test
-    fun `FR-1 flow follows the state from onboarding to home after access is granted`() =
+    fun `FR-1 home renders placeholders without fetching while access is undecided`() =
         runComposeUiTest {
-            val state = MutableStateFlow(PermissionUiState(startScreen = PermissionScreen.ONBOARDING))
-            val home = HomeFixture()
+            Dispatchers.setMain(UnconfinedTestDispatcher())
+            val library = FakeMediaLibrary(photos(4), access = LibraryAccess.NOT_DETERMINED)
+            val store = FakeDecisionStore()
+            var mounted = false
+            val state =
+                MutableStateFlow(
+                    PermissionUiState(
+                        startScreen = PermissionScreen.HOME,
+                        access = LibraryAccess.NOT_DETERMINED,
+                    ),
+                )
             setContent {
                 val nav = rememberNavController()
                 PermissionFlowContent(
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = {
+                        HomeDestination(
+                            nav,
+                            state,
+                            {},
+                            homeViewModel = {
+                                mounted = true
+                                HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+                            },
+                        )
+                    },
                 )
             }
-            onNodeWithText("Allow access").assertExists()
+            waitForIdle()
+            onNodeWithText("Shuffle everything").assertExists()
+            onNodeWithText("4").assertDoesNotExist() // placeholder, not a count (NFR-4)
+            assertFalse(mounted)
+            assertEquals(0, library.assetIdsCalls.size)
+            assertEquals(0, library.albumsCalls)
+            assertEquals(0, library.smartCountsCalls)
+        }
 
+    /**
+     * FR-1: answering the prompt with Allow Full Access while Home is on
+     * screen mounts the real [HomeViewModel] and the counts stream in.
+     */
+    @Test
+    fun `FR-1 home loads its counts once access is granted`() =
+        runComposeUiTest {
+            Dispatchers.setMain(UnconfinedTestDispatcher())
+            val library = FakeMediaLibrary(photos(4), access = LibraryAccess.FULL)
+            val store = FakeDecisionStore()
+            var built: HomeViewModel? = null
+            val state =
+                MutableStateFlow(
+                    PermissionUiState(
+                        startScreen = PermissionScreen.HOME,
+                        access = LibraryAccess.NOT_DETERMINED,
+                    ),
+                )
+            setContent {
+                val nav = rememberNavController()
+                PermissionFlowContent(
+                    state = state,
+                    onIntent = {},
+                    navController = nav,
+                    homeDestination = {
+                        HomeDestination(
+                            nav,
+                            state,
+                            {},
+                            homeViewModel = {
+                                built ?: HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+                                    .also { built = it }
+                            },
+                        )
+                    },
+                )
+            }
+            waitForIdle()
+            assertNull(built)
             state.value =
                 PermissionUiState(
                     startScreen = PermissionScreen.HOME,
                     access = LibraryAccess.FULL,
                 )
             waitForIdle()
-            onNodeWithText("Shuffle everything").assertExists()
-            onNodeWithText("Allow access").assertDoesNotExist()
+            assertNotNull(built)
+            onAllNodesWithText("4").onFirst().assertExists() // deck counts stream in (FR-4)
+            assertTrue(library.assetIdsCalls.isNotEmpty())
         }
 
     /**
-     * The routing pops Onboarding inclusively, so Home is the only entry left
-     * on the stack: `popBackStack()` — exactly what the system back gesture
-     * dispatches to — is a no-op and Onboarding cannot be returned to.
+     * FR-1: Home is the root from the first frame, so the system back
+     * gesture — `popBackStack()` — is a no-op and cannot leave the app or
+     * uncover a permission screen.
      */
     @Test
-    fun `FR-1 back cannot return to onboarding once home is reached`() =
+    fun `FR-1 back cannot leave Home on first launch`() =
         runComposeUiTest {
             lateinit var controller: NavHostController
-            val state = MutableStateFlow(PermissionUiState(startScreen = PermissionScreen.ONBOARDING))
             val home = HomeFixture()
+            val state =
+                MutableStateFlow(
+                    PermissionUiState(
+                        startScreen = PermissionScreen.HOME,
+                        access = LibraryAccess.NOT_DETERMINED,
+                    ),
+                )
             setContent {
                 controller = rememberNavController()
                 PermissionFlowContent(
                     state = state,
                     onIntent = {},
                     navController = controller,
-                    homeDestination = { HomeDestination(controller, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(controller, state, {}, homeViewModel = { home.viewModel }) },
                 )
             }
-            onNodeWithText("Allow access").assertExists()
+            onNodeWithText("Shuffle everything").assertExists()
 
             state.value =
                 PermissionUiState(
@@ -185,13 +260,11 @@ class PermissionFlowContentTest {
                     access = LibraryAccess.FULL,
                 )
             waitForIdle()
-            onNodeWithText("Shuffle everything").assertExists()
 
-            // System back lands here as popBackStack(); the last entry cannot
-            // pop, so Home stays shown and no onboarding is left behind it.
+            // System back lands here as popBackStack(); Home is the only
+            // entry on the stack, so nothing pops (FR-1).
             assertFalse(controller.popBackStack())
             onNodeWithText("Shuffle everything").assertExists()
-            onNodeWithText("Allow access").assertDoesNotExist()
         }
 
     /**
@@ -212,7 +285,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     swipeDestination = { route ->
                         routed = route
                         BasicText("deck-destination")
@@ -245,7 +318,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     albumsDestination = { route ->
                         opened = route
                         BasicText("albums-destination")
@@ -274,7 +347,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     monthsDestination = { route ->
                         opened = route
                         BasicText("months-destination")
@@ -300,7 +373,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     queueDestination = { BasicText("queue-stub") },
                 )
             }
@@ -322,7 +395,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     // WP-6.1: the real destination builds SettingsViewModel (Koin);
                     // the navigation test stubs it, same as the queue stub.
                     settingsDestination = { BasicText("settings-stub") },
@@ -352,7 +425,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                     queueDestination = { BasicText("queue-stub") },
                 )
             }
@@ -380,7 +453,7 @@ class PermissionFlowContentTest {
                     state = state,
                     onIntent = {},
                     navController = nav,
-                    homeDestination = { HomeDestination(nav, state, {}, home.viewModel) },
+                    homeDestination = { HomeDestination(nav, state, {}, homeViewModel = { home.viewModel }) },
                 )
             }
             waitForIdle()
@@ -424,23 +497,21 @@ class PermissionFlowContentTest {
             Dispatchers.setMain(UnconfinedTestDispatcher())
             viewModel = HomeViewModel(library, store, LoadSourcesUseCase(library, store))
         }
-
-        private companion object {
-            fun photos(count: Int): List<MediaItem> =
-                (1..count).map { i ->
-                    MediaItem(
-                        id = "asset-$i",
-                        type = MediaType.PHOTO,
-                        createdAt = Instant.fromEpochMilliseconds(i * 1000L),
-                        durationMs = null,
-                        widthPx = 120,
-                        heightPx = 160,
-                        isFavorite = false,
-                        isScreenshot = false,
-                        burstId = null,
-                        isCloudOnly = null,
-                    )
-                }
-        }
     }
 }
+
+private fun photos(count: Int): List<MediaItem> =
+    (1..count).map { i ->
+        MediaItem(
+            id = "asset-$i",
+            type = MediaType.PHOTO,
+            createdAt = Instant.fromEpochMilliseconds(i * 1000L),
+            durationMs = null,
+            widthPx = 120,
+            heightPx = 160,
+            isFavorite = false,
+            isScreenshot = false,
+            burstId = null,
+            isCloudOnly = null,
+        )
+    }

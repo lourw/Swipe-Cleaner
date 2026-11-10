@@ -40,13 +40,11 @@ import dev.swipe.ui.navigation.DeleteSuccess
 import dev.swipe.ui.navigation.Denied
 import dev.swipe.ui.navigation.Home
 import dev.swipe.ui.navigation.Months
-import dev.swipe.ui.navigation.Onboarding
 import dev.swipe.ui.navigation.Queue
 import dev.swipe.ui.navigation.Settings
 import dev.swipe.ui.navigation.Summary
 import dev.swipe.ui.navigation.Swipe
 import dev.swipe.ui.screens.onboarding.DeniedScreen
-import dev.swipe.ui.screens.onboarding.OnboardingScreen
 import dev.swipe.ui.screens.queue.QueueScreen
 import dev.swipe.ui.screens.settings.SettingsScreen
 import dev.swipe.ui.screens.summary.DeleteSuccessScreen
@@ -115,7 +113,7 @@ private fun PermissionFlow(
  * (WP-1.7); `null` — the first authorization read in flight — shows the theme
  * background as a splash. Later routing is imperative: the host navigates to
  * the screen the state names and pops the initial route inclusively, so Back
- * cannot return to onboarding or Denied. Keeping `startDestination` and the
+ * cannot return to a superseded permission screen. Keeping `startDestination` and the
  * builder lambda's captures stable (the [state] flow is collected inside
  * [HomeDestination], never read in the builder) keeps navigation-compose from
  * rebuilding the graph on state updates, which would otherwise reset deeper
@@ -168,9 +166,6 @@ internal fun PermissionFlowContent(
         popEnterTransition = { navPopEnter(reduceMotion) },
         popExitTransition = { navPopExit(reduceMotion) },
     ) {
-        composable<Onboarding> {
-            OnboardingScreen(onAllowAccess = { onIntent(PermissionIntent.RequestAccess) })
-        }
         composable<Denied> {
             DeniedScreen(onOpenSettings = { onIntent(PermissionIntent.OpenSettings) })
         }
@@ -228,7 +223,7 @@ private fun NavGraphBuilder.resultDestinations(navController: NavHostController)
 /**
  * The imperative half of WP-1.7 routing: once the state's start screen moves
  * off the initial route, navigate to it and pop the initial entry inclusively
- * so Back cannot return to onboarding or Denied (FR-1, FR-3).
+ * so Back cannot return to a superseded permission screen (FR-1, FR-3).
  */
 @Composable
 private fun FollowStartRoute(
@@ -395,10 +390,6 @@ private fun SettingsContainer(navController: NavHostController) {
 /** The route registered for a permission screen (§5.8 screen map). */
 private fun PermissionScreen.toRoute(): Any =
     when (this) {
-        PermissionScreen.ONBOARDING -> {
-            Onboarding
-        }
-
         PermissionScreen.DENIED -> {
             Denied
         }

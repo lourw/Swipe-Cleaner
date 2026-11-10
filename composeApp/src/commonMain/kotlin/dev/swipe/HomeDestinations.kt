@@ -11,12 +11,14 @@ import dev.swipe.data.NoPerfTrace
 import dev.swipe.data.PerfSpan
 import dev.swipe.data.PerfTrace
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.albums.AlbumsEvent
 import dev.swipe.presentation.albums.AlbumsIntent
 import dev.swipe.presentation.albums.AlbumsViewModel
 import dev.swipe.presentation.home.HomeEvent
 import dev.swipe.presentation.home.HomeIntent
+import dev.swipe.presentation.home.HomeUiState
 import dev.swipe.presentation.home.HomeViewModel
 import dev.swipe.presentation.months.MonthsEvent
 import dev.swipe.presentation.months.MonthsIntent
@@ -42,33 +44,52 @@ import org.koin.core.parameter.parametersOf
  * inside the composition, so the NavHost builder lambda never captures state
  * values and the graph stays stable across `Recheck` updates.
  *
+ * FR-1 (WP-8.7): first launch lands here while the iOS access prompt is still
+ * undecided. Home then renders its NFR-4 placeholder state — the interactive
+ * frame with em-dash counts, no fetch and no error — and the [HomeViewModel]
+ * is mounted only once [PermissionUiState.access] decides, so every count
+ * that arrives describes a library the app can actually read. [homeViewModel]
+ * is a provider precisely so this gate can defer construction until then.
+ *
  * WP-5.3: this is the only collector of [HomeViewModel.events] (the events
  * are a channel — a second collector would steal them), turning each one
  * into navigation: [HomeEvent.OpenDeck] carries the tapped source *and* the
  * media-type filter selected at tap time (§5.8: "applies to the next deck",
  * FR-5), [HomeEvent.OpenAlbums] and [HomeEvent.OpenMonths] carry that filter
  * into the sub-screens so their counts and decks agree with Home (FR-5).
- * [homeViewModel] and the permission flow are injectable so navigation tests
- * run the real ViewModel over the fakes without Koin.
+ * The permission flow and the ViewModel provider are injectable so navigation
+ * tests run the real ViewModel over the fakes without Koin.
  */
 @Composable
 internal fun HomeDestination(
     navController: NavHostController,
     permissionState: StateFlow<PermissionUiState>,
     onManageLimitedAccess: () -> Unit,
-    homeViewModel: HomeViewModel = koinViewModel(),
     perfTrace: PerfTrace = NoPerfTrace,
+    homeViewModel: @Composable () -> HomeViewModel = { koinViewModel() },
 ) {
-    val onIntent: (HomeIntent) -> Unit = remember(homeViewModel) { homeViewModel::onIntent }
-    val state by homeViewModel.uiState.collectAsState()
     val permission by permissionState.collectAsState()
     // NFR-4: Home's first composition is the interactive frame — the type
     // toggle and rows are on screen, only counts may still stream in (the
     // progressive ladder keeps them out of the critical path, §6.5). Best
     // effort at the composable level, per WP-6.3; docs/perf.md.
     LaunchedEffect(Unit) { perfTrace.end(PerfSpan.COLD_START_HOME) }
-    LaunchedEffect(homeViewModel) {
-        homeViewModel.events.collect { event ->
+    if (permission.access == LibraryAccess.NOT_DETERMINED) {
+        // FR-1: the system prompt shows over this placeholder; row taps have
+        // nothing to load yet, so intents are dropped until access decides.
+        HomeScreen(
+            state = HomeUiState(),
+            onIntent = {},
+            limitedItemCount = null,
+            onManageLimitedAccess = onManageLimitedAccess,
+        )
+        return
+    }
+    val viewModel = homeViewModel()
+    val onIntent: (HomeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
+    val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
             when (event) {
                 is HomeEvent.OpenDeck -> navController.navigate(swipeRoute(event.source, event.typeFilter))
                 is HomeEvent.OpenAlbums -> navController.navigate(Albums(event.typeFilter.name))
