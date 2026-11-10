@@ -9,10 +9,11 @@ import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.fakes.FakeMediaLibrary
-import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeSystemActions
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -20,12 +21,13 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
- * The permission flow (FR-1–3, §5.8 screen map): start routing, the readWrite request,
- * the limited banner count (FR-2), the blocked screen with Open Settings (FR-3), and
- * the foreground re-check. `viewModelScope` runs on Main, so every test swaps in a
+ * The permission flow (FR-1–3, §5.8 screen map): every outcome routes to Home
+ * (FR-1 — there is no intro screen), the launch prompt fires automatically once
+ * while access is `NOT_DETERMINED` and never while one is in flight, the limited
+ * banner count (FR-2), the blocked screen with Open Settings (FR-3), and the
+ * foreground re-check. `viewModelScope` runs on Main, so every test swaps in a
  * [StandardTestDispatcher] first.
  */
 class PermissionViewModelTest {
@@ -35,28 +37,104 @@ class PermissionViewModelTest {
     }
 
     @Test
-    fun `FR-1 first launch shows onboarding then requests readWrite`() =
+    fun `FR-1 first launch opens Home and auto-requests readWrite once`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(4), access = LibraryAccess.NOT_DETERMINED)
             library.nextRequestAuthorizationResult = LibraryAccess.FULL
-            val settings = FakeSettingsStore()
 
-            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
 
             viewModel.uiState.test {
                 assertNull(awaitItem().startScreen) // splash while the first read is in flight
-                assertEquals(PermissionScreen.ONBOARDING, awaitItem().startScreen)
+                // Home is on screen immediately, behind the prompt (FR-1).
+                val pending = awaitItem()
+                assertEquals(PermissionScreen.HOME, pending.startScreen)
+                assertEquals(LibraryAccess.NOT_DETERMINED, pending.access)
+                assertNull(pending.limitedCount)
 
-                viewModel.onIntent(PermissionIntent.RequestAccess)
-
+                // The prompt is answered with Allow Full Access.
                 val home = awaitItem()
                 assertEquals(PermissionScreen.HOME, home.startScreen)
                 assertEquals(LibraryAccess.FULL, home.access)
             }
-            // The button fired one PHAccessLevel.readWrite request (FR-1) and recorded the visit.
+            // One automatic PHAccessLevel.readWrite request per launch (FR-1).
             assertEquals(1, library.requestAuthorizationCalls.size)
-            assertTrue("onboardingSeen=true" in settings.setCalls)
+        }
+
+    @Test
+    fun `FR-1 no second request while one is in flight`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(4), access = LibraryAccess.NOT_DETERMINED)
+            library.nextRequestAuthorizationResult = LibraryAccess.FULL
+            val gate = CompletableDeferred<Unit>()
+            library.requestAuthorizationGate = gate
+
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
+
+            viewModel.uiState.test {
+                awaitItem() // splash
+                val pending = awaitItem()
+                assertEquals(PermissionScreen.HOME, pending.startScreen)
+                assertEquals(LibraryAccess.NOT_DETERMINED, pending.access)
+
+                // The user backgrounds the app with the prompt showing and
+                // returns: re-checks must not stack a second prompt (FR-1).
+                repeat(3) { viewModel.onIntent(PermissionIntent.Recheck) }
+                advanceUntilIdle()
+                assertEquals(1, library.requestAuthorizationCalls.size)
+
+                // The prompt is finally answered.
+                gate.complete(Unit)
+                val home = awaitItem()
+                assertEquals(PermissionScreen.HOME, home.startScreen)
+                assertEquals(LibraryAccess.FULL, home.access)
+            }
+            assertEquals(1, library.requestAuthorizationCalls.size)
+        }
+
+    @Test
+    fun `FR-1 Don't Allow routes to the denied screen`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(2), access = LibraryAccess.NOT_DETERMINED)
+            library.nextRequestAuthorizationResult = LibraryAccess.DENIED
+
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
+
+            viewModel.uiState.test {
+                awaitItem() // splash
+                assertEquals(PermissionScreen.HOME, awaitItem().startScreen) // Home behind the prompt
+                val denied = awaitItem()
+                assertEquals(PermissionScreen.DENIED, denied.startScreen)
+                assertEquals(LibraryAccess.DENIED, denied.access)
+                assertNull(denied.limitedCount)
+            }
+            assertEquals(1, library.requestAuthorizationCalls.size)
+        }
+
+    @Test
+    fun `FR-1 Limit Access routes to Home with the banner count`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(7), access = LibraryAccess.NOT_DETERMINED)
+            library.nextRequestAuthorizationResult = LibraryAccess.LIMITED
+
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
+
+            viewModel.uiState.test {
+                awaitItem() // splash
+                assertEquals(PermissionScreen.HOME, awaitItem().startScreen) // Home behind the prompt
+                val home = awaitItem()
+                assertEquals(PermissionScreen.HOME, home.startScreen)
+                assertEquals(LibraryAccess.LIMITED, home.access)
+                assertEquals(7, home.limitedCount)
+            }
+            assertEquals(1, library.requestAuthorizationCalls.size)
+            // N is assetIds(All, ALL).size — an ids-only count, no metadata (FR-2, NFR-4).
+            val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> = listOf(DeckSource.All to MediaTypeFilter.ALL)
+            assertEquals(expectedCalls, library.assetIdsCalls)
         }
 
     @Test
@@ -64,10 +142,8 @@ class PermissionViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(7), access = LibraryAccess.LIMITED)
-            val settings = FakeSettingsStore()
-            settings.setOnboardingSeen(true)
 
-            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
 
             viewModel.uiState.test {
                 awaitItem() // splash
@@ -88,7 +164,7 @@ class PermissionViewModelTest {
             val library = FakeMediaLibrary(photoItems(2), access = LibraryAccess.DENIED)
             val actions = FakeSystemActions()
 
-            val viewModel = PermissionViewModel(library, FakeSettingsStore(), actions)
+            val viewModel = PermissionViewModel(library, actions)
 
             viewModel.uiState.test {
                 awaitItem() // splash
@@ -103,14 +179,12 @@ class PermissionViewModelTest {
         }
 
     @Test
-    fun `FR-1 returning user with access skips onboarding`() =
+    fun `FR-1 returning user is never prompted`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(5), access = LibraryAccess.FULL)
-            val settings = FakeSettingsStore()
-            settings.setOnboardingSeen(true)
 
-            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
 
             viewModel.uiState.test {
                 awaitItem() // splash
@@ -128,12 +202,8 @@ class PermissionViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(2), access = LibraryAccess.DENIED)
-            val settings = FakeSettingsStore()
-            // Reaching Denied through the app means the Allow button was tapped, which
-            // records the visit; only Settings-side decisions could leave it unset.
-            settings.setOnboardingSeen(true)
 
-            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
 
             viewModel.uiState.test {
                 awaitItem() // splash
@@ -145,6 +215,8 @@ class PermissionViewModelTest {
 
                 assertEquals(PermissionScreen.HOME, awaitItem().startScreen)
             }
+            // The re-check reads authorization; it never prompts (FR-1).
+            assertEquals(0, library.requestAuthorizationCalls.size)
         }
 
     @Test
@@ -152,11 +224,9 @@ class PermissionViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(3), access = LibraryAccess.LIMITED)
-            val settings = FakeSettingsStore()
-            settings.setOnboardingSeen(true)
             val actions = FakeSystemActions()
 
-            val viewModel = PermissionViewModel(library, settings, actions)
+            val viewModel = PermissionViewModel(library, actions)
 
             viewModel.uiState.test {
                 awaitItem() // splash
@@ -172,10 +242,8 @@ class PermissionViewModelTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library = FakeMediaLibrary(photoItems(3), access = LibraryAccess.LIMITED)
-            val settings = FakeSettingsStore()
-            settings.setOnboardingSeen(true)
 
-            val viewModel = PermissionViewModel(library, settings, FakeSystemActions())
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
 
             viewModel.uiState.test {
                 awaitItem() // splash

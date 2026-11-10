@@ -3,7 +3,6 @@ package dev.swipe.presentation.permission
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.MediaLibrary
-import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
@@ -16,20 +15,30 @@ import kotlinx.coroutines.launch
 
 /**
  * The permission flow (FR-1–3, §5.8 screen map). Reads the current authorization on
- * start, shows the onboarding screen before the first request, routes FULL and
+ * start and, while it is still `NOT_DETERMINED`, fires the `PHAccessLevel.readWrite`
+ * prompt automatically — once per launch, never twice while a request is in flight
+ * (FR-1: there is no intro screen; Home renders behind the prompt). Routes FULL and
  * LIMITED to Home and DENIED to the blocking screen, and re-reads whenever the app
  * comes to the foreground (WP-1.7 task 1) or the library changes (WP-3.2), which is
  * what keeps the FR-2 limited-access count honest while Home is on screen.
  */
 class PermissionViewModel(
     private val mediaLibrary: MediaLibrary,
-    private val settingsStore: SettingsStore,
     private val systemActions: SystemActions,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PermissionUiState())
 
     /** The one state flow (AGENTS.md ViewModel convention). */
     val uiState: StateFlow<PermissionUiState> = _uiState.asStateFlow()
+
+    /**
+     * FR-1: the launch prompt fires at most once per launch. A re-check while the
+     * prompt is still showing (foreground return, `changes()`) must not stack a
+     * second request; once the user has answered, PhotoKit never returns
+     * `NOT_DETERMINED` again, so this flag also means "never prompt a returning
+     * user".
+     */
+    private var accessRequested = false
 
     init {
         viewModelScope.launch { checkAccess() }
@@ -46,7 +55,6 @@ class PermissionViewModel(
     /** The one entry point for user and lifecycle actions (AGENTS.md ViewModel convention). */
     fun onIntent(intent: PermissionIntent) {
         when (intent) {
-            PermissionIntent.RequestAccess -> requestAccess()
             PermissionIntent.OpenSettings -> systemActions.openSettings()
             PermissionIntent.ManageLimitedAccess -> systemActions.presentLimitedLibraryPicker()
             PermissionIntent.Recheck -> viewModelScope.launch { checkAccess() }
@@ -60,43 +68,42 @@ class PermissionViewModel(
 
     /**
      * Fires the `PHAccessLevel.readWrite` prompt and routes with its outcome (FR-1);
-     * the request itself never prompts twice — PhotoKit answers immediately once the
-     * user has decided.
+     * PhotoKit answers an already-decided library immediately, so the request never
+     * prompts twice.
      */
     private fun requestAccess() {
         viewModelScope.launch {
-            val access = mediaLibrary.requestAuthorization()
-            settingsStore.setOnboardingSeen(true)
-            publish(access)
+            publish(mediaLibrary.requestAuthorization())
         }
     }
 
     /**
-     * Maps [access] to a screen and refreshes the FR-2 count. NOT_DETERMINED always
-     * shows the onboarding screen — it is the only screen that can fire the system
-     * prompt. FULL or LIMITED shows Home once onboarding was seen (FR-1 returning
-     * user), LIMITED also counts the accessible items for the banner (FR-2) with an
-     * ids-only fetch (NFR-4), re-run on every `changes()` emission (WP-3.2).
+     * Maps [access] to a screen and refreshes the FR-2 count. Every decided
+     * outcome lands on Home, and so does `NOT_DETERMINED` — the app opens
+     * straight to Home with the prompt over it (FR-1); Home renders its NFR-4
+     * placeholder without fetching until access decides (see
+     * [dev.swipe.HomeDestination]). Only DENIED blocks with the Settings screen
+     * (FR-3). A `NOT_DETERMINED` read fires the one automatic launch request
+     * exactly once (FR-1). LIMITED counts the accessible items for the banner
+     * (FR-2) with an ids-only fetch (NFR-4), re-run on every `changes()`
+     * emission (WP-3.2).
      */
     private suspend fun publish(access: LibraryAccess) {
+        if (access == LibraryAccess.NOT_DETERMINED && !accessRequested) {
+            accessRequested = true
+            requestAccess()
+        }
         val screen =
             when (access) {
                 LibraryAccess.DENIED -> {
                     PermissionScreen.DENIED
                 }
 
-                LibraryAccess.NOT_DETERMINED -> {
-                    PermissionScreen.ONBOARDING
-                }
-
+                LibraryAccess.NOT_DETERMINED,
                 LibraryAccess.FULL,
                 LibraryAccess.LIMITED,
                 -> {
-                    if (settingsStore.onboardingSeen.value) {
-                        PermissionScreen.HOME
-                    } else {
-                        PermissionScreen.ONBOARDING
-                    }
+                    PermissionScreen.HOME
                 }
             }
         val limitedCount =

@@ -4,16 +4,17 @@ import dev.swipe.domain.model.LibraryAccess
 
 /**
  * Screens of the permission flow (REQUIREMENTS §5.8 screen map):
- * Onboarding → request → Home, or Denied → Settings → Home (FR-1–3).
+ * Home, or Denied → Settings → Home (FR-1–3).
  */
 enum class PermissionScreen {
-    /** First-launch explanation; its button fires the readWrite request (FR-1). */
-    ONBOARDING,
-
     /** Access denied; only the Settings app gets the user out (FR-3). */
     DENIED,
 
-    /** Home, reached once access is granted (FULL or LIMITED). */
+    /**
+     * Home — the app opens straight here on first launch, with the iOS access
+     * prompt over the placeholder state (FR-1), and again for a returning user
+     * with [LibraryAccess.FULL] or [LibraryAccess.LIMITED].
+     */
     HOME,
 }
 
