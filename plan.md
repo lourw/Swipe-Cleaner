@@ -239,19 +239,36 @@ A Hide button that hides the current item in iOS Photos, the same as tapping Hid
 
 ## Tracker
 
-| WP | Title | Status |
-| --- | --- | --- |
-| 7.1 | Bitmap lifetime | [ ] |
-| 7.2 | Undo vs in-flight decision | [ ] |
-| 7.3 | Fresh empty deck session | [ ] |
-| 8.1 | Share button | [ ] |
-| 8.2 | Hide sensitive photos | [ ] |
-| 8.3 | Fix empty Bursts deck | [ ] |
-| 8.4 | Storage freed (nice to have) | [ ] |
-| 8.5 | Duplicate set label | [ ] |
-| 8.6 | Last-copy warning | [ ] |
-| 8.7 | Remove intro screen | [ ] |
-| 8.8 | Center media type selector | [ ] |
-| 8.9 | Favorite confirmation callout | [ ] |
-| 8.10 | Exclude albums from Shuffle | [ ] |
-| 8.11 | Hide button | [ ] |
+The main agent keeps this section current so nobody loses track of running subagents, including after a restart or context compaction. Rules are in AGENTS.md "Working with subagents". Subagents never edit this section.
+
+### Active subagents
+
+At most 2 rows. Add a row when you launch a subagent, before doing anything else. Remove it when the subagent reports back, after updating the WP's row below.
+
+| Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | — | | | | | |
+| 2 | — | | | | | |
+
+**Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
+
+### Work packages
+
+**Status** is one of: `queued` → `implementing` → `verifying` → `fixing` (back to `verifying`) → `ready to merge` → `merged`. Use `blocked` for anything waiting on something outside the queue (a 👤 checkpoint, a user decision, a failed merge), and say why in Notes.
+
+| WP | Title | Status | Branch | Notes |
+| --- | --- | --- | --- | --- |
+| 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
+| 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
+| 7.3 | Fresh empty deck session | queued | | |
+| 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
+| 8.2 | Hide sensitive photos | queued | | |
+| 8.3 | Fix empty Bursts deck | queued | | |
+| 8.4 | Storage freed (nice to have) | in progress | `fr-34-storage-freed` | Main agent: set the exact status |
+| 8.5 | Duplicate set label | queued | | |
+| 8.6 | Last-copy warning | queued | | |
+| 8.7 | Remove intro screen | in progress | `fr-1-remove-onboarding` | Verified 2026-11-09, rebased on `main`. Main agent: set the exact status |
+| 8.8 | Center media type selector | in progress | `fr-5-center-selector` | Main agent: set the exact status |
+| 8.9 | Favorite confirmation callout | queued | | |
+| 8.10 | Exclude albums from Shuffle | queued | | |
+| 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
