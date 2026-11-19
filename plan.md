@@ -40,14 +40,19 @@ WPs in the same wave don't depend on each other. Up to 2 subagents run at once (
 - **Wave F:** WP-8.7
 - **Wave G:** WP-8.11, after WP-8.1 merges
 - **Wave H:** WP-7.4 (report-only, pairs with anything)
+- **Wave I (architecture audit, 2026-11-19):** WP-7.5, WP-7.6, WP-7.7, then WP-9.1 to WP-9.9. See §6 for what each one conflicts with.
 
-**Priority order (set by the user, 2026-11-19; replaces the 2026-11-10 order).** When a slot frees up, take these first, in this order, ahead of every other queued WP. The dependency and conflict rules in AGENTS.md still apply.
+**Priority order (set by the user, 2026-11-19; updated the same day after the architecture audit).** When a slot frees up, take these first, in this order, ahead of every other queued WP. The dependency and conflict rules in AGENTS.md still apply.
 
-1. **WP-8.10** Exclude albums from Shuffle. Top-priority feature.
-2. **WP-7.4** Audit swipe, queue, and delete for kept items that end up queued. Report only; it can run beside WP-8.10.
-3. **WP-8.12** Stop Home counts flickering, and check that every count is correct. Conflicts with WP-8.10 (both edit Home counts), so it runs after 8.10 merges.
-4. **WP-8.9** Redesign the favorite delete confirmation.
-5. **WP-8.3** Fix the empty Bursts deck and its Home count.
+1. **WP-8.10** Exclude albums from Shuffle. Top-priority feature. Starts with its deck-membership prerequisites.
+2. **WP-7.5** Bind every decision to the card on screen. A confirmed way for kept photos to end up queued. Doesn't conflict with WP-8.10, so it can run beside it.
+3. **WP-7.6** Report only the photos that were really deleted. Data-safety bug.
+4. **WP-7.4** Audit swipe, queue, and delete. Report only; covers the paths WP-7.5 and WP-7.6 don't.
+5. **WP-8.12** Stop Home counts flickering, and check every count. After WP-8.10.
+6. **WP-9.3** One toast host, then **WP-8.9** Redesign the favorite delete confirmation.
+7. **WP-8.3** Fix the empty Bursts deck. After WP-7.6.
+
+Run **WP-9.1** and **WP-9.2** before WP-8.6 or WP-8.11 start, because both add to the swipe screen and the delete path.
 
 ## 2. Code follow-ups
 
@@ -83,6 +88,8 @@ A new session whose deck is empty never calls `finish()` (`SwipeViewModel.start(
 
 Reported 2026-11-19: a friend testing the app found many photos he meant to keep in the Review Queue. We don't know yet whether it's a bug, the gestures, or the UI. This WP finds out. **It is report-only:** it adds tests and a written report, and changes no production code. Fixes are filed as new WPs from its findings.
 
+The 2026-11-19 architecture audit already confirmed two causes, now filed separately: a button tap during a swipe's fly-off records against the wrong card (**WP-7.5**), and a partly resolved delete batch is marked fully deleted (**WP-7.6**). Don't fix those here. Check that they're the only such paths.
+
 Trace every path from a gesture or button to a `DELETE` row and from the queue to `MediaLibrary.delete`, and check that the id and verdict recorded always belong to the card the user saw. At minimum, check:
 
 - **Wrong card.** A decision is written against the id of the card on screen, not whatever index the ViewModel has moved to. Look at fast consecutive swipes, a swipe while the next card is still promoting, and decisions made while a deck rebuild or a library change (`changes()`) reorders or shrinks the deck.
@@ -97,6 +104,41 @@ Trace every path from a gesture or button to a `DELETE` row and from the queue t
 - **Tests:** add a `commonTest` for each suspected bug, named after its FR, with fakes and Turbine. A test that reproduces a real bug may fail; mark the report with its name rather than adding `@Ignore`. Tests for paths that turn out fine stay as regression tests and must pass.
 - **Report:** `docs/audits/2026-11-decision-audit.md`, listing each path checked, the verdict (bug / risk / fine), the evidence (file:line and test name), and a suggested fix for each bug or risk. Keep the branch's failing tests out of `main`: if any test fails, the branch is not merged and its tests go to the fix WPs instead.
 - 👤 Ask the friend which deck he used, whether he swiped or used the buttons, whether he used Undo, and whether the app was killed or restarted during the session.
+
+### WP-7.5 Bind every decision to the card on screen
+
+**Branch:** `fr-13-decision-card-binding`. **Requirements:** FR-12 to FR-15, FR-22, NFR-7, NFR-8, hard rule 2. **Priority:** 2 (§1). **Found by:** architecture audit, 2026-11-19 (confirmed in code).
+
+A button tap (or a VoiceOver custom action) during a card's 220 ms fly-off records its verdict against the card that is leaving, not the next one. Example: the user swipes A right to keep it, then quickly taps Delete meaning B. A is recorded as DELETE, A's KEEP is dropped, and B is still showing. This is a likely cause of the kept-photos-in-the-queue report.
+
+- Evidence: `SwipeScreen.kt:248-252` runs `commit(verdict)` after `cardState.flyOff(...)` even when `flyOff` returns early because a verdict is already committed (`SwipeCardState.kt:118`). `SwipeIntent.Keep/Delete/Skip` carry no id, so `SwipeViewModel.decide()` uses whatever `deck[index]` is (`SwipeViewModel.kt:316`). `DeckMotion.kt:89-92` `resetForNext()` can also cancel the first card's animation, which drops its commit.
+- Make the decision intents carry the id the user acted on, e.g. `SwipeIntent.Decide(id, verdict)`. The ViewModel ignores a decision whose id isn't `deck[index]`. Apply the same to `ConfirmFavoriteDelete`. Update §6.6.
+- `flyOff` reports whether it started. The button path commits only if it did. Action-bar buttons and custom actions do nothing unless the card is idle.
+- A commit must never be lost by a later animation cancelling an earlier one.
+- **Tests:** `FR-13` / `FR-12` ViewModel cases: a decision with a stale id is ignored, two different verdicts in quick succession each go to the right card. A UI test: swipe, then tap a button within the fly-off, and assert exactly one intent carrying the first card's id. Replace the `SwipeViewModelTest.kt:183` case that treats "both write asset-1" as correct.
+
+### WP-7.6 Report only the photos that were really deleted
+
+**Branch:** `fr-26-partial-delete`. **Requirements:** FR-25 to FR-28, FR-10, NFR-5, hard rule 1. **Priority:** 3 (§1). **Run before WP-8.3**, which edits the same functions. **Found by:** architecture audit, 2026-11-19 (confirmed in code).
+
+`PhotoKitMediaLibrary.delete` deletes only the assets it can resolve, then returns a bare `DeleteResult.Deleted` (`PhotoKitMediaLibrary.kt:265-271`). `CommitDeletionsUseCase` then marks **every** requested id as DELETED and reports `ids.size` (`CommitDeletionsUseCase.kt:64-67`). An unresolved id (a burst frame, or an asset outside a limited selection) is marked DELETED while it stays in the library, inflates the success count and stats, and later reappears in decks.
+
+- `DeleteResult.Deleted` carries the ids actually deleted (plus ids that were already gone, so the retry path in the KDoc still converges). Mark only those as DELETED. Leave the rest queued and say so on the success screen ("N deleted, M couldn't be found").
+- `PruneQueueUseCase` (`PruneQueueUseCase.kt:31-43`) drops any queued id `items()` can't resolve, through the undo path with a fake `"prune"` session. Give it a dedicated `DecisionStore.dropFromQueue(ids)` that only removes rows whose decision is still DELETE (`DELETE … WHERE decision = 'DELETE' AND asset_id IN ?`), so it can never erase a KEEP that a restore just wrote.
+- Hard rule 1 still holds: `CommitDeletionsUseCase` stays the only caller of `delete`.
+- Make `FakeMediaLibrary.delete` able to resolve only some ids, matching the real implementation.
+- **Tests:** `FR-26` cases for a partly resolved batch, a fully unresolved batch, and the retry-after-store-failure path. `FR-28` case that prune never removes a KEEP. A SQL test that `markDeleted` leaves KEEP rows and unqueued ids alone.
+- 👤 On a device, with Limited Photos access, queue one photo from inside the selection and one that has since been removed from it, then delete.
+
+### WP-7.7 Fix month deck order and test PhotoKit against its fake
+
+**Branch:** `fr-7-month-order`. **Requirements:** FR-7, §6.5. **Found by:** architecture audit, 2026-11-19 (confirmed in code).
+
+Month decks come out in PhotoKit's default order, not newest first as §6.5 says. `PhotoKitSourceFetches.kt:67-68` builds sorted options and then passes only `options.predicate` on, which drops the sort. `FakeMediaLibrary` sorts, so no test can catch it.
+
+- Fetch with the full options.
+- The fakes are tidier than PhotoKit: the fake sorts All, never fails id resolution, and deletes every id it's given. Add an `iosTest` contract suite that runs the same assertions against `PhotoKitMediaLibrary` on a seeded simulator and against `FakeMediaLibrary`: month order, All order, id resolution, and type filtering. (Burst and partial-delete cases join it in WP-8.3 and WP-7.6.)
+- **Tests:** `FR-7` month-order case in the contract suite.
 
 ## 3. 👤 Device checks
 
@@ -115,7 +157,7 @@ Do these only if a §3 measurement misses its target. File each as a WP when tha
 
 - Home count ladder: debounce `changes()` and cache per-bucket counts (NFR-4, post-delete hitches).
 - AVPlayer churn: keep the player alive for the top cards (NFR-2).
-- `VideoItemCache`: add a real LRU bound (NFR-3).
+- `VideoItemCache`: moved to WP-9.4 (it's a correctness race, not only tuning).
 - `tileMetadata` re-fetch in `QueueViewModel` (queue-load spikes).
 
 ## 5. New features
@@ -153,18 +195,20 @@ A Settings toggle, on by default, that keeps sensitive items out of the swipe UI
 
 ### WP-8.3 Fix the empty Bursts deck
 
-**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-9, FR-25, §6.5, §6.8. **Priority:** 5 (§1).
+**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-9, FR-21, FR-25, §5.8, §6.5, §6.6, §6.8. **Priority:** 7 (§1). **Run after WP-7.6**, which changes `delete` and prune.
 
 Reported by the user on a device, 2026-11-10: opening the Bursts smart filter shows "no items", and they want the Bursts row on Home to show how many there are.
 
 The Bursts count and deck ids enumerate every frame with `includeAllBurstAssets = true` (`PhotoKitSourceFetches.kt:145`), but later id lookups pass nil options (`PhotoKitMediaLibrary.kt:241`, `:268`, `PhotoKitMediaLoader.kt:117`, `:197`, `VideoItemCache.kt:189`). Likely cause, not yet confirmed on a device: nil options leave out non-representative frames, so metadata comes back empty and `SwipeScreen` shows its empty state.
 
 - Reproduce on a device with real bursts first. Whether `includeAllBurstAssets` applies to local-identifier fetches is not documented. If it doesn't, resolve frames another way, such as `fetchAssetsWithBurstIdentifier`.
-- Use one shared lookup for all five call sites.
+- Use one shared lookup for every single-asset id lookup. There are six, not five: WP-8.1 added `PhotoKitMediaSharer.kt:106`. `PruneQueueUseCase` also depends on it through `items()`.
+- **An unresolved id must not end the deck (audit, 2026-11-19).** Today `cardAt()` returns null when the current id has no metadata (`SwipeViewModel.kt:558`), and `SwipeScreen.kt:125` shows "Nothing left here", so one asset deleted elsewhere strands the whole deck. Drop unresolved ids from the deck without recording a decision, and move on.
+- **Add a loading state.** `SwipeUiState` has no loading flag, so every deck open briefly shows the empty state (`SwipeScreen.kt:90-92`). Add one, shown as a placeholder card, separate from "deck empty". Update §6.6 and §5.8.
 - The Bursts row on Home shows a count, and that count matches the deck the row opens (FR-9). Default: count deck items (burst frames), like every other row. If the user wants the number of bursts instead, change FR-6 in the same branch.
 - **Check `delete` carefully.** It treats zero fetched assets as `Deleted` (`PhotoKitMediaLibrary.kt:271`), so a frame the lookup misses would be marked `DELETED` while staying in the library.
 - Hard rule 1 still applies: `CommitDeletionsUseCase` remains the only caller.
-- **Tests:** `FR-6` case for a deck whose metadata page is partly or wholly missing; `FR-25` case that an unresolved id isn't reported as deleted.
+- **Tests:** `FR-6` case for a deck whose metadata page is partly or wholly missing, and for an id that goes missing mid-session; a loading-state case; burst cases in the WP-7.7 contract suite.
 
 ### WP-8.4 Show storage freed (nice to have)
 
@@ -228,7 +272,7 @@ The All / Photos / Videos segments sit at the left of a full-width track on Home
 
 ### WP-8.9 Redesign the favorite delete confirmation
 
-**Branch:** `fr-22-favorite-confirm-redesign`. **Requirements:** FR-22, FR-15, §5.3, §5.7, NFR-5, NFR-8. **Priority:** 4 (§1). **Run before WP-8.6**, which reuses this confirmation.
+**Branch:** `fr-22-favorite-confirm-redesign`. **Requirements:** FR-22, FR-15, §5.3, §5.7, NFR-5, NFR-8. **Priority:** 6 (§1). **Depends on:** WP-9.3, whose toast host this builds on. **Run before WP-8.6**, which reuses this confirmation.
 
 Reported by the user, 2026-11-10 and 2026-11-19. When a favorite is swiped left, the confirmation that appears has three problems:
 
@@ -250,6 +294,12 @@ Reported by the user, 2026-11-10 and 2026-11-19. When a favorite is swiped left,
 ### WP-8.10 Let users exclude albums from Shuffle
 
 **Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4. **Priority:** 1, the top-priority feature (§1; confirmed by the user 2026-11-19).
+
+**Prerequisites, in this branch, before the feature (audit, 2026-11-19).**
+
+- **One deck-membership function.** "Source ids minus decided ids" is written three times: `BuildDeckUseCase.kt:41-53`, `LoadSourcesUseCase.kt:186-227`, and `AlbumsViewModel.kt:89-104`. Exclusions would need adding to all three, and FR-9 ("count equals deck") depends on them agreeing. Extract one domain function, e.g. `DeckMembership.ids(source, type, decided, excluded)`. `BuildDeckUseCase` orders its result, and the count paths take its size. WP-8.12 then builds on it.
+- **A shuffle that survives library changes.** `BuildDeckUseCase.kt:52` shuffles the id list with a seeded `Random`, so adding or deleting any photo changes the whole permutation and a resumed Shuffle opens in a different order (FR-20). The real All fetch isn't sorted either (`PhotoKitMediaLibrary.kt:215`). Order by a stable per-id key, such as a hash of seed and id, so subtracting decided and excluded ids keeps the order. Test with an id added and an id removed between sessions.
+- **Don't break saved sessions.** If this changes how `DeckSource` is serialized, an old session row will fail to decode in `SqlSessionStore.kt:68`, which today blocks every deck with `StartFailed`. Make a decode failure end that row and start fresh.
 
 Shuffle everything draws from the whole library, including photos that are in albums. Let the user choose albums to leave out of Shuffle. Nothing is excluded by default.
 
@@ -281,7 +331,7 @@ A Hide button that hides the current item in iOS Photos, the same as tapping Hid
 
 ### WP-8.12 Stop Home counts flickering on a media type switch
 
-**Branch:** `fr-5-count-flicker`. **Requirements:** FR-5, FR-9, NFR-4, §6.5 *Home counts*. **Priority:** 3 (§1). **Run after WP-8.10**, which also changes Home counts.
+**Branch:** `fr-5-count-flicker`. **Requirements:** FR-5, FR-9, NFR-4, §6.5 *Home counts*. **Priority:** 5 (§1). **Run after WP-8.10**, which also changes Home counts and adds the shared deck-membership function this WP uses.
 
 Reported by the user on a device, 2026-11-10: switching between All, Photos, and Videos on Home makes a count jump to the total first and then settle on the filtered number.
 
@@ -289,6 +339,7 @@ Reported by the user on a device, 2026-11-10: switching between All, Photos, and
 - After a type switch, a row shows the placeholder until the count for the new type is ready. It never shows a number that belongs to another type or a number that is about to be replaced by a different one.
 - Keep the NFR-4 rule that Home mounts without waiting for counts. If this changes the raw-then-exact behavior in §6.5, update the spec in the same branch.
 - **Check that the counts are correct (user, 2026-11-19).** For every Home row (Shuffle, each smart filter, Albums, By month) and every type (All, Photos, Videos), the settled count equals the number of cards the row's deck opens with. Write down any row where it doesn't, fix it in this branch if the cause is in the count code, and otherwise file it as a new WP.
+- **One count path (audit, 2026-11-19).** Home (`HomeViewModel.kt:196-243`), Albums (`AlbumsViewModel.kt:89-104`), and Months each compute counts their own way. Months appears to show raw `library.months()` counts that don't subtract decided items (suspected; check it). Put every count behind one `SourceCountsUseCase` built on WP-8.10's deck-membership function, and use it from all three screens.
 - **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late. `FR-9` cases, one per row and type, that the count equals the deck size with decided items present.
 - Run on the simulator with a seeded library (docs/fixtures) that mixes photos and videos, and switch types quickly back and forth.
 
@@ -304,6 +355,100 @@ Reported by the user on a device, 2026-11-10: videos never play sound. FR-16 say
 - **Setting (user, 2026-11-10).** Add a "Play video sound by default" setting next to the existing ones in `SettingsStore`. **Off is the default.** Off: every session starts muted, as FR-16 says today. On: sessions start with sound. The mute button still overrides it for the rest of the session. Update FR-16 and the settings section of the spec.
 - **Tests:** `FR-16` cases that the button toggles mute, the state carries to the next video in the session, a new session starts from the setting (off and on), and the audio session is requested only when sound is on (fake).
 - 👤 On a device: sound plays after unmuting with the silent switch on and off, music from another app keeps playing while videos are muted, and the setting takes effect on the next session.
+
+## 6. Architecture follow-ups
+
+From the 2026-11-19 architecture audit (two read-only reviews: data/domain/platform and presentation/UI). Each item was checked in the code unless marked *suspected*. These don't change behavior unless they say so, so most need no spec edit beyond §6. Several conflict with feature WPs; the "Run" line says how to order them.
+
+What the audit found sound and worth keeping: the `InAppDeleteConfirmation` token, which makes delete safety structural; persist-before-advance with its stale-advance and in-flight guards; consistent throw-on-write and null-on-failed-read; `BitmapLruCache`; strict design-token discipline enforced by `check-rules.sh`; and broad FR-named tests on fakes, including the semantics audit.
+
+### WP-9.1 Make the delete path a compile-time guarantee
+
+**Branch:** `arch-media-deleter`. **Requirements:** hard rule 1, NFR-5, §6.4. **Run:** before WP-8.11, which adds a second write path.
+
+Every ViewModel receives the whole `MediaLibrary`, `delete` included (`CommonModule.kt:68,86,95,106,116`). Hard rule 1 is enforced only by a text grep in `scripts/check-rules.sh:53-57`, which skips any file that never names `MediaLibrary`.
+
+- Split out a `MediaDeleter` interface holding `delete` (WP-8.11's `setHidden` goes on a separate writer interface). Bind `MediaDeleter` only into `CommitDeletionsUseCase` in Koin. Update §6.4, AGENTS.md hard rule 1, and `check-rules.sh` to check the binding.
+- **Tests:** `DiSmokeTest` still resolves everything. A test that no ViewModel's constructor takes a `MediaDeleter`.
+
+### WP-9.2 Slim down SwipeViewModel and tidy sessions
+
+**Branch:** `arch-swipe-session`. **Requirements:** FR-15, FR-20, FR-21, NFR-7, §6.6. **Run:** after WP-7.5 (same files), before WP-8.6 and WP-8.11. Conflicts with WP-9.3 and WP-8.9.
+
+`SwipeViewModel` is 595 lines and runs session start/resume, the decision path, undo, metadata paging, prefetching, video preload, share, and the summary. WP-8.6, 8.11, and 8.13 all add to it.
+
+- Move session start, resume, skip subtraction, reviewed-base maths, and the empty-deck end (`SwipeViewModel.kt:237-293`) into `StartSessionUseCase` and `FinishSessionUseCase` in domain.
+- Extract plain, separately tested classes: `DeckCursor` (deck, index, metadata pages), `PrefetchWindow`, and `UndoStack`.
+- Group `CardStack`'s 24 parameters and `DeckStage`'s 17 (`DeckMotion.kt:115-142`) into a few holders, such as `DeckCallbacks` and `VideoUiState`.
+- **Session rows.** Opening a different source leaves the previous open session orphaned and its `session_skip` rows grow forever: end other open sessions when a new one starts. `updatePosition` writes on every swipe but is never read back: drop the write (and the column, with a migration). Match a resumable album session on album id only, so renaming an album doesn't break resume. If WP-8.10 hasn't already, make an undecodable session row end itself instead of blocking every deck (`SqlSessionStore.kt:68`).
+- No behavior change. Existing `SwipeViewModel*Test` suites must pass unchanged, apart from moving to the new classes.
+
+### WP-9.3 One toast host, placed the same everywhere
+
+**Branch:** `arch-toast-host`. **Requirements:** §5.7 Toast, §6.6, FR-15, FR-22, NFR-7. **Run:** before WP-8.9. Conflicts with WP-9.2.
+
+- **The card jumps.** The toast sits in a Column with the card (`SwipeScreen.kt:257-303`), so every "Undone" toast resizes the card, including during the undo return animation. The video scrubber does the same when switching between a photo and a video (`:401`). Overlay toasts in a box anchored above the action bar, and reserve the scrubber row's height on every card.
+- **Three patterns.** Swipe keeps toasts in state; Queue and Settings send them as Channel events into local `remember` state (`QueueScreen.kt:42-50`, `SettingsScreen.kt:67-76`); `Toast.kt:41` keeps its own `dismissed` flag as a second source of truth. Placement differs too: Queue top, Settings bottom plus `xl`, Swipe above the bar. Make one `ToastHost`, one placement (bottom, per §5.7), and one pattern, and record the choice in §6.6.
+- Queue shows the raw PhotoKit error text to the user (`QueueScreen.kt:47`). Show a plain message instead.
+- **Tests:** a layout test that the card's size doesn't change when a toast appears or when the card type changes; toast cases per screen.
+
+### WP-9.4 Make video preloading race-free
+
+**Branch:** `nfr-3-video-cache-order`. **Requirements:** NFR-2, NFR-3, §6.5. Replaces the §4 "VideoItemCache LRU" item, which is a correctness issue, not just tuning.
+
+- `VideoItemCache.kt:84,88` and `PhotoKitMediaLoader.kt:205` each `launch` on `Dispatchers.Default`, so a `cancel(id)` can run before its `preload(id)` and leave an `AVPlayerItem` cached forever, and a `stopCaching` can run before its `startCaching`. Run each on a serial dispatcher (`limitedParallelism(1)`) or an actor, and bound the cache to the prefetch window.
+- *Suspected:* `cancel(id)` cancels a shared `Deferred` that a mounted player may be awaiting (`VideoItemCache.kt:97-98`), so the player keeps showing the poster. Don't cancel while something awaits it.
+- **Tests:** ordering cases with a fake loader and a controlled dispatcher; the cache never exceeds the window.
+
+### WP-9.5 Make the queue viewer safe to use
+
+**Branch:** `fr-24-queue-viewer`. **Requirements:** FR-23 to FR-25, NFR-5, NFR-8, §5.8 Queue.
+
+- *Suspected, very likely:* taps on the full-screen viewer fall through to the grid underneath, because `QueueItemViewer.kt:44-49` is a plain `Box` with only a background over the `LazyVerticalGrid`. Tapping the photo can open a different one. VoiceOver can reach the grid and "Delete N items" behind it. Make the viewer consume input and be its own traversal group, or put it in a full-screen dialog.
+- The viewer shows only a still for videos, so a video can't be checked before deleting it. Play videos in the viewer.
+- The viewer uses × for Close beside a check for Restore, while elsewhere × means Delete. Use a back or close icon that can't be read as Delete. Update §5.2.
+- "Delete 1 items" (`QueueScreen.kt:128`, `:245`): use plurals.
+- **Tests:** a UI test that tapping the viewer body doesn't change the open item; a semantics test that the grid isn't reachable while the viewer is open; plural cases.
+
+### WP-9.6 Loading, empty, and error states for Albums and Months, and no double navigation
+
+**Branch:** `fr-8-list-states`. **Requirements:** FR-7, FR-8, NFR-4, §5.8. Conflicts with WP-8.10 (Albums screen); run after it.
+
+- `AlbumsUiState` and `MonthsUiState` are bare lists. A failed scan keeps the current rows (`MonthsViewModel.kt:84-95`), so the user sees an empty screen with no explanation, and the Months scan on a large library has no loading indicator. Add a status (loading, ready, empty, error) with retry, and add them to §5.8.
+- *Suspected:* a double tap on a row pushes two Swipe screens on the same session, because the navigation collectors in `HomeDestinations.kt:64-72` and Albums/Months navigate on every event. Navigate only from a resumed back-stack entry.
+- **Tests:** state cases for each ViewModel; a navigation test that a double tap pushes one route.
+
+### WP-9.7 Settle the layering exceptions
+
+**Branch:** `arch-layering`. **Requirements:** §6.1, AGENTS.md hard rule 5. Mostly docs plus small moves.
+
+- `ui/` imports `data.MediaLoader`, `Haptics`, and `PerfTrace` directly (`SwipeScreen.kt:20-23`, `DeckMotion.kt:27-29`, `GridTile.kt`, `SourceRow.kt`, `QueueScreen.kt`), and `App.kt:298-302` and `HomeDestinations.kt:120` `koinInject` data interfaces into composables. Decide which are sanctioned UI services (image loading and haptics are reasonable), provide those through a `CompositionLocal`, write them into §6.1 and hard rule 5, and move the rest behind ViewModels.
+- Haptics fire from the UI for swipes but from `QueueViewModel` for the batch delete. Pick one owner.
+- `IosModule.kt:44-48` uses `runBlocking` to wait for the database driver, which can run on the main thread. Open the driver at startup or make first resolution asynchronous.
+- **Tests:** `DiSmokeTest` still passes; `check-rules.sh` enforces whatever rule replaces the exceptions.
+
+### WP-9.8 Gesture, accessibility, and cleanup polish
+
+**Branch:** `polish-2026-11`. **Requirements:** §5.6, NFR-8, §5.7. Several items touch §5.6 behavior, so check each against the spec and update it where the code was right and the spec wrong (hard rule 4). Split this WP if it grows large.
+
+- **Card image:** `DeckMotion.kt:305` uses `ContentScale.FillBounds` for §5.6 aspect-fill, which stretches photos. Use `ContentScale.Crop`.
+- **Threshold haptic:** `SwipeCard.kt:351-355` fires only when entering a verdict and never resets below the threshold, so §5.6's "either direction" and re-crossing are missed.
+- **Edge glow:** it appears only past the threshold, at full strength (`SwipeCard.kt:115`). Check §5.6 for a ramp.
+- **Settings toggles:** they use `selected` with `Role.Switch` (`SettingsScreen.kt:191-194`), so VoiceOver says "selected" instead of on or off. Use `Modifier.toggleable`.
+- **Scrubber:** no `setProgress` semantics action, so VoiceOver can't seek (`VideoScrubber.kt:45-50`).
+- **Queue badge:** `QueueBadge` adds its own description inside the already-labelled TopBar button, so the count is read twice.
+- **Leftovers:** move `DeniedScreen` and its test from `ui/screens/onboarding` to `ui/screens/permission`; fix the stale header in `Routes.kt:1-5`; decode `sourceJson` defensively in `App.kt:270`, like `typeFilter`.
+- *Suspected:* `LaunchedEffect(revertToken)` in `DeckMotion.kt:82` replays a card return when the deck re-enters composition. Key it so a token is consumed once.
+- **Minor:** Home, Albums, and Months wrap every intent in `viewModelScope.launch` without needing to. Move the debug gallery and swipe demo (about 380 lines, duplicating the action bar) out of release builds. Shadow uses `Color.Black` (`SwipeCard.kt:141`): add a token. Merge `VERDICT_TINT_ALPHA` and `tintedFillAlpha`, which name the same 16% tint.
+- **Tests:** a case for each behavior change, named after its FR or NFR.
+
+### WP-9.9 Cut redundant library scans
+
+**Branch:** `nfr-4-scan-dedupe`. **Requirements:** NFR-4. Low priority; take it if the §3 perf numbers show refresh hitches.
+
+- Each `changes()` refresh pays two full-library passes each for Bursts and Likely Duplicates: `smartCounts` (`PhotoKitMediaLibrary.kt:184,191`), then `refineSmart` (`LoadSourcesUseCase.kt:154`). Return candidates and burst ids from one pass, or cache them per refresh.
+- `PermissionViewModel.kt:111` lists every id just to count the limited selection. Use the fetch result's count.
+- The top-view-controller lookup is written twice and differs: `IosSystemActions.kt` doesn't follow `presentedViewController`, so the limited-library picker can fail to appear while a sheet is up; `PhotoKitMediaSharer.kt:172-183` does. Share one helper.
 
 ## Tracker
 
@@ -327,17 +472,29 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
-| 7.4 | Decision and delete audit | queued | | Priority 2 (user, 2026-11-19); report-only; 👤 ask the friend for session details |
+| 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
+| 7.5 | Bind decisions to the card on screen | queued | | Priority 2; confirmed cause of kept items being queued |
+| 7.6 | Partial delete marked as full | queued | | Priority 3; before 8.3 |
+| 7.7 | Month order and PhotoKit contract tests | queued | | |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
-| 8.3 | Fix empty Bursts deck | queued | | Priority 5 (user, 2026-11-19); also the Home Bursts count |
+| 8.3 | Fix empty Bursts deck | queued | | Priority 7; after 7.6; also the Home Bursts count and a deck loading state |
 | 8.4 | Storage freed (nice to have) | queued | | Earlier attempt discarded 2026-11-19 (branch tip was 4b047c1). Its review flagged a KVC crash guard, a stale-estimate race, and batching |
 | 8.5 | Duplicate set label | queued | | |
-| 8.6 | Last-copy warning | queued | | |
+| 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
-| 8.9 | Favorite confirmation redesign | queued | | Priority 4 (user, 2026-11-19); 👤 user test after merge |
-| 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, reconfirmed 2026-11-19) |
-| 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
-| 8.12 | Home count flicker and correctness | queued | | Priority 3 (user, 2026-11-19); after 8.10 merges |
+| 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
+| 8.10 | Exclude albums from Shuffle | queued | | Priority 1; starts with the deck-membership and stable-shuffle prerequisites |
+| 8.11 | Hide button | queued | | After 9.1 and 9.2 |
+| 8.12 | Home count flicker and correctness | queued | | Priority 5; after 8.10 |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
+| 9.1 | MediaDeleter split | queued | | Before 8.11 |
+| 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11 |
+| 9.3 | One toast host | queued | | Priority 6, before 8.9 |
+| 9.4 | Race-free video preloading | queued | | |
+| 9.5 | Queue viewer safety | queued | | |
+| 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
+| 9.7 | Layering exceptions | queued | | |
+| 9.8 | Gesture, accessibility, cleanup polish | queued | | |
+| 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
