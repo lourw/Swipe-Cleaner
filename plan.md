@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | ses_e0b7c383bffe1SNRZPwnCc40Uq | 2026-11-19 | Priority 1; deck-membership + stable-shuffle prerequisites in-branch |
-| 2 | 7.5 | implement | `fr-13-decision-card-binding` | ses_e0b604829ffe9jFSU3Ba06rdlB | 2026-11-19 | Priority 2; confirmed cause of kept items being queued. Prior session `ses_e0b7c383bffdejZ2i2qs01QART` died 2x (exit -1) with zero commits; replaced with a fresh session |
+| 2 | 7.5 | verify | `fr-13-decision-card-binding` | ses_e0a88b2f1ffexB83OOLtheNiGP | 2026-11-19 | Independent review of branch diff vs FR-12–15, FR-22, NFR-7/8, §0 |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -475,7 +475,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
-| 7.5 | Bind decisions to the card on screen | implementing | `fr-13-decision-card-binding` | Priority 2; confirmed cause of kept items being queued |
+| 7.5 | Bind decisions to the card on screen | verifying | `fr-13-decision-card-binding` | Priority 2; impl done 2026-11-19, validate.sh passed, 5 commits, `--full` not run (no iosApp/iosMain/Gradle edits) |
 | 7.6 | Partial delete marked as full | queued | | Priority 3; before 8.3 |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
