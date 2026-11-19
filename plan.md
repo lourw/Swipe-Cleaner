@@ -460,6 +460,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | (pending) | 2026-11-19 | Priority 1; deck-membership + stable-shuffle prerequisites in-branch |
+| 2 | 7.5 | implement | `fr-13-decision-card-binding` | (pending) | 2026-11-19 | Priority 2; confirmed cause of kept items being queued |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -473,7 +475,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
-| 7.5 | Bind decisions to the card on screen | queued | | Priority 2; confirmed cause of kept items being queued |
+| 7.5 | Bind decisions to the card on screen | implementing | `fr-13-decision-card-binding` | Priority 2; confirmed cause of kept items being queued |
 | 7.6 | Partial delete marked as full | queued | | Priority 3; before 8.3 |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
@@ -485,7 +487,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
-| 8.10 | Exclude albums from Shuffle | queued | | Priority 1; starts with the deck-membership and stable-shuffle prerequisites |
+| 8.10 | Exclude albums from Shuffle | implementing | `fr-37-shuffle-album-exclusions` | Priority 1; starts with the deck-membership and stable-shuffle prerequisites |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
 | 8.12 | Home count flicker and correctness | queued | | Priority 5; after 8.10 |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
