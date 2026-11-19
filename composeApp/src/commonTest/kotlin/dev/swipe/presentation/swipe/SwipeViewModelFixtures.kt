@@ -129,3 +129,16 @@ internal suspend fun ReceiveTurbine<SwipeUiState>.awaitDeckReady(): SwipeUiState
     awaitItem()
     return awaitItem()
 }
+
+/** The id of the card [SwipeViewModel] shows right now (the FR-13 binding). */
+internal fun SwipeViewModel.currentId(): String = checkNotNull(uiState.value.current) { "no card on screen" }.id
+
+/** A [SwipeIntent.Decide] for [verdict] naming the card on screen now (FR-13). */
+internal fun SwipeViewModel.decide(verdict: Decision): SwipeIntent = SwipeIntent.Decide(currentId(), verdict)
+
+/** [SwipeIntent.Decide] helpers naming the card on screen now (FR-13). */
+internal fun SwipeViewModel.keep(): SwipeIntent = decide(Decision.KEEP)
+
+internal fun SwipeViewModel.delete(): SwipeIntent = decide(Decision.DELETE)
+
+internal fun SwipeViewModel.skip(): SwipeIntent = decide(Decision.SKIP)

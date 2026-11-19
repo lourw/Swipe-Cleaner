@@ -6,6 +6,7 @@ package dev.swipe.ui.screens.swipe
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -17,11 +18,14 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
+import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
@@ -33,6 +37,7 @@ import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
 import dev.swipe.ui.assertAllClickablesLabeled
+import dev.swipe.ui.components.swipe.COMMIT_FRACTION_HORIZONTAL
 import dev.swipe.ui.components.swipe.FLY_OFF_MS
 import dev.swipe.ui.components.swipe.NUDGE_MS
 import dev.swipe.ui.theme.SwipeTheme
@@ -79,7 +84,7 @@ class SwipeScreenTest {
             waitForIdle()
             mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.Keep), intents)
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.KEEP)), intents)
             assertEquals(listOf(FakeHaptics.Event.IMPACT_LIGHT), haptics.events)
         }
 
@@ -99,7 +104,7 @@ class SwipeScreenTest {
             waitForIdle()
             mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.Delete), intents)
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.DELETE)), intents)
             assertEquals(listOf(FakeHaptics.Event.IMPACT_MEDIUM), haptics.events)
         }
 
@@ -119,8 +124,37 @@ class SwipeScreenTest {
             waitForIdle()
             mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.Skip), intents)
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.SKIP)), intents)
             assertEquals(listOf(FakeHaptics.Event.IMPACT_LIGHT), haptics.events)
+        }
+
+    @Test
+    fun `FR-13 a button tap during a card's fly-off decides nothing`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            // Drive frames by hand so the tap lands mid-flight, before the
+            // gesture's own commit (the same window the bug lived in).
+            mainClock.autoAdvance = false
+            setContent {
+                TestScreen(deckState(), onIntent = { intents.add(it) })
+            }
+            waitForIdle()
+            val size = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Drag past the KEEP threshold and release: the card flies off.
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() / 2L)
+            // Mid-flight the Keep button does nothing at all…
+            onNodeWithContentDescription("Keep").performClick()
+            // …and when the gesture commit lands it names the swiped card —
+            // exactly one intent for the card, never one per tap.
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.KEEP)), intents)
         }
 
     @Test
@@ -198,7 +232,10 @@ class SwipeScreenTest {
             val intents = mutableListOf<SwipeIntent>()
             setContent {
                 TestScreen(
-                    deckState().copy(toast = ToastMessage.FavoriteConfirm),
+                    deckState().copy(
+                        toast = ToastMessage.FavoriteConfirm,
+                        pendingFavoriteDelete = "current-id",
+                    ),
                     onIntent = { intents.add(it) },
                 )
             }
@@ -213,7 +250,8 @@ class SwipeScreenTest {
                 .onFirst()
                 .performClick()
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.ConfirmFavoriteDelete), intents)
+            // FR-13: the confirm names the pending card it was raised for.
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.ConfirmFavoriteDelete("current-id")), intents)
         }
 
     @Test
@@ -439,7 +477,7 @@ class SwipeScreenTest {
             waitForIdle()
             mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.Delete), intents)
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.DELETE)), intents)
         }
 
     @Test

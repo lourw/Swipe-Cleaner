@@ -56,7 +56,7 @@ class SwipeViewModelTest {
                 assertEquals("asset-1", ready.current?.id)
                 assertEquals("asset-2", ready.next?.id)
 
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
 
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
@@ -80,7 +80,7 @@ class SwipeViewModelTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Delete)
+                f.viewModel.onIntent(f.viewModel.delete())
 
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
@@ -99,7 +99,7 @@ class SwipeViewModelTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Skip)
+                f.viewModel.onIntent(f.viewModel.skip())
 
                 assertEquals("asset-2", awaitItem().current?.id)
             }
@@ -121,7 +121,7 @@ class SwipeViewModelTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
 
                 val failed = awaitItem()
                 // The card stays exactly where it was, with a toast and a revert event.
@@ -169,7 +169,7 @@ class SwipeViewModelTest {
             viewModel.uiState.test {
                 awaitDeckReady()
 
-                viewModel.onIntent(SwipeIntent.Keep)
+                viewModel.onIntent(viewModel.keep())
 
                 assertEquals("asset-2", awaitItem().current?.id)
             }
@@ -180,7 +180,7 @@ class SwipeViewModelTest {
         }
 
     @Test
-    fun `NFR-7 rapid double tap does not skip an undecided card`() =
+    fun `FR-13 rapid double tap writes once and never skips an undecided card`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(3)
@@ -188,24 +188,78 @@ class SwipeViewModelTest {
             f.viewModel.uiState.test {
                 assertEquals("asset-1", awaitDeckReady().current?.id)
 
-                // Two taps dispatched back-to-back, before either write completes:
-                // both capture asset-1, but only one advance may happen.
-                f.viewModel.onIntent(SwipeIntent.Keep)
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                // Two taps dispatched back-to-back, before the first write completes:
+                // both name asset-1, but the second finds its write in flight and
+                // is dropped — the UI sends each decision exactly once (FR-13).
+                f.viewModel.onIntent(f.viewModel.keep())
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
 
-                // Exactly one emission: the stale advance is discarded, and asset-2 —
-                // the card a double tap used to skip — is current and undecided.
+                // Exactly one emission, and asset-2 — the card a double tap used
+                // to skip — is current and undecided.
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertEquals(1, after.progress.reviewed)
                 expectNoEvents()
             }
-            // Both writes targeted asset-1 (the idempotent upsert), nothing for asset-2.
-            assertEquals(2, f.store.recordCalls.count { it.first == "asset-1" })
+            // Exactly one write for asset-1 (FR-13), nothing for asset-2.
+            assertEquals(1, f.store.recordCalls.count { it.first == "asset-1" })
             assertTrue(f.store.recordCalls.none { it.first == "asset-2" })
             // The resume position moved by exactly one (FR-20).
             assertEquals(listOf("session-1" to 1), f.sessionStore.updatePositionCalls)
+        }
+
+    @Test
+    fun `FR-13 a decision naming a card that is not on screen is ignored`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            advanceUntilIdle()
+
+            // asset-1 decides, the deck moves to asset-2 — and a late Keep for
+            // asset-1 arrives, naming the card that already flew off.
+            f.viewModel.onIntent(SwipeIntent.Decide("asset-1", Decision.KEEP))
+            advanceUntilIdle()
+            assertEquals("asset-2", f.viewModel.uiState.value.current?.id)
+            f.viewModel.onIntent(SwipeIntent.Decide("asset-1", Decision.DELETE))
+            advanceUntilIdle()
+
+            assertEquals(listOf(Triple("asset-1", Decision.KEEP, "session-1")), f.store.recordCalls)
+            val s = f.viewModel.uiState.value
+            assertEquals("asset-2", s.current?.id)
+            assertEquals(1, s.progress.reviewed)
+        }
+
+    @Test
+    fun `FR-12 two quick verdicts for different cards each land on the right card`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            advanceUntilIdle()
+
+            // Keep asset-1, then — before its write returns — a verdict that
+            // already names asset-2 (the tap the UI will only ever send once
+            // asset-2 is up). Each decision lands on the card it names, in order.
+            f.viewModel.onIntent(SwipeIntent.Decide("asset-1", Decision.KEEP))
+            f.viewModel.onIntent(SwipeIntent.Decide("asset-2", Decision.DELETE))
+            advanceUntilIdle()
+
+            // asset-2's verdict arrived while asset-1 was still the card on
+            // screen: it is ignored, not misapplied and not applied early.
+            assertEquals(listOf(Triple("asset-1", Decision.KEEP, "session-1")), f.store.recordCalls)
+            assertEquals("asset-2", f.viewModel.uiState.value.current?.id)
+
+            // Now asset-2 decides for real, and each card carries its own verdict.
+            f.viewModel.onIntent(SwipeIntent.Decide("asset-2", Decision.DELETE))
+            advanceUntilIdle()
+            assertEquals(
+                listOf(
+                    Triple("asset-1", Decision.KEEP, "session-1"),
+                    Triple("asset-2", Decision.DELETE, "session-1"),
+                ),
+                f.store.recordCalls,
+            )
+            assertEquals("asset-3", f.viewModel.uiState.value.current?.id)
         }
 
     @Test
@@ -217,10 +271,10 @@ class SwipeViewModelTest {
             f.viewModel.uiState.test {
                 assertEquals(Progress(0, 2), awaitDeckReady().progress)
 
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 assertEquals(Progress(1, 2), awaitItem().progress)
 
-                f.viewModel.onIntent(SwipeIntent.Skip)
+                f.viewModel.onIntent(f.viewModel.skip())
                 // Deck exhausted → current is null and the summary is set (FR-21, §6.6).
                 val done = awaitItem()
                 assertEquals(Progress(2, 2), done.progress)
@@ -243,20 +297,20 @@ class SwipeViewModelTest {
 
             // Index 14 is not yet within 5 of the loaded end (14 + 5 < 20).
             repeat(14) {
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
             }
             assertEquals(1, f.library.itemsCalls.size)
 
             // Index 15 is (15 + 5 >= 20): the next page of 20 loads.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(2, f.library.itemsCalls.size)
             assertEquals((21..40).map { "asset-$it" }, f.library.itemsCalls[1])
 
             // Index 35 pulls the last (short) page.
             repeat(20) {
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
             }
             assertEquals(3, f.library.itemsCalls.size)
@@ -276,7 +330,7 @@ class SwipeViewModelTest {
             assertEquals(listOf(listOf("asset-1", "asset-2", "asset-3", "asset-4")), f.loader.prefetchCalls)
             assertEquals(emptyList(), f.loader.cancelPrefetchCalls)
 
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             // The window slid: asset-5 joined, asset-1 was cancelled (§6.4 cancelPrefetch).
             assertEquals(
@@ -293,7 +347,7 @@ class SwipeViewModelTest {
 
             // Walking off the deck's end: the window shrinks and every stale id is cancelled.
             repeat(5) {
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
             }
             assertEquals(
@@ -331,18 +385,18 @@ class SwipeViewModelTest {
             assertEquals(emptyList(), f.videoPreloader.cancelCalls)
 
             // Slide to asset-2 … asset-5: asset-5 joins, nothing left, nothing re-warmed.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(listOf("asset-2", "asset-4", "asset-5"), f.videoPreloader.preloadCalls)
             assertEquals(emptyList(), f.videoPreloader.cancelCalls)
 
             // Slide to asset-3 … asset-6: video asset-2 left the window → cancelled.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(listOf("asset-2"), f.videoPreloader.cancelCalls)
 
             // Slide to asset-4 … asset-7: the video at position 7 is preloaded.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(listOf("asset-2", "asset-4", "asset-5", "asset-7"), f.videoPreloader.preloadCalls)
         }

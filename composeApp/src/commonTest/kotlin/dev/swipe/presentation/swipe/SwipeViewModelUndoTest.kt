@@ -50,7 +50,7 @@ class SwipeViewModelUndoTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertTrue(after.canUndo)
@@ -95,7 +95,7 @@ class SwipeViewModelUndoTest {
             advanceUntilIdle()
 
             repeat(55) {
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
             }
             repeat(55) {
@@ -146,7 +146,7 @@ class SwipeViewModelUndoTest {
 
             viewModel.uiState.test {
                 awaitDeckReady()
-                viewModel.onIntent(SwipeIntent.Keep)
+                viewModel.onIntent(viewModel.keep())
                 assertEquals("asset-2", awaitItem().current?.id)
 
                 // A failed removal leaves everything in place: the decision stays
@@ -178,9 +178,9 @@ class SwipeViewModelUndoTest {
             val f = Fixture(3)
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(
                 "asset-3",
@@ -220,7 +220,7 @@ class SwipeViewModelUndoTest {
             val f = Fixture(2)
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Skip)
+            f.viewModel.onIntent(f.viewModel.skip())
             advanceUntilIdle()
             assertEquals(
                 "asset-2",
@@ -240,7 +240,7 @@ class SwipeViewModelUndoTest {
             assertEquals(emptySet(), f.sessionStore.skippedIds("session-1"))
             assertEquals(listOf("asset-1"), f.store.removeCalls)
             // …and the deck still holds it, so it can be decided for real.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(
                 "asset-2",
@@ -261,7 +261,7 @@ class SwipeViewModelUndoTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
                 // The write is suspended on the gate: nothing has moved (NFR-7).
                 expectNoEvents()
@@ -298,7 +298,7 @@ class SwipeViewModelUndoTest {
 
             // Decide asset-1 for real, so the undo stack is non-empty and it is
             // the in-flight write, not an empty stack, that drops the next tap.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertEquals(
                 "asset-2",
@@ -308,7 +308,7 @@ class SwipeViewModelUndoTest {
 
             val gate = CompletableDeferred<Unit>()
             f.store.gateNextRecord = gate
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
 
             // Ignored while the asset-2 write is in flight: no removal, no rewind.

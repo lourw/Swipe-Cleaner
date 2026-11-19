@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
  * [UndoDecisionUseCase] *before* the index moves back — a failed removal leaves the
  * state untouched and shows the same error toast — and each successful decision
  * pushes an [UndoEntry] onto a 50-deep stack (oldest dropped). Undo is ignored
- * while a decision write is in flight ([decideWritesInFlight]), the mirror of the
+ * while a decision write is in flight ([decideInFlight]), the mirror of the
  * single-flight removal: the deck never rewinds under a completing write.
  *
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
@@ -133,14 +133,18 @@ class SwipeViewModel(
     private var undoInFlight: UndoEntry? = null
 
     /**
-     * FR-15: decision writes in flight (a double tap has two). While non-zero, [undo]
+     * FR-15: cards whose decision write is in flight. While non-empty, [undo]
      * is ignored — the mirror of [undoInFlight] holding further Undo taps. Rewinding
      * under a completing write would re-show the card being decided, and that write's
      * stale-advance guard would discard the advance, leaving a stored verdict behind a
      * card the user then decides a second time; ignoring the tap keeps the deck and
      * the stored rows in step (NFR-7).
+     *
+     * FR-13: a decision naming a card already in this set is dropped too — the UI
+     * sends each decision exactly once (its button path refuses a second fly-off),
+     * so a repeat is a duplicate delivery and one write per verdict is all it needs.
      */
-    private var decideWritesInFlight = 0
+    private val decideInFlight = mutableSetOf<String>()
 
     /**
      * FR-32: the single-flight share. Nothing here writes a decision or moves the
@@ -315,6 +319,8 @@ class SwipeViewModel(
         // FR-12/FR-13: the decision belongs to the card it named; a stale id (the
         // card already flew off) is dropped, nothing is written, nothing moves.
         if (deck.getOrNull(index) != id) return
+        // FR-13: the card's own verdict is already on its way to the store.
+        if (id in decideInFlight) return
         if (!confirmed && decision == Decision.DELETE && metadata[id]?.isFavorite == true) {
             // FR-22: ask before queueing a favorite; nothing is written yet.
             _uiState.update {
@@ -322,9 +328,8 @@ class SwipeViewModel(
             }
             eventChannel.trySend(SwipeEvent.ReturnCard(Decision.DELETE))
         } else {
-            // FR-15: hold Undo for the duration of the write (WP-7.2); a double
-            // tap has two writes in flight, hence the counter.
-            decideWritesInFlight += 1
+            // FR-15: hold Undo for the duration of the write (WP-7.2).
+            decideInFlight += id
             viewModelScope.launch {
                 val saved =
                     try {
@@ -341,7 +346,7 @@ class SwipeViewModel(
                         // the next suspension point on the ViewModel's single dispatcher,
                         // so an Undo tap can never slip in between the write and the
                         // index advance.
-                        decideWritesInFlight -= 1
+                        decideInFlight -= id
                     }
                 if (!saved) {
                     _uiState.update {
@@ -384,14 +389,14 @@ class SwipeViewModel(
      * index is guaranteed to sit behind the deck head when the removal lands.
      *
      * A tap is likewise ignored while a [decide] write is in flight
-     * ([decideWritesInFlight], WP-7.2): rewinding under a completing write re-shows
+     * ([decideInFlight], WP-7.2): rewinding under a completing write re-shows
      * the card being decided, so the tap drops rather than rewinds or queues.
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
         // FR-15: single-flight, no-op on an empty stack (§6.6 canUndo), and held
         // while a decision write is in flight (WP-7.2).
-        val blocked = undoInFlight != null || decideWritesInFlight > 0
+        val blocked = undoInFlight != null || decideInFlight.isNotEmpty()
         val entry = if (!blocked) undoStack.removeLastOrNull() else null
         entry ?: return
         undoInFlight = entry

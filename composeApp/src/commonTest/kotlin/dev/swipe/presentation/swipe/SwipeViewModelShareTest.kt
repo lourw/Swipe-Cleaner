@@ -135,7 +135,7 @@ class SwipeViewModelShareTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(3)
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
 
             f.viewModel.onIntent(SwipeIntent.Share)
@@ -171,7 +171,7 @@ class SwipeViewModelShareTest {
             advanceUntilIdle()
             assertTrue(f.viewModel.uiState.value.sharing)
 
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
 
             assertEquals(1, f.sharer.cancelledCalls)

@@ -55,7 +55,7 @@ class SwipeViewModelSessionTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Delete)
+                f.viewModel.onIntent(f.viewModel.delete())
                 val asked = awaitItem()
                 // The card stays put and the confirm names it (§6.6 pendingFavoriteDelete).
                 assertEquals("asset-1", asked.current?.id)
@@ -68,7 +68,7 @@ class SwipeViewModelSessionTest {
             assertTrue(f.store.entries.none { it.decision == Decision.DELETE })
 
             // "Delete anyway": now the DELETE is recorded and the deck advances.
-            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete)
+            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete("asset-1"))
             advanceUntilIdle()
             val after = f.viewModel.uiState.value
             assertEquals("asset-2", after.current?.id)
@@ -87,7 +87,7 @@ class SwipeViewModelSessionTest {
             f.viewModel.uiState.test {
                 awaitDeckReady()
 
-                f.viewModel.onIntent(SwipeIntent.Delete)
+                f.viewModel.onIntent(f.viewModel.delete())
                 assertEquals(ToastMessage.FavoriteConfirm, awaitItem().toast)
 
                 f.viewModel.onIntent(SwipeIntent.DismissToast)
@@ -109,7 +109,7 @@ class SwipeViewModelSessionTest {
             val f = Fixture(3, favoriteIds = setOf("asset-1"))
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Delete)
+            f.viewModel.onIntent(f.viewModel.delete())
             val asked = f.viewModel.uiState.value
             assertEquals(ToastMessage.FavoriteConfirm, asked.toast)
             assertEquals("asset-1", asked.pendingFavoriteDelete)
@@ -117,8 +117,8 @@ class SwipeViewModelSessionTest {
             // Two confirms dispatched back-to-back, while the first write is still
             // in flight: the first clears the pending id synchronously, so the
             // second finds nothing pending and records nothing (FR-22).
-            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete)
-            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete)
+            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete("asset-1"))
+            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete("asset-1"))
             advanceUntilIdle()
 
             // Exactly one DELETE — asset-2, the card behind the favorite, is never
@@ -137,13 +137,13 @@ class SwipeViewModelSessionTest {
             val f = Fixture(1, favoriteIds = setOf("asset-1"))
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Delete)
+            f.viewModel.onIntent(f.viewModel.delete())
             assertEquals(ToastMessage.FavoriteConfirm, f.viewModel.uiState.value.toast)
             assertEquals(emptyList(), f.store.recordCalls)
 
             // The confirmed DELETE runs the deck out, so the summary is built with
             // it counted as queued (FR-22, FR-21).
-            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete)
+            f.viewModel.onIntent(SwipeIntent.ConfirmFavoriteDelete("asset-1"))
             advanceUntilIdle()
 
             val s = f.viewModel.uiState.value
@@ -168,7 +168,7 @@ class SwipeViewModelSessionTest {
                 assertFalse(awaitItem().muted)
 
                 // The setting survives card changes for the session's lifetime.
-                f.viewModel.onIntent(SwipeIntent.Keep)
+                f.viewModel.onIntent(f.viewModel.keep())
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertFalse(after.muted)
@@ -185,11 +185,11 @@ class SwipeViewModelSessionTest {
             val f = Fixture(3)
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Delete)
+            f.viewModel.onIntent(f.viewModel.delete())
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Skip)
+            f.viewModel.onIntent(f.viewModel.skip())
             advanceUntilIdle()
 
             val s = f.viewModel.uiState.value
@@ -246,12 +246,12 @@ class SwipeViewModelSessionTest {
                     .single()
                     .endedAt,
             )
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             assertTrue(f.sessionStore.endCalls.isEmpty())
 
             // Only running the deck out ends it — exactly once, with the summary.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             val s = f.viewModel.uiState.value
             assertEquals(SessionSummary(kept = 2, queued = 0, skipped = 0), s.finished)
@@ -327,11 +327,11 @@ class SwipeViewModelSessionTest {
 
             val first = viewModel()
             advanceUntilIdle()
-            first.onIntent(SwipeIntent.Keep)
+            first.onIntent(first.keep())
             advanceUntilIdle()
-            first.onIntent(SwipeIntent.Skip)
+            first.onIntent(first.skip())
             advanceUntilIdle()
-            first.onIntent(SwipeIntent.Keep)
+            first.onIntent(first.keep())
             advanceUntilIdle()
             val expectedCurrent =
                 first.uiState.value.current
@@ -354,7 +354,7 @@ class SwipeViewModelSessionTest {
             assertEquals(1, sessionStore.createCalls.size)
 
             // Continuing walks the same remaining order.
-            second.onIntent(SwipeIntent.Keep)
+            second.onIntent(second.keep())
             advanceUntilIdle()
             assertEquals(
                 expectedNext,
@@ -372,11 +372,11 @@ class SwipeViewModelSessionTest {
 
             // Keep one, queue two, then commit the queue (FR-26): PhotoKit
             // drops the assets and the rows flip DELETE → DELETED.
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Delete)
+            f.viewModel.onIntent(f.viewModel.delete())
             advanceUntilIdle()
-            f.viewModel.onIntent(SwipeIntent.Delete)
+            f.viewModel.onIntent(f.viewModel.delete())
             advanceUntilIdle()
             val committed = listOf("asset-2", "asset-3")
             f.library.delete(committed)
@@ -548,7 +548,7 @@ class SwipeViewModelSessionTest {
             val f = Fixture(3)
             advanceUntilIdle()
 
-            f.viewModel.onIntent(SwipeIntent.Keep)
+            f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             f.viewModel.onIntent(SwipeIntent.Undo)
             advanceUntilIdle()
