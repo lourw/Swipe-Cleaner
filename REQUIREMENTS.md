@@ -518,15 +518,32 @@ data class SwipeUiState(
     val pendingFavoriteDelete: String?, // the favorite awaiting confirm, else null (FR-22)
     val sharing: Boolean,           // the current item's media is loading for the share sheet (FR-32)
 )
-sealed interface SwipeIntent { Keep; Delete; Skip; Undo; ToggleMute; ConfirmFavoriteDelete; DismissToast; Share }
+sealed interface SwipeIntent {
+    data class Decide(val id: String, val verdict: Decision) // Keep / Delete / Skip for card `id`
+    data object Undo
+    data object ToggleMute
+    data class ConfirmFavoriteDelete(val id: String)
+    data object DismissToast
+    data object Share
+}
 sealed interface ToastMessage { SaveFailed; Undone; FavoriteConfirm; StartFailed; ShareFailed }
 sealed interface SwipeEvent { data class ReturnCard(val decision: Decision) }
 ```
 
+**Decisions name their card (FR-12, FR-13).** Every decision intent carries the id of the
+card the action was performed on, and the ViewModel ignores a decision whose id is not the
+card on screen — a tap or VoiceOver action that lands while a card is flying off is either
+refused at the card (the button path only flies an at-rest card) or dropped by the
+ViewModel, never recorded against the leaving card or the one behind it. The UI's button
+and accessibility paths refuse to start a fly-off while the card is dragging, snapping
+back, returning, or already flying off; the gesture path reads its commit callback at
+release time, so the flight's commit names the card that was on screen when the finger
+lifted. `ConfirmFavoriteDelete(id)` additionally requires `id == pendingFavoriteDelete`.
+
 `ToastMessage` variants: `SaveFailed` (NFR-7, the decision write failed and the card
 reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22, "delete anyway?" — while it is up
-`pendingFavoriteDelete` holds the id, and `ConfirmFavoriteDelete` records the DELETE that
-the first tap refused to record), `StartFailed` (the session could not be opened or
+`pendingFavoriteDelete` holds the id, and `ConfirmFavoriteDelete(id)` records the DELETE
+that the first tap refused to record), `StartFailed` (the session could not be opened or
 resumed; the screen stays empty instead of crashing), and `ShareFailed` (FR-32, the
 current item's media could not be loaded for the share sheet).
 
