@@ -298,17 +298,13 @@ class SwipeViewModel(
      * Every decision names the card it was made for: an intent whose [id] is not the
      * card on screen is ignored (FR-12, FR-13) — a tap that lands while the previous
      * card is still flying off never records against the leaving card or the one
-     * behind it.
+     * behind it. A second verdict for a card whose write is already in flight is
+     * dropped for the same reason: the in-flight write is that card's commit, so a
+     * double tap can never skip an undecided card (NFR-7).
      *
      * A Delete on a favorite records nothing (FR-22): the card goes back through the
      * [SwipeEvent.ReturnCard] event, and the confirm toast names the id in
      * [SwipeUiState.pendingFavoriteDelete] until it is confirmed or dismissed.
-     *
-     * Concurrent taps (the buttons are always enabled): both intents capture the same
-     * card before either write returns and the upsert keeps the decision durable, so
-     * after the write each attempt re-checks that the deck head is still the card it
-     * recorded — the loser discards its advance. A double tap can never skip an
-     * undecided card (NFR-7).
      */
     private fun decide(
         id: String,
@@ -317,10 +313,11 @@ class SwipeViewModel(
     ) {
         val sessionId = sessionId ?: return // init has not finished; there is no card yet
         // FR-12/FR-13: the decision belongs to the card it named; a stale id (the
-        // card already flew off) is dropped, nothing is written, nothing moves.
-        if (deck.getOrNull(index) != id) return
-        // FR-13: the card's own verdict is already on its way to the store.
-        if (id in decideInFlight) return
+        // card already flew off) is dropped, nothing is written, nothing moves. And
+        // one write per card: while the card's own verdict is in flight it is that
+        // card's commit and the card has already advanced, so a second verdict
+        // naming it is dropped and nothing is lost.
+        if (deck.getOrNull(index) != id || id in decideInFlight) return
         if (!confirmed && decision == Decision.DELETE && metadata[id]?.isFavorite == true) {
             // FR-22: ask before queueing a favorite; nothing is written yet.
             _uiState.update {
