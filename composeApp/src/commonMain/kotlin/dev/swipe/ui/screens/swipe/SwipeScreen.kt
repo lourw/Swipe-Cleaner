@@ -167,16 +167,18 @@ fun SwipeScreen(
 
 /**
  * The §5.7 [Toast] for the current [ToastMessage]: the FR-22 favorite confirm
- * carries the warning-tinted heart and its "Delete" action, every other
- * message rides alone; all of them dismiss through [SwipeIntent.DismissToast].
+ * carries the warning-tinted heart and its "Delete" action — bound to the
+ * pending card [favoriteId] (FR-13, FR-22) — every other message rides
+ * alone; all of them dismiss through [SwipeIntent.DismissToast].
  */
 @Composable
 private fun ToastSlot(
     message: ToastMessage,
     onIntent: (SwipeIntent) -> Unit,
     modifier: Modifier = Modifier,
+    favoriteId: String? = null,
 ) {
-    val confirm = message == ToastMessage.FavoriteConfirm
+    val confirm = message == ToastMessage.FavoriteConfirm && favoriteId != null
     Toast(
         text = toastText(message),
         icon = if (confirm) SwipeIcons.FAVORITE else null,
@@ -187,7 +189,7 @@ private fun ToastSlot(
         actionLabel = if (confirm) "Delete" else null,
         onAction =
             if (confirm) {
-                { onIntent(SwipeIntent.ConfirmFavoriteDelete) }
+                { onIntent(SwipeIntent.ConfirmFavoriteDelete(favoriteId)) }
             } else {
                 null
             },
@@ -213,7 +215,9 @@ internal fun rememberCommit(
     val commit: (SwipeVerdict) -> Unit = { verdict ->
         latency.onCommit(cardId)
         verdict.fireHaptic(haptics)
-        onIntent(verdict.toIntent())
+        // FR-13: the verdict is bound to the card it was made on; the
+        // callback is captured at release/tap time, so this is that card.
+        if (cardId != null) onIntent(verdict.toIntent(cardId))
     }
     return latency to commit
 }
@@ -244,11 +248,12 @@ private fun DeckContent(
     // NFR-1 spans and the shared commit: see [rememberCommit].
     val (latency, commit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
-    // same commit a gesture makes.
+    // same commit a gesture makes. A card that is not at rest (a flight, a
+    // snap-back, a finger on it) refuses the fly-off, and nothing is
+    // committed or sent for it (FR-12, FR-13).
     val buttonCommit: (SwipeVerdict) -> Unit = { verdict ->
         scope.launch {
-            cardState.flyOff(verdict, reduceMotion)
-            commit(verdict)
+            if (cardState.flyOff(verdict, reduceMotion)) commit(verdict)
         }
     }
 
@@ -287,6 +292,7 @@ private fun DeckContent(
             ToastSlot(
                 message = message,
                 onIntent = onIntent,
+                favoriteId = state.pendingFavoriteDelete,
                 modifier = Modifier.padding(horizontal = SwipeTheme.spacing.gutter),
             )
         }

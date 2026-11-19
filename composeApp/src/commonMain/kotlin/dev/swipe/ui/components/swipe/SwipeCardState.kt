@@ -106,22 +106,25 @@ class SwipeCardState internal constructor(
      * [verdict], push the card [NUDGE_DP] toward it over [NUDGE_MS], then run
      * the normal [FLY_OFF_MS] fly-off. Returns once the card is off-screen
      * with [committedVerdict] set; the caller then does what a gesture commit
-     * does — dismiss the item and advance the deck. Ignored while dragging
-     * or if a verdict is already committed. With [reduceMotion] the nudge is
-     * skipped too and the card only crossfades (§5.6: "No rotation or
-     * fly-off").
+     * does — dismiss the item and advance the deck. Returns false, having
+     * changed nothing, unless the card is [isIdle] — a tap landing while the
+     * card drags, snaps back, returns, or already flies off must never drive
+     * a second verdict through the same card (FR-12, FR-13). With
+     * [reduceMotion] the nudge is skipped too and the card only crossfades
+     * (§5.6: "No rotation or fly-off").
      */
     suspend fun flyOff(
         verdict: SwipeVerdict,
         reduceMotion: Boolean = false,
-    ) {
-        if (dragging || committedVerdict != null) return
+    ): Boolean {
+        if (!isIdle) return false
         committedVerdict = verdict
         if (!reduceMotion) {
             val nudgePx = NUDGE_DP.value * density
             offsetAnim.animateTo(directionToward(verdict) * nudgePx, tween(NUDGE_MS, easing = FastOutLinearInEasing))
         }
         flyOffCommitted(reduceMotion)
+        return true
     }
 
     /**

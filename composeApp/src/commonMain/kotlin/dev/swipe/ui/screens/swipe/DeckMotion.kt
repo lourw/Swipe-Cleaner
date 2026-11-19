@@ -358,12 +358,18 @@ internal fun SwipeVerdict.fireHaptic(haptics: Haptics) {
     }
 }
 
-/** The intent a committed verdict sends (persist-before-advance, NFR-7). */
-internal fun SwipeVerdict.toIntent(): SwipeIntent =
+/**
+ * The intent a committed verdict sends for the card [id] (persist-before-advance,
+ * NFR-7; the id binds it — FR-13).
+ */
+internal fun SwipeVerdict.toIntent(id: String): SwipeIntent = SwipeIntent.Decide(id, toDecision())
+
+/** The domain [Decision] a committed verdict records (the layering map, §6.1). */
+internal fun SwipeVerdict.toDecision(): Decision =
     when (this) {
-        SwipeVerdict.KEEP -> SwipeIntent.Keep
-        SwipeVerdict.DELETE -> SwipeIntent.Delete
-        SwipeVerdict.SKIP -> SwipeIntent.Skip
+        SwipeVerdict.KEEP -> Decision.KEEP
+        SwipeVerdict.DELETE -> Decision.DELETE
+        SwipeVerdict.SKIP -> Decision.SKIP
     }
 
 /** The UI verdict matching a domain [Decision] (the layering map, §6.1). */

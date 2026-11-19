@@ -173,16 +173,8 @@ class SwipeViewModel(
     /** The one entry point for user actions (AGENTS.md ViewModel convention). */
     fun onIntent(intent: SwipeIntent) {
         when (intent) {
-            SwipeIntent.Keep -> {
-                decide(Decision.KEEP)
-            }
-
-            SwipeIntent.Delete -> {
-                decide(Decision.DELETE)
-            }
-
-            SwipeIntent.Skip -> {
-                decide(Decision.SKIP)
+            is SwipeIntent.Decide -> {
+                decide(intent.id, intent.verdict)
             }
 
             SwipeIntent.Undo -> {
@@ -194,15 +186,16 @@ class SwipeViewModel(
                 _uiState.update { it.copy(muted = !it.muted) }
             }
 
-            SwipeIntent.ConfirmFavoriteDelete -> {
-                // FR-22: only meaningful while the confirm names a card that is still
-                // up. The pending id is cleared *synchronously* here, so a second tap
-                // during the write's suspension window finds nothing pending — the
-                // confirmed write can never target the next card.
+            is SwipeIntent.ConfirmFavoriteDelete -> {
+                // FR-22: only meaningful while the confirm names the card still up
+                // and the intent names that same card. The pending id is cleared
+                // *synchronously* here, so a second tap during the write's suspension
+                // window finds nothing pending — the confirmed write can never
+                // target the next card.
                 val pending = _uiState.value.pendingFavoriteDelete
-                if (pending != null && deck.getOrNull(index) == pending) {
+                if (pending != null && intent.id == pending && deck.getOrNull(index) == pending) {
                     _uiState.update { it.copy(toast = null, pendingFavoriteDelete = null) }
-                    decide(Decision.DELETE, confirmed = true)
+                    decide(pending, Decision.DELETE, confirmed = true)
                 }
             }
 
@@ -298,6 +291,11 @@ class SwipeViewModel(
      * only, advance, save the resume position (FR-20), and emit; (c) on failure keep
      * the index and revert the card (NFR-7).
      *
+     * Every decision names the card it was made for: an intent whose [id] is not the
+     * card on screen is ignored (FR-12, FR-13) — a tap that lands while the previous
+     * card is still flying off never records against the leaving card or the one
+     * behind it.
+     *
      * A Delete on a favorite records nothing (FR-22): the card goes back through the
      * [SwipeEvent.ReturnCard] event, and the confirm toast names the id in
      * [SwipeUiState.pendingFavoriteDelete] until it is confirmed or dismissed.
@@ -309,11 +307,14 @@ class SwipeViewModel(
      * undecided card (NFR-7).
      */
     private fun decide(
+        id: String,
         decision: Decision,
         confirmed: Boolean = false,
     ) {
         val sessionId = sessionId ?: return // init has not finished; there is no card yet
-        val id = deck.getOrNull(index) ?: return // exhausted: current stays null (§6.6)
+        // FR-12/FR-13: the decision belongs to the card it named; a stale id (the
+        // card already flew off) is dropped, nothing is written, nothing moves.
+        if (deck.getOrNull(index) != id) return
         if (!confirmed && decision == Decision.DELETE && metadata[id]?.isFavorite == true) {
             // FR-22: ask before queueing a favorite; nothing is written yet.
             _uiState.update {

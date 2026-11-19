@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,7 +105,10 @@ fun SwipeCard(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current.density
-    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    // The `State`, not the value: the release handler reads it once at release
+    // so the flight's commit names the card that was on screen when the finger
+    // lifted, never one a recomposition bound mid-flight (FR-13).
+    val currentOnDismiss = rememberUpdatedState(onDismiss)
     val currentOnThresholdCrossed by rememberUpdatedState(onThresholdCrossed)
     var cardSize by remember { mutableStateOf(Size.Zero) }
     // Observing the combinedClickable press: the up-edge the long-press pair
@@ -227,7 +231,7 @@ private fun Modifier.swipeDragPointerInput(
     reduceMotion: Boolean,
     scope: CoroutineScope,
     onThresholdCrossed: () -> Unit,
-    onDismiss: (SwipeVerdict) -> Unit,
+    onDismiss: State<(SwipeVerdict) -> Unit>,
 ): Modifier =
     pointerInput(reduceMotion) {
         swipeDragGestures(
@@ -322,7 +326,9 @@ private fun BoxScope.VerdictStampOverlay(
  * fires once per threshold crossing (never again until the card re-enters
  * and crosses again), a release is judged by [verdictFor] — offset past the
  * direction threshold or a fling over [FLING_VELOCITY_DP_S] — and either
- * flies off and reports [onDismiss] or springs back.
+ * flies off and reports the [onDismiss] callback bound at release time
+ * (FR-13) or springs back. A drag started while a verdict is already in
+ * flight is inert: it never steals the flying card.
  */
 private suspend fun PointerInputScope.swipeDragGestures(
     state: SwipeCardState,
@@ -331,51 +337,69 @@ private suspend fun PointerInputScope.swipeDragGestures(
     reduceMotion: Boolean,
     scope: CoroutineScope,
     onThresholdCrossed: () -> Unit,
-    onDismiss: (SwipeVerdict) -> Unit,
+    onDismiss: State<(SwipeVerdict) -> Unit>,
 ) {
     val tracker = VelocityTracker()
     var dragTotal = Offset.Zero
     var crossed: SwipeVerdict? = null
+    var live = false
     detectDragGestures(
         onDragStart = { _: Offset ->
-            state.dragging = true
-            dragTotal = Offset.Zero
-            crossed = null
-            tracker.resetTracking()
+            // FR-13: the card belongs to its verdict flight once one is
+            // committed; a new drag grabs nothing until the slot resets.
+            live = state.committedVerdict == null
+            if (live) {
+                state.dragging = true
+                dragTotal = Offset.Zero
+                crossed = null
+                tracker.resetTracking()
+            }
         },
         onDrag = { change: PointerInputChange, dragAmount: Offset ->
             change.consume()
-            tracker.addPosition(change.uptimeMillis, change.position)
-            dragTotal += dragAmount
-            scope.launch { state.snapTo(dragTotal) }
-            val now = previewVerdict(dragTotal, cardSize())
-            if (now != null && now != crossed) {
-                crossed = now
-                onThresholdCrossed()
+            if (live) {
+                tracker.addPosition(change.uptimeMillis, change.position)
+                dragTotal += dragAmount
+                scope.launch { state.snapTo(dragTotal) }
+                val now = previewVerdict(dragTotal, cardSize())
+                if (now != null && now != crossed) {
+                    crossed = now
+                    onThresholdCrossed()
+                }
             }
         },
         onDragEnd = {
-            state.dragging = false
-            val velocity = tracker.calculateVelocity()
-            val verdict = verdictFor(dragTotal, Offset(velocity.x, velocity.y), cardSize(), density)
-            if (verdict != null) {
-                state.committedVerdict = verdict
-                scope.launch {
-                    state.flyOffCommitted(reduceMotion)
-                    onDismiss(verdict)
+            if (live) {
+                live = false
+                state.dragging = false
+                val velocity = tracker.calculateVelocity()
+                val verdict = verdictFor(dragTotal, Offset(velocity.x, velocity.y), cardSize(), density)
+                // Read the callback now, at release: the flight's commit must
+                // name this card even if a recomposition rebinds the handler
+                // before the animation lands (FR-13).
+                val dismiss = onDismiss.value
+                if (verdict != null) {
+                    state.committedVerdict = verdict
+                    scope.launch {
+                        state.flyOffCommitted(reduceMotion)
+                        dismiss(verdict)
+                    }
+                } else {
+                    // Set the flag before the launch so no frame between release
+                    // and the first snap-back frame counts as idle (R2: the live
+                    // player must not mount for a frame mid-snap-back).
+                    state.animating = true
+                    scope.launch { state.snapBack() }
                 }
-            } else {
-                // Set the flag before the launch so no frame between release
-                // and the first snap-back frame counts as idle (R2: the live
-                // player must not mount for a frame mid-snap-back).
-                state.animating = true
-                scope.launch { state.snapBack() }
             }
         },
         onDragCancel = {
-            state.dragging = false
-            state.animating = true
-            scope.launch { state.snapBack() }
+            if (live) {
+                live = false
+                state.dragging = false
+                state.animating = true
+                scope.launch { state.snapBack() }
+            }
         },
     )
 }
