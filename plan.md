@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | ses_e0b7c383bffe1SNRZPwnCc40Uq | 2026-11-19 | Priority 1; deck-membership + stable-shuffle prerequisites in-branch |
-| 2 | 7.5 | implement | `fr-13-decision-card-binding` | ses_e0b7c383bffdejZ2i2qs01QART | 2026-11-19 | Priority 2; confirmed cause of kept items being queued |
+| 2 | 7.5 | implement | `fr-13-decision-card-binding` | ses_e0b604829ffe9jFSU3Ba06rdlB | 2026-11-19 | Priority 2; confirmed cause of kept items being queued. Prior session `ses_e0b7c383bffdejZ2i2qs01QART` died 2x (exit -1) with zero commits; replaced with a fresh session |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
