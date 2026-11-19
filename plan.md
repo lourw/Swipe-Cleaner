@@ -39,12 +39,15 @@ WPs in the same wave don't depend on each other. Up to 2 subagents run at once (
 - **Wave E:** WP-8.5, then WP-8.6
 - **Wave F:** WP-8.7
 - **Wave G:** WP-8.11, after WP-8.1 merges
+- **Wave H:** WP-7.4 (report-only, pairs with anything)
 
-**Priority order (set by the user, 2026-11-10).** When a slot frees up, take these first, in this order, ahead of every other queued WP. The dependency and conflict rules in AGENTS.md still apply.
+**Priority order (set by the user, 2026-11-19; replaces the 2026-11-10 order).** When a slot frees up, take these first, in this order, ahead of every other queued WP. The dependency and conflict rules in AGENTS.md still apply.
 
-1. **WP-8.10** Exclude albums from Shuffle. This is the top-priority next feature.
-2. **WP-8.3** Fix the empty Bursts deck and its Home count.
-3. **WP-8.12** Stop Home counts flickering on a media type switch.
+1. **WP-8.10** Exclude albums from Shuffle. Top-priority feature.
+2. **WP-7.4** Audit swipe, queue, and delete for kept items that end up queued. Report only; it can run beside WP-8.10.
+3. **WP-8.12** Stop Home counts flickering, and check that every count is correct. Conflicts with WP-8.10 (both edit Home counts), so it runs after 8.10 merges.
+4. **WP-8.9** Redesign the favorite delete confirmation.
+5. **WP-8.3** Fix the empty Bursts deck and its Home count.
 
 ## 2. Code follow-ups
 
@@ -74,6 +77,27 @@ A new session whose deck is empty never calls `finish()` (`SwipeViewModel.start(
 
 - **Tests:** `FR-21` case in `SwipeViewModelSessionTest`.
 
+### WP-7.4 Audit swipe, queue, and delete for kept items that end up queued
+
+**Branch:** `fr-13-decision-audit`. **Requirements:** FR-9, FR-12 to FR-15, FR-20, FR-22, FR-24 to FR-28, NFR-5, NFR-7, hard rules 1 and 2. **Priority:** 2 (§1).
+
+Reported 2026-11-19: a friend testing the app found many photos he meant to keep in the Review Queue. We don't know yet whether it's a bug, the gestures, or the UI. This WP finds out. **It is report-only:** it adds tests and a written report, and changes no production code. Fixes are filed as new WPs from its findings.
+
+Trace every path from a gesture or button to a `DELETE` row and from the queue to `MediaLibrary.delete`, and check that the id and verdict recorded always belong to the card the user saw. At minimum, check:
+
+- **Wrong card.** A decision is written against the id of the card on screen, not whatever index the ViewModel has moved to. Look at fast consecutive swipes, a swipe while the next card is still promoting, and decisions made while a deck rebuild or a library change (`changes()`) reorders or shrinks the deck.
+- **Wrong verdict.** Right swipe, the Keep button, and the VoiceOver Keep action always record `KEEP`. Check the drag-direction sign, RTL layout, rotation, and the fling-velocity path in `SwipeSpec.kt`. Check whether a mostly-vertical or short drag can resolve as a left swipe.
+- **Undo.** Undo of a `KEEP` never leaves or creates a `DELETE`. Undo after a resumed session, after a failed write (NFR-7), and with the WP-7.2 in-flight guard.
+- **Overwrites.** A later decision on the same id replaces the earlier one. A stale or retried write can't land after a newer one and turn a `KEEP` back into a `DELETE`.
+- **Favorites (FR-22).** Confirming or dismissing a favorite confirmation can't record a `DELETE` for a different card.
+- **Resume and decks (FR-9, FR-20).** A resumed session or a different deck never re-labels earlier decisions. The queue shows only ids whose latest decision is a pending `DELETE`.
+- **Queue and delete (FR-24 to FR-28).** Restore records `KEEP` for the right id. The ids passed to `MediaLibrary.delete` are exactly the queued ids. Pruning and the `DELETED` marking can't touch kept items (see also the zero-fetched-assets note in WP-8.3).
+- **UX causes.** Whether a nervous swipe, a short drag, or the button layout could plausibly queue items by accident. Note these as UX findings, separate from code bugs.
+
+- **Tests:** add a `commonTest` for each suspected bug, named after its FR, with fakes and Turbine. A test that reproduces a real bug may fail; mark the report with its name rather than adding `@Ignore`. Tests for paths that turn out fine stay as regression tests and must pass.
+- **Report:** `docs/audits/2026-11-decision-audit.md`, listing each path checked, the verdict (bug / risk / fine), the evidence (file:line and test name), and a suggested fix for each bug or risk. Keep the branch's failing tests out of `main`: if any test fails, the branch is not merged and its tests go to the fix WPs instead.
+- 👤 Ask the friend which deck he used, whether he swiped or used the buttons, whether he used Undo, and whether the app was killed or restarted during the session.
+
 ## 3. 👤 Device checks
 
 These need a physical iPhone and can't be done by a subagent.
@@ -83,6 +107,7 @@ These need a physical iPhone and can't be done by a subagent.
 - [ ] Full run of [`docs/manual-test.md`](docs/manual-test.md), including the Layout and safe areas section.
 - [ ] Fill in the `TODO(👤)` rows in [`docs/perf.md`](docs/perf.md) "Results" (NFR-1 to NFR-4, on a 10k+ and 50k library where listed).
 - [ ] VoiceOver and Reduce Motion session on a device.
+- [ ] **Favorite confirmation user test (after WP-8.9 merges).** On a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. Record what you find under WP-8.9 and file follow-up changes as a new WP before calling the feature done.
 
 ## 4. Conditional performance work
 
@@ -128,7 +153,7 @@ A Settings toggle, on by default, that keeps sensitive items out of the swipe UI
 
 ### WP-8.3 Fix the empty Bursts deck
 
-**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-9, FR-25, §6.5, §6.8. **Priority:** 2 (§1).
+**Branch:** `fr-6-burst-deck`. **Requirements:** FR-6, FR-9, FR-25, §6.5, §6.8. **Priority:** 5 (§1).
 
 Reported by the user on a device, 2026-11-10: opening the Bursts smart filter shows "no items", and they want the Bursts row on Home to show how many there are.
 
@@ -201,22 +226,30 @@ The All / Photos / Videos segments sit at the left of a full-width track on Home
 - Update §5.7 to say the segments are centered.
 - **Tests:** `FR-5` layout case showing equal space on both sides of the segments.
 
-### WP-8.9 Make the favorite confirmation a subtle, dismissible callout
+### WP-8.9 Redesign the favorite delete confirmation
 
-**Branch:** `fr-22-favorite-callout`. **Requirements:** FR-22, FR-15, §5.3, §5.7, NFR-5, NFR-8. **Run before WP-8.6**, which reuses this confirmation.
+**Branch:** `fr-22-favorite-confirm-redesign`. **Requirements:** FR-22, FR-15, §5.3, §5.7, NFR-5, NFR-8. **Priority:** 4 (§1). **Run before WP-8.6**, which reuses this confirmation.
 
-The favorite confirmation has off-center text and can't be dismissed, so the only way to see the photo properly is to press Delete and then go back. The user must be able to see which photo they are confirming.
+Reported by the user, 2026-11-10 and 2026-11-19. When a favorite is swiped left, the confirmation that appears has three problems:
 
-- Replace the toast treatment with a smaller, quieter callout that never covers or resizes the current card. Use `SwipeTheme` tokens only (hard rule 3). Update FR-22 and §5.7.
-- Center the callout's text. `Toast` currently leaves it start-aligned in a `weight(1f)` slot.
-- Add a visible dismiss control that sends `SwipeIntent.DismissToast`. That intent already clears `pendingFavoriteDelete`, but a confirm-style toast never fires it because it has no timeout. Dismissing records nothing and leaves the card on screen.
-- The callout still stays until the user acts or the deck moves on. Delete stays explicit, with no auto-accept (NFR-5). This doesn't change the delete path (hard rule 1).
-- Keep the VoiceOver announcement, and label the dismiss control (NFR-8).
-- **Tests:** `FR-22` cases for dismiss recording nothing and keeping the card, confirm still queueing the delete, and the callout clearing when the deck moves.
+1. **It looks unfinished.** The text is off-center and the toast treatment looks like an error. It needs a proper visual design.
+2. **The buttons are poorly arranged.** It isn't obvious which action deletes and which keeps the photo.
+3. **There's no way out.** The confirmation can't be dismissed, so users feel stuck. The only escape is pressing Delete and then Undo. They also can't see the photo they're confirming.
+
+**What to build**
+
+- **Design.** Replace the toast with a dedicated confirmation component: a compact card anchored at the bottom, above the action bar. It never covers or resizes the current photo, so the user can see what they're confirming. Title "Delete this favorite?" with one line of supporting text, both centered. Design it in `SwipeTheme` tokens only (hard rule 3). Add the component to §5.7 and update FR-22 and the §5.8 Swipe wireframe.
+- **Buttons.** Two buttons side by side, the same size, each with a 44 dp target: **Cancel** on the left, **Delete** on the right, following the iOS alert convention. Cancel is the secondary style. Delete is the only button in the `delete` verdict color, since it records a delete verdict. No button is pre-selected, and nothing auto-accepts (NFR-5).
+- **Backing out.** Cancel sends `SwipeIntent.DismissToast`, which already clears `pendingFavoriteDelete`. It records nothing, keeps the card on screen, and sends the card back to center. Dragging the card again or swiping it right also counts as cancel. Delete sends `ConfirmFavoriteDelete`, as today.
+- **Lifetime.** The confirmation stays until the user acts or the deck moves on. Undo while it's showing closes it.
+- **Accessibility (NFR-8).** VoiceOver announces the title when it appears and moves focus to it. Both buttons have labels ("Cancel, keep this photo", "Delete favorite"). Honour Reduce Motion for its entrance.
+- This doesn't change the delete path (hard rule 1). The DELETE is still written only after Delete is pressed (hard rule 2).
+- **Tests:** `FR-22` cases for Cancel recording nothing and keeping the card, Delete queueing the delete and advancing, a new drag or right swipe acting as cancel, Undo closing it, and the confirmation clearing when the deck moves. Run on the simulator and compare against the updated §5.8 wireframe (§8.4).
+- 👤 Then the user test in §3 ("Favorite confirmation user test"). The WP is done only after its findings are dealt with.
 
 ### WP-8.10 Let users exclude albums from Shuffle
 
-**Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4. **Priority:** 1, the top-priority next feature (§1).
+**Branch:** `fr-37-shuffle-album-exclusions`. **Requirements:** new FR-37, FR-4, FR-5, FR-8, FR-9, FR-20, §5.8, §6.5, NFR-4. **Priority:** 1, the top-priority feature (§1; confirmed by the user 2026-11-19).
 
 Shuffle everything draws from the whole library, including photos that are in albums. Let the user choose albums to leave out of Shuffle. Nothing is excluded by default.
 
@@ -248,14 +281,16 @@ A Hide button that hides the current item in iOS Photos, the same as tapping Hid
 
 ### WP-8.12 Stop Home counts flickering on a media type switch
 
-**Branch:** `fr-5-count-flicker`. **Requirements:** FR-5, FR-9, NFR-4, §6.5 *Home counts*. **Priority:** 3 (§1).
+**Branch:** `fr-5-count-flicker`. **Requirements:** FR-5, FR-9, NFR-4, §6.5 *Home counts*. **Priority:** 3 (§1). **Run after WP-8.10**, which also changes Home counts.
 
 Reported by the user on a device, 2026-11-10: switching between All, Photos, and Videos on Home makes a count jump to the total first and then settle on the filtered number.
 
 - Reproduce first and find which number shows in between. Likely cause, not confirmed: `HomeViewModel` shows PhotoKit's raw count for the new type and then replaces it with the exact FR-9 count, or a result for the previous type lands after the switch.
 - After a type switch, a row shows the placeholder until the count for the new type is ready. It never shows a number that belongs to another type or a number that is about to be replaced by a different one.
 - Keep the NFR-4 rule that Home mounts without waiting for counts. If this changes the raw-then-exact behavior in §6.5, update the spec in the same branch.
-- **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late.
+- **Check that the counts are correct (user, 2026-11-19).** For every Home row (Shuffle, each smart filter, Albums, By month) and every type (All, Photos, Videos), the settled count equals the number of cards the row's deck opens with. Write down any row where it doesn't, fix it in this branch if the cause is in the count code, and otherwise file it as a new WP.
+- **Tests:** `FR-5` cases with Turbine that a type switch emits only the placeholder and then the final count, including when a slow result for the old type arrives late. `FR-9` cases, one per row and type, that the count equals the deck size with decided items present.
+- Run on the simulator with a seeded library (docs/fixtures) that mixes photos and videos, and switch types quickly back and forth.
 
 ### WP-8.13 Make video sound work, with a mute button and a default setting
 
@@ -292,16 +327,17 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
+| 7.4 | Decision and delete audit | queued | | Priority 2 (user, 2026-11-19); report-only; 👤 ask the friend for session details |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
-| 8.3 | Fix empty Bursts deck | queued | | Priority 2 (user, 2026-11-10); also the Home Bursts count |
+| 8.3 | Fix empty Bursts deck | queued | | Priority 5 (user, 2026-11-19); also the Home Bursts count |
 | 8.4 | Storage freed (nice to have) | queued | | Earlier attempt discarded 2026-11-19 (branch tip was 4b047c1). Its review flagged a KVC crash guard, a stale-estimate race, and batching |
 | 8.5 | Duplicate set label | queued | | |
 | 8.6 | Last-copy warning | queued | | |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
-| 8.9 | Favorite confirmation callout | queued | | |
-| 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, 2026-11-10): top-priority next feature |
+| 8.9 | Favorite confirmation redesign | queued | | Priority 4 (user, 2026-11-19); 👤 user test after merge |
+| 8.10 | Exclude albums from Shuffle | queued | | Priority 1 (user, reconfirmed 2026-11-19) |
 | 8.11 | Hide button | queued | | Waits for 8.1 (merged) |
-| 8.12 | Home count flicker on type switch | queued | | Priority 3 (user, 2026-11-10) |
+| 8.12 | Home count flicker and correctness | queued | | Priority 3 (user, 2026-11-19); after 8.10 merges |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
