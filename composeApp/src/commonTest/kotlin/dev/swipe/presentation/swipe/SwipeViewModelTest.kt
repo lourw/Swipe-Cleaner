@@ -220,7 +220,11 @@ class SwipeViewModelTest {
             // asset-1 arrives, naming the card that already flew off.
             f.viewModel.onIntent(SwipeIntent.Decide("asset-1", Decision.KEEP))
             advanceUntilIdle()
-            assertEquals("asset-2", f.viewModel.uiState.value.current?.id)
+            assertEquals(
+                "asset-2",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
             f.viewModel.onIntent(SwipeIntent.Decide("asset-1", Decision.DELETE))
             advanceUntilIdle()
 
@@ -247,7 +251,11 @@ class SwipeViewModelTest {
             // asset-2's verdict arrived while asset-1 was still the card on
             // screen: it is ignored, not misapplied and not applied early.
             assertEquals(listOf(Triple("asset-1", Decision.KEEP, "session-1")), f.store.recordCalls)
-            assertEquals("asset-2", f.viewModel.uiState.value.current?.id)
+            assertEquals(
+                "asset-2",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
 
             // Now asset-2 decides for real, and each card carries its own verdict.
             f.viewModel.onIntent(SwipeIntent.Decide("asset-2", Decision.DELETE))
@@ -259,7 +267,11 @@ class SwipeViewModelTest {
                 ),
                 f.store.recordCalls,
             )
-            assertEquals("asset-3", f.viewModel.uiState.value.current?.id)
+            assertEquals(
+                "asset-3",
+                f.viewModel.uiState.value.current
+                    ?.id,
+            )
         }
 
     @Test

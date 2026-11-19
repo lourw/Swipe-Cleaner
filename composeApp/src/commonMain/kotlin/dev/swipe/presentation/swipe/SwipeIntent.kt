@@ -16,7 +16,10 @@ sealed interface SwipeIntent {
      * A verdict for the card with [id], ignored when [id] is not the card on screen.
      * Right swipe or the Keep button records KEEP and advances (FR-12).
      */
-    data class Decide(val id: String, val verdict: Decision) : SwipeIntent
+    data class Decide(
+        val id: String,
+        val verdict: Decision,
+    ) : SwipeIntent
 
     /**
      * Undo button: pops the undo stack, removes the persisted decision, and moves the
@@ -31,7 +34,9 @@ sealed interface SwipeIntent {
      * "Delete anyway" in the favorite confirm toast: confirms the delete queued for
      * [id] (FR-22). Ignored when [id] is not the pending favorite or the card on screen.
      */
-    data class ConfirmFavoriteDelete(val id: String) : SwipeIntent
+    data class ConfirmFavoriteDelete(
+        val id: String,
+    ) : SwipeIntent
 
     /** Toast timeout or manual dismissal: clears [SwipeUiState.toast] and any favorite confirm. */
     data object DismissToast : SwipeIntent
