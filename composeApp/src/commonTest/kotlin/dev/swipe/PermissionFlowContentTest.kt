@@ -25,7 +25,6 @@ import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
-import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.homeViewModel

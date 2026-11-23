@@ -11,9 +11,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.domain.model.MonthBucket
+import dev.swipe.presentation.months.MonthRow
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
 import dev.swipe.ui.assertAllClickablesLabeled
+import dev.swipe.ui.components.COUNT_PLACEHOLDER
 import dev.swipe.ui.theme.SwipeTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,6 +30,7 @@ class MonthsScreenTest {
     private val march = MonthBucket(2026, 3, 7)
     private val december = MonthBucket(2025, 12, 420)
     private val may = MonthBucket(2025, 5, 13)
+    private val rows = listOf(MonthRow(march, 7), MonthRow(december, 420), MonthRow(may, 13))
 
     @Test
     fun `FR-7 months screen groups by year newest first`() =
@@ -35,7 +38,7 @@ class MonthsScreenTest {
             setContent {
                 SwipeTheme {
                     MonthsScreen(
-                        state = MonthsUiState(buckets = listOf(march, december, may)),
+                        state = MonthsUiState(rows = rows),
                         onIntent = {},
                         onBack = {},
                     )
@@ -62,7 +65,7 @@ class MonthsScreenTest {
             setContent {
                 SwipeTheme {
                     MonthsScreen(
-                        state = MonthsUiState(buckets = listOf(march, december, may)),
+                        state = MonthsUiState(rows = rows),
                         onIntent = { intents.add(it) },
                         onBack = {},
                     )
@@ -71,6 +74,22 @@ class MonthsScreenTest {
             onNodeWithText("December").performClick()
             waitForIdle()
             assertEquals(listOf<MonthsIntent>(MonthsIntent.OpenMonth(december)), intents)
+        }
+
+    @Test
+    fun `FR-9 a row without its settled count shows the placeholder`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(
+                        state = MonthsUiState(rows = listOf(MonthRow(march), MonthRow(december, 420))),
+                        onIntent = {},
+                        onBack = {},
+                    )
+                }
+            }
+            onNodeWithText(COUNT_PLACEHOLDER).assertExists()
+            onNodeWithText("420").assertExists()
         }
 
     @Test
@@ -97,7 +116,7 @@ class MonthsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    MonthsScreen(state = MonthsUiState(buckets = listOf(march, december, may)), onIntent = {}, onBack = {})
+                    MonthsScreen(state = MonthsUiState(rows = rows), onIntent = {}, onBack = {})
                 }
             }
             waitForIdle()

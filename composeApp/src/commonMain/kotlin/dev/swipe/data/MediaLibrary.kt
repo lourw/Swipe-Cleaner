@@ -39,11 +39,12 @@ interface MediaLibrary {
     suspend fun months(type: MediaTypeFilter): List<MonthBucket>
 
     /**
-     * Item counts per smart filter for [type] (FR-5, FR-6): cheap fetch counts except for
+     * Item counts per smart filter for [type] (FR-6): cheap fetch counts except for
      * the two entries that need a full-library pass — Likely Duplicates (id+date+size only)
      * and Bursts (`burstIdentifier` has no predicate, so counting means enumerating,
-     * every burst frame included). Call off the main thread with placeholder counts
-     * first at Home startup (NFR-4, §6.5).
+     * every burst frame included). No screen calls this since WP-8.12: every displayed
+     * count is a deck size through `DeckMembership` (§6.5), kept only for its
+     * implementations and fakes until removal.
      */
     suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>
 

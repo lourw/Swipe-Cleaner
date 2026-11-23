@@ -7,8 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dev.swipe.data.MediaLibrary
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
-import dev.swipe.domain.model.MonthBucket
-import kotlinx.coroutines.CancellationException
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,33 +15,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The By month screen's state owner (FR-7): the month buckets for
- * [typeFilter], newest first. The scan runs when this screen opens — never
- * at Home startup (NFR-4, FR-7) — and once per [MediaLibrary.changes]
- * emission, latest-wins via [flatMapLatest] like
- * [dev.swipe.presentation.home.HomeViewModel], so a burst of changes never
- * runs two scans at once.
+ * The By month screen's state owner (FR-7): the month rows for [typeFilter],
+ * newest first. The scan runs when this screen opens — never at Home startup
+ * (NFR-4, FR-7) — and once per [MediaLibrary.changes] emission, latest-wins
+ * via [flatMapLatest] like [dev.swipe.presentation.home.HomeViewModel], so a
+ * burst of changes never runs two scans at once.
  *
- * The buckets show [MonthBucket.count] — the items created in each month for
- * the filter (§6.5 *Home counts* buys its per-row FR-9 refinement for the
- * Home rows only; re-counting every month against `decidedIds()` would mean
- * one fetch per bucket for no spec'd number). A failed scan keeps what the
- * screen shows; the next refresh retries.
+ * Each row's count is the size of the `DeckSource.Month` deck the row opens —
+ * [SourceCountsUseCase.months], decided items subtracted (FR-9, WP-8.12) —
+ * arriving final or placeholder: the bucket list shows first with placeholders,
+ * then each row settles exactly once. Before WP-8.12 this screen showed the
+ * raw scan count, which over-reported every bucket holding a decided item.
+ * A failed scan keeps what the screen shows; the next refresh retries.
  */
 class MonthsViewModel(
     /** The media-type filter carried from Home (FR-5), fixed for this visit. */
     private val typeFilter: MediaTypeFilter,
     private val library: MediaLibrary,
+    /** The one count path (FR-9, WP-8.12): each row's number is its deck's size. */
+    private val sourceCounts: SourceCountsUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MonthsUiState(typeFilter = typeFilter))
 
-    /** The one By month state: the buckets, newest first (FR-7). */
+    /** The one By month state: the rows, newest first (FR-7). */
     val uiState: StateFlow<MonthsUiState> = _uiState.asStateFlow()
 
     private val eventChannel = Channel<MonthsEvent>(Channel.UNLIMITED)
@@ -57,8 +57,25 @@ class MonthsViewModel(
         reloads.tryEmit(Unit)
         viewModelScope.launch {
             reloads
-                .flatMapLatest { load() }
-                .collect { buckets -> _uiState.update { it.copy(buckets = buckets) } }
+                .flatMapLatest { sourceCounts.months(typeFilter) }
+                .collect { counted ->
+                    _uiState.update { state ->
+                        // Final-or-placeholder merge (§6.5): an arrived count
+                        // is exact, an absent one keeps the row's held number,
+                        // so a refresh never dips a settled row back.
+                        state.copy(
+                            rows =
+                                counted.rows.map { bucket ->
+                                    MonthRow(
+                                        bucket = bucket,
+                                        count =
+                                            counted.countFor(SourceCountsUseCase.monthKey(bucket))
+                                                ?: state.rows.firstOrNull { it.bucket == bucket }?.count,
+                                    )
+                                },
+                        )
+                    }
+                }
         }
         viewModelScope.launch {
             library.changes().collect { reloads.tryEmit(Unit) }
@@ -80,18 +97,4 @@ class MonthsViewModel(
             }
         }
     }
-
-    /** One scan; a failed one emits nothing, so the screen keeps its current rows. */
-    private fun load(): Flow<List<MonthBucket>> =
-        flow {
-            val buckets =
-                try {
-                    library.months(typeFilter)
-                } catch (cancellation: CancellationException) {
-                    throw cancellation // flow teardown, not a failed scan
-                } catch (_: Exception) {
-                    return@flow
-                }
-            emit(buckets)
-        }
 }

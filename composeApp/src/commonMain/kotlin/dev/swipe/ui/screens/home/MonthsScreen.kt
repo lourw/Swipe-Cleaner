@@ -15,12 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import dev.swipe.domain.model.MonthBucket
+import dev.swipe.presentation.months.MonthRow
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
 import dev.swipe.ui.components.SourceRow
 import dev.swipe.ui.components.SwipeIcons
-import dev.swipe.ui.screens.swipe.groupDigits
+import dev.swipe.ui.components.formatCount
 import dev.swipe.ui.theme.SwipeTheme
 
 /**
@@ -52,7 +52,7 @@ fun MonthsScreen(
                 .statusBarsPadding(),
     ) {
         ScreenHeader(title = "By month", onBack = onBack)
-        val items = remember(state.buckets) { monthsListItems(state.buckets) }
+        val items = remember(state.rows) { monthsListItems(state.rows) }
         LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             items(items) { item ->
                 when (item) {
@@ -62,10 +62,10 @@ fun MonthsScreen(
 
                     is MonthsListItem.Month -> {
                         SourceRow(
-                            title = monthName(item.bucket.month),
-                            count = groupDigits(item.bucket.count),
+                            title = monthName(item.row.bucket.month),
+                            count = formatCount(item.row.count),
                             icon = SwipeIcons.CALENDAR_MONTH,
-                            onClick = { onIntent(MonthsIntent.OpenMonth(item.bucket)) },
+                            onClick = { onIntent(MonthsIntent.OpenMonth(item.row.bucket)) },
                         )
                     }
                 }
@@ -81,25 +81,25 @@ internal sealed interface MonthsListItem {
     ) : MonthsListItem
 
     data class Month(
-        val bucket: MonthBucket,
+        val row: MonthRow,
     ) : MonthsListItem
 }
 
 /**
- * Flatten newest-first [buckets] (the [dev.swipe.domain.model.MonthBucket]
+ * Flatten newest-first [rows] (the [dev.swipe.domain.model.MonthBucket]
  * contract) into year sections: consecutive same-year buckets group under
  * one year header, so the year order is the buckets' own (FR-7, newest
  * first). Pure — tested through the screen.
  */
-internal fun monthsListItems(buckets: List<MonthBucket>): List<MonthsListItem> {
+internal fun monthsListItems(rows: List<MonthRow>): List<MonthsListItem> {
     val items = mutableListOf<MonthsListItem>()
     var lastYear: Int? = null
-    buckets.forEach { bucket ->
-        if (bucket.year != lastYear) {
-            items += MonthsListItem.Year(bucket.year)
-            lastYear = bucket.year
+    rows.forEach { row ->
+        if (row.bucket.year != lastYear) {
+            items += MonthsListItem.Year(row.bucket.year)
+            lastYear = row.bucket.year
         }
-        items += MonthsListItem.Month(bucket)
+        items += MonthsListItem.Month(row)
     }
     return items
 }

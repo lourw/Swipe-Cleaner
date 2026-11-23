@@ -18,6 +18,7 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.presentation.albums.AlbumsUiState
 import dev.swipe.presentation.home.HomeAlbumRow
 import dev.swipe.presentation.home.HomeUiState
+import dev.swipe.presentation.months.MonthRow
 import dev.swipe.presentation.months.MonthsUiState
 import dev.swipe.presentation.queue.QueueTile
 import dev.swipe.presentation.queue.QueueUiState
@@ -184,10 +185,10 @@ class SafeAreaBoundsTest {
                     MonthsScreen(
                         state =
                             MonthsUiState(
-                                buckets =
+                                rows =
                                     listOf(
-                                        MonthBucket(year = 2026, month = 11, count = 40),
-                                        MonthBucket(year = 2026, month = 10, count = 33),
+                                        MonthRow(MonthBucket(year = 2026, month = 11, count = 40), count = 40),
+                                        MonthRow(MonthBucket(year = 2026, month = 10, count = 33), count = 33),
                                     ),
                             ),
                         onIntent = {},

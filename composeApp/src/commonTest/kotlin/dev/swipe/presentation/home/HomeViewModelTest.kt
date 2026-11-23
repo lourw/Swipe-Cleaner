@@ -3,6 +3,7 @@
 package dev.swipe.presentation.home
 
 import app.cash.turbine.test
+import dev.swipe.data.MediaLibrary
 import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.Decision
@@ -14,10 +15,11 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.model.Stats
 import dev.swipe.domain.usecase.DeckMembership
-import dev.swipe.domain.usecase.LoadSourcesUseCase
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeShuffleExclusionStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -161,24 +163,32 @@ class HomeViewModelTest {
     fun `NFR-4 home state is emitted before counts finish loading`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-            val library = FakeMediaLibrary(photoItems(3))
-            library.gateNextSmartCounts = true // the full-library smart pass hangs
+            val library =
+                GatingLibrary(
+                    FakeMediaLibrary(photoItems(3), albums = mapOf("a1" to setOf("asset-1"))),
+                    // hold every count read: Shuffle, the smart rows, the album
+                    // counts all hang while the cheap identity lands.
+                    MediaTypeFilter.ALL,
+                )
             val viewModel = homeViewModel(library, FakeDecisionStore())
 
             // Home mounts immediately: five placeholder rows, no numbers anywhere.
             assertEquals(HomeUiState(), viewModel.uiState.value)
 
-            // The cheap rows land while the smart pass is still in flight (§6.5):
-            // the screen has real Shuffle numbers to show already.
+            // The album identity (covers, no enumeration) lands while every count
+            // is still in flight (§6.5): the screen has rows to show already.
             testScheduler.advanceUntilIdle()
             val partial = viewModel.uiState.value
-            assertEquals(3, partial.shuffleCount)
+            assertNull(partial.shuffleCount)
             assertTrue(partial.smartRows.all { it.count == null })
-            assertEquals(1, library.smartCountsCalls) // one pass, still suspended
+            assertEquals(listOf("a1"), partial.albumRows.map { it.id })
+            assertTrue(partial.albumRows.all { it.count == null })
 
-            library.releaseSmartCounts()
+            library.release()
             val settled = viewModel.awaitSettled(this)
+            assertEquals(3, settled.shuffleCount)
             assertTrue(settled.smartRows.all { it.count != null })
+            assertEquals(1, settled.albumRows.single().count)
         }
 
     @Test
@@ -190,13 +200,15 @@ class HomeViewModelTest {
             viewModel.awaitSettled(this)
 
             val albumsBefore = library.albumsCalls
-            val smartBefore = library.smartCountsCalls
+            val shuffleBefore = library.assetIdsCalls.count { it.first == DeckSource.All }
             library.notifyChange()
             testScheduler.advanceUntilIdle()
 
             // One refresh — not one per collector.
             assertEquals(albumsBefore + 1, library.albumsCalls)
-            assertEquals(smartBefore + 1, library.smartCountsCalls)
+            assertEquals(shuffleBefore + 1, library.assetIdsCalls.count { it.first == DeckSource.All })
+            // The raw smart-count pass is gone: Home counts run only on the deck path.
+            assertEquals(0, library.smartCountsCalls)
         }
 
     @Test
@@ -217,27 +229,100 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `FR-9 a changes refresh never flickers refined counts back to estimates`() =
+    fun `FR-9 a changes refresh never flickers settled counts`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-            val library = FakeMediaLibrary(photoItems(4))
+            val library = GatingLibrary(FakeMediaLibrary(photoItems(4)))
             val store = seedStore("asset-1" to Decision.KEEP, "asset-2" to Decision.DELETE)
             val viewModel = homeViewModel(library, store)
             val settled = viewModel.awaitSettled(this)
             assertEquals(2, settled.shuffleCount) // FR-9-exact, not the raw 4
 
-            // The refresh re-runs the ladder: its raw Shuffle estimate (4) arrives
-            // before its own refinement, but the exactness mask keeps the refined
-            // number on screen (§6.5) — no exact → estimate → exact flicker.
-            library.gateNextSmartCounts = true
+            // The refresh re-runs every count; while its reads are in flight the
+            // settled numbers stay on screen — the re-run carries no estimates, so
+            // there is nothing to flicker to: never the placeholder, never the
+            // raw 4 (§6.5).
+            library.gate(MediaTypeFilter.ALL)
             library.notifyChange()
             testScheduler.advanceUntilIdle()
-            assertEquals(2, library.smartCountsCalls) // the re-run is in flight, gated
             assertEquals(2, viewModel.uiState.value.shuffleCount)
+            assertTrue(
+                viewModel.uiState.value.smartRows
+                    .all { it.count == 0 },
+            )
 
-            library.releaseSmartCounts()
+            library.release()
             val refreshed = viewModel.awaitSettled(this)
             assertEquals(2, refreshed.shuffleCount)
+        }
+
+    @Test
+    fun `FR-5 a type switch shows only placeholder-then-final counts`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photoItems(3) + videoItems(2),
+                    albums = mapOf("a1" to setOf("asset-1", "video-1", "video-2")),
+                )
+            val store = seedStore("video-1" to Decision.KEEP)
+            val viewModel = homeViewModel(library, store)
+            val all = viewModel.awaitSettled(this)
+            assertEquals(4, all.shuffleCount) // 5 items − the decided video
+            assertEquals(2, all.albumRows.single().count) // a1 − the decided video
+
+            viewModel.onIntent(HomeIntent.SetTypeFilter(MediaTypeFilter.VIDEOS))
+
+            // Every number the VIDEOS phase shows is the placeholder or the final
+            // count: neither the old ALL numbers nor the raw fetch sizes (2 videos
+            // before the subtraction) ever appear — that jump was the flicker.
+            val seenShuffle = mutableListOf<Int?>()
+            val seenAlbum = mutableListOf<Int?>()
+            var settledVideos = false
+            viewModel.uiState.test {
+                var s = awaitItem()
+                while (!settledVideos) {
+                    if (s.typeFilter == MediaTypeFilter.VIDEOS) {
+                        seenShuffle += s.shuffleCount
+                        seenAlbum += s.albumRows.singleOrNull()?.count
+                        settledVideos =
+                            s.shuffleCount == 1 &&
+                            s.albumRows.singleOrNull()?.count == 1 &&
+                            s.smartRows.none { it.count == null }
+                    }
+                    if (!settledVideos) s = awaitItem()
+                }
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertTrue(seenShuffle.isNotEmpty(), "no VIDEOS-phase state was observed")
+            assertNull(seenShuffle.first(), "the switch did not clear the Shuffle count first")
+            assertTrue(seenShuffle.all { it == null || it == 1 }, "Shuffle flickered: $seenShuffle")
+            assertTrue(seenAlbum.all { it == null || it == 1 }, "album row flickered: $seenAlbum")
+        }
+
+    @Test
+    fun `FR-5 a late result from the superseded filter never overwrites the new counts`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                GatingLibrary(
+                    FakeMediaLibrary(photoItems(3) + videoItems(2)),
+                    MediaTypeFilter.ALL, // the ALL run hangs on its first read
+                )
+            val viewModel = homeViewModel(library, FakeDecisionStore())
+            testScheduler.advanceUntilIdle()
+            assertNull(viewModel.uiState.value.shuffleCount) // the ALL run is in flight
+
+            // The switch does not wait for the slow ALL run: VIDEOS loads and settles.
+            viewModel.onIntent(HomeIntent.SetTypeFilter(MediaTypeFilter.VIDEOS))
+            val videos = viewModel.awaitSettled(this)
+            assertEquals(2, videos.shuffleCount) // only the videos (FR-5)
+
+            // The hanging ALL enumeration finally answers — a superseded filter's
+            // numbers can never land on the new label.
+            library.release()
+            testScheduler.advanceUntilIdle()
+            assertEquals(videos, viewModel.uiState.value)
         }
 
     @Test
@@ -274,16 +359,56 @@ class HomeViewModelTest {
     // ---- helpers ----
 
     private fun homeViewModel(
-        library: FakeMediaLibrary,
+        library: MediaLibrary,
         store: FakeDecisionStore,
         exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
     ): HomeViewModel =
         HomeViewModel(
             library,
             store,
-            LoadSourcesUseCase(library, store, DeckMembership(library, exclusions)),
+            SourceCountsUseCase(library, store, DeckMembership(library, exclusions)),
             exclusions,
         )
+
+    /**
+     * Wraps a [FakeMediaLibrary] holding every `assetIds` read whose type matches
+     * [heldType] on a deferred until [release] — the seam that keeps one filter's
+     * load in flight across a type switch (FR-5), and one Shuffle read in flight
+     * across a `changes()` refresh (§6.5).
+     */
+    private class GatingLibrary(
+        private val delegate: FakeMediaLibrary,
+        vararg heldTypes: MediaTypeFilter,
+    ) : MediaLibrary by delegate {
+        private val held = heldTypes.toMutableSet()
+        private var gate: CompletableDeferred<Unit>? = null
+
+        /** Start holding every `assetIds` read of these types (in addition). */
+        fun gate(vararg types: MediaTypeFilter) {
+            held += types
+        }
+
+        override suspend fun assetIds(
+            source: DeckSource,
+            type: MediaTypeFilter,
+        ): List<String> {
+            if (type in held) {
+                val g = gate ?: CompletableDeferred<Unit>().also { gate = it }
+                g.await()
+            }
+            return delegate.assetIds(source, type)
+        }
+
+        /** Let every held read answer, and stop holding. */
+        fun release() {
+            held.clear()
+            gate?.complete(Unit)
+            gate = null
+        }
+
+        /** Fire the inner fake's `changes()` seam (FR-7 refresh). */
+        fun notifyChange() = delegate.notifyChange()
+    }
 
     /** Drive the scheduler until every row's count has arrived (ungated fixtures). */
     private suspend fun HomeViewModel.awaitSettled(scope: TestScope): HomeUiState {

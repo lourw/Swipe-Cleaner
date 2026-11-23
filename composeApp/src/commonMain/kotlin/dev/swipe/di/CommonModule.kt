@@ -9,10 +9,10 @@ import dev.swipe.data.db.SqlShuffleExclusionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.DeckMembership
-import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.presentation.albums.AlbumsViewModel
 import dev.swipe.presentation.home.HomeViewModel
@@ -63,7 +63,7 @@ val commonModule: Module =
 
         // Home counts (WP-5.2): the progressive placeholder → exact ladder for the
         // Shuffle, Smart, and Album rows (FR-4, FR-9, NFR-4, §6.5 *Home counts*).
-        single { LoadSourcesUseCase(library = get(), decisions = get(), membership = get()) }
+        single { SourceCountsUseCase(library = get(), decisions = get(), membership = get()) }
 
         // The Swipe deck (WP-1.8). Source and filter are route parameters: WP-1.9
         // resolves it with `koinViewModel { parameters { parametersOf(source, typeFilter) } }`.
@@ -103,7 +103,7 @@ val commonModule: Module =
             HomeViewModel(
                 library = get(),
                 decisions = get(),
-                loadSources = get(),
+                sourceCounts = get(),
                 exclusions = get(),
             )
         }
@@ -114,9 +114,8 @@ val commonModule: Module =
             AlbumsViewModel(
                 typeFilter = params.get(),
                 library = get(),
-                decisions = get(),
                 exclusions = get(),
-                membership = get(),
+                sourceCounts = get(),
             )
         }
 
@@ -126,6 +125,7 @@ val commonModule: Module =
             MonthsViewModel(
                 typeFilter = params.get(),
                 library = get(),
+                sourceCounts = get(),
             )
         }
 

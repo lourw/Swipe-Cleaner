@@ -6,9 +6,10 @@ import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.DeckMembership
-import dev.swipe.domain.usecase.LoadSourcesUseCase
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import dev.swipe.presentation.albums.AlbumsViewModel
 import dev.swipe.presentation.home.HomeViewModel
+import dev.swipe.presentation.months.MonthsViewModel
 
 /**
  * Test-only wiring for the FR-37 members of the graph (WP-8.10): the shared
@@ -28,21 +29,28 @@ fun buildDeckUseCase(
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
 ): BuildDeckUseCase = BuildDeckUseCase(deckMembership(library, exclusions), decisions)
 
-fun loadSourcesUseCase(
+fun sourceCountsUseCase(
     library: MediaLibrary,
     decisions: DecisionStore,
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
-): LoadSourcesUseCase = LoadSourcesUseCase(library, decisions, deckMembership(library, exclusions))
+): SourceCountsUseCase = SourceCountsUseCase(library, decisions, deckMembership(library, exclusions))
 
 fun homeViewModel(
     library: MediaLibrary,
     decisions: DecisionStore,
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
-): HomeViewModel = HomeViewModel(library, decisions, loadSourcesUseCase(library, decisions, exclusions), exclusions)
+): HomeViewModel = HomeViewModel(library, decisions, sourceCountsUseCase(library, decisions, exclusions), exclusions)
 
 fun albumsViewModel(
     typeFilter: MediaTypeFilter,
     library: MediaLibrary,
     decisions: DecisionStore,
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
-): AlbumsViewModel = AlbumsViewModel(typeFilter, library, decisions, exclusions, deckMembership(library, exclusions))
+): AlbumsViewModel = AlbumsViewModel(typeFilter, library, exclusions, sourceCountsUseCase(library, decisions, exclusions))
+
+fun monthsViewModel(
+    typeFilter: MediaTypeFilter,
+    library: MediaLibrary,
+    decisions: DecisionStore,
+    exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
+): MonthsViewModel = MonthsViewModel(typeFilter, library, sourceCountsUseCase(library, decisions, exclusions))

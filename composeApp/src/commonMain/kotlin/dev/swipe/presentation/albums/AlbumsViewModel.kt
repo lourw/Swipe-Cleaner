@@ -4,12 +4,11 @@ package dev.swipe.presentation.albums
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
-import dev.swipe.domain.usecase.DeckMembership
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import dev.swipe.presentation.home.HomeAlbumRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -19,18 +18,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * The Albums screen's state owner (FR-8, FR-9, FR-37, §6.5 *Home counts*): the
- * album rows with covers, arriving with PhotoKit's cheap estimate (NFR-4) and
- * each converging to the exact FR-9 count for the screen's filter — the same
- * estimate → exact ladder the Home rows use, over the album path only, so
- * opening Albums never pays for the Shuffle or smart counts (NFR-4). The exact
- * count runs through [DeckMembership], the deck's own path.
+ * album rows with covers, each showing the exact FR-9 count of its own deck
+ * through [SourceCountsUseCase.albums] — the one count path (WP-8.12), over
+ * the album path only, so opening Albums never pays for the Shuffle or smart
+ * counts (NFR-4). Final-or-placeholder: the rows arrive with placeholders
+ * first, then each number lands exactly once; no estimate is ever displayed.
  *
  * **Exclude from Shuffle (FR-37):** every row carries a switch backed by
  * [ShuffleExclusionStore]; [AlbumsUiState.excludedAlbumIds] is driven by the
@@ -47,15 +45,14 @@ class AlbumsViewModel(
     /** The media-type filter carried from Home (FR-5), fixed for this visit. */
     private val typeFilter: MediaTypeFilter,
     private val library: MediaLibrary,
-    private val decisions: DecisionStore,
     /** FR-37 exclusions: the switch states and where toggles are written. */
     private val exclusions: ShuffleExclusionStore,
-    /** The deck's own membership path, so each row's count is the deck's size (FR-9). */
-    private val membership: DeckMembership,
+    /** The one count path (FR-9, WP-8.12): each row's number is its deck's size. */
+    private val sourceCounts: SourceCountsUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AlbumsUiState(typeFilter = typeFilter))
 
-    /** The one Albums state: the rows with their converging counts (FR-8). */
+    /** The one Albums state: the rows with their exact counts (FR-8). */
     val uiState: StateFlow<AlbumsUiState> = _uiState.asStateFlow()
 
     private val eventChannel = Channel<AlbumsEvent>(Channel.UNLIMITED)
@@ -70,8 +67,27 @@ class AlbumsViewModel(
         reloads.tryEmit(Unit)
         viewModelScope.launch {
             reloads
-                .flatMapLatest { load() }
-                .collect { rows -> _uiState.update { it.copy(rows = rows) } }
+                .flatMapLatest { sourceCounts.albums(typeFilter) }
+                .collect { counted ->
+                    _uiState.update { state ->
+                        // Final-or-placeholder merge (§6.5): an arrived count
+                        // is exact, an absent one keeps the row's held number,
+                        // so a refresh never dips a settled row back.
+                        state.copy(
+                            rows =
+                                counted.rows.map { album ->
+                                    HomeAlbumRow(
+                                        id = album.id,
+                                        title = album.title,
+                                        coverAssetId = album.coverAssetId,
+                                        count =
+                                            counted.countFor(album.id)
+                                                ?: state.rows.firstOrNull { it.id == album.id }?.count,
+                                    )
+                                },
+                        )
+                    }
+                }
         }
         viewModelScope.launch {
             library.changes().collect { reloads.tryEmit(Unit) }
@@ -106,33 +122,12 @@ class AlbumsViewModel(
         }
     }
 
-    /**
-     * One load: the album rows with estimates first (FR-8, NFR-4), then each
-     * row's exact FR-9 count — [DeckMembership.ids] for the album, the deck's
-     * own path (§6.5 *Home counts*) — emitted as each one actually moves. A row
-     * whose fetch fails keeps its estimate for the next refresh.
-     */
-    private fun load(): Flow<List<HomeAlbumRow>> =
-        flow {
-            val albums = attempt { library.albums() } ?: return@flow
-            var rows = albums.map { HomeAlbumRow(it.id, it.title, it.coverAssetId, it.count) }
-            emit(rows)
-            val decided = attempt { decisions.decidedIds() }.orEmpty()
-            albums.forEachIndexed { index, album ->
-                val exact = attempt { membership.ids(DeckSource.Album(album.id, album.title), typeFilter, decided).size }
-                if (exact != null && rows[index].count != exact) {
-                    rows = rows.mapIndexed { i, row -> if (i == index) row.copy(count = exact) else row }
-                    emit(rows)
-                }
-            }
-        }
-
-    /** One library read; null on failure so the screen keeps its current rows (§6.8). */
+    /** One store write; a failure leaves the switch where the store says it is (NFR-7). */
     private suspend fun <T> attempt(block: suspend () -> T): T? =
         try {
             block()
         } catch (cancellation: CancellationException) {
-            throw cancellation // flow teardown, not a failed fetch
+            throw cancellation // not a failed write
         } catch (_: Exception) {
             null
         }

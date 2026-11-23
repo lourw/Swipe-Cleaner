@@ -27,10 +27,10 @@ import kotlin.test.assertTrue
 
 /**
  * The Albums screen's state owner (WP-5.3, FR-8, FR-9, FR-5, FR-37, §6.5 *Home
- * counts*): rows arriving with the cheap estimate and converging to the exact
- * FR-9 count, the `changes()` reload, the failed fetch keeping the rows, the
- * deck event carrying the screen's fixed filter, and the FR-37 exclude-from-
- * Shuffle switches.
+ * counts*): rows arriving with the placeholder and settling at the exact FR-9
+ * count (WP-8.12 — the estimate is never displayed), the `changes()` reload,
+ * the failed fetch keeping the rows, the deck event carrying the screen's
+ * fixed filter, and the FR-37 exclude-from-Shuffle switches.
  */
 class AlbumsViewModelTest {
     @AfterTest
@@ -39,7 +39,7 @@ class AlbumsViewModelTest {
     }
 
     @Test
-    fun `FR-9 album rows arrive with the estimate and converge to the exact count`() =
+    fun `FR-9 album rows show no estimate only the exact count`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val store = FakeDecisionStore()
@@ -49,12 +49,13 @@ class AlbumsViewModelTest {
                     photos(3),
                     albums = mapOf("a1" to setOf("asset-1", "asset-2", "asset-3")),
                 )
-            library.nextAlbumsEstimate = 99 // PhotoKit's lagging estimate first
+            library.nextAlbumsEstimate = 99 // PhotoKit's lagging estimate — never displayed (WP-8.12)
 
             albumsViewModel(MediaTypeFilter.ALL, library, store).uiState.test {
                 var state = awaitItem()
                 while (state.rows.isEmpty()) state = awaitItem()
-                assertEquals(99, state.rows.single().count) // the estimate lands first
+                // Rows arrive with the placeholder, not the estimate (NFR-4).
+                assertEquals(null, state.rows.single().count)
 
                 state = awaitItem()
                 assertEquals(2, state.rows.single().count) // 3 members − 1 decided (FR-9)

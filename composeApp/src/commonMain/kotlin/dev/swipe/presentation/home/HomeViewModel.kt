@@ -11,8 +11,8 @@ import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
-import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.domain.usecase.SourceCounts
+import dev.swipe.domain.usecase.SourceCountsUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -29,12 +29,15 @@ import kotlinx.coroutines.launch
 /**
  * The Home state owner (§6.5, FR-2, FR-4, FR-5, FR-7, FR-9, FR-10).
  *
- * **Counts arrive progressively, never block (NFR-4, §6.5 *Home counts*).** The
- * screen mounts with the [HomeUiState] defaults — placeholder rows, no numbers —
- * while [LoadSourcesUseCase] streams albums first, then the Shuffle count, then
- * the five smart counts, then the exact FR-9 refinements. Every arrival merges
- * into the state in place; a `changes()` refresh never flickers a refined row
- * back to an estimate ([exactRows]), so the screen updates once per real change.
+ * **Counts arrive progressive, final-or-placeholder (NFR-4, §6.5 *Home
+ * counts*).** The screen mounts with the [HomeUiState] defaults — placeholder
+ * rows, no numbers — while [SourceCountsUseCase] streams the row identity, then
+ * each row's exact FR-9 deck size. No row ever shows a number that is about to
+ * be replaced by a different one: the raw-estimate stage is gone (WP-8.12), so
+ * a type switch drops the counts to placeholders and each row fills in exactly
+ * once — no jump-to-the-total flicker (FR-5). Every arrival merges into the
+ * state in place, and a `changes()` refresh never dips a settled row back
+ * because its re-run carries only final numbers.
  *
  * **Refreshes (§6.5, §6.8):** one collector owns reloads. [MediaLibrary.changes]
  * re-reads the authorization (the FR-2 banner signal) and re-runs the counts for
@@ -50,7 +53,8 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val library: MediaLibrary,
     private val decisions: DecisionStore,
-    private val loadSources: LoadSourcesUseCase,
+    /** The one count path (FR-9, WP-8.12): every row's number is its deck's size. */
+    private val sourceCounts: SourceCountsUseCase,
     /** FR-37: exclusions change which items the Shuffle row's deck holds. */
     private val exclusions: ShuffleExclusionStore,
 ) : ViewModel() {
@@ -63,15 +67,6 @@ class HomeViewModel(
 
     /** One-shot navigation requests for the App host (§6.2). */
     val events: Flow<HomeEvent> = eventChannel.receiveAsFlow()
-
-    /**
-     * Which rows currently show their FR-9-exact count (§6.5). A `changes()`
-     * re-run streams raw estimates again; rows this mask marks exact keep their
-     * refined number until the re-run's own refinement replaces it, so the screen
-     * never flickers exact → estimate → exact. Reset when the type filter drops
-     * every count.
-     */
-    private var exactRows = HomeExactRows()
 
     /**
      * Count-reload requests, latest-wins. `replay = 1` doubles as the startup
@@ -87,11 +82,10 @@ class HomeViewModel(
 
         viewModelScope.launch {
             reloadRequests
-                .flatMapLatest { type -> loadSources(type).map { counts -> type to counts } }
+                .flatMapLatest { type -> sourceCounts(type).map { counts -> type to counts } }
                 .collect { (type, counts) ->
                     if (_uiState.value.typeFilter == type) {
-                        _uiState.value = _uiState.value.withCounts(counts, exactRows)
-                        exactRows = exactRows.advance(counts)
+                        _uiState.value = _uiState.value.withCounts(counts)
                     }
                 }
         }
@@ -107,8 +101,8 @@ class HomeViewModel(
             // FR-37: an Albums toggle re-runs the counts so the Shuffle row
             // keeps matching the deck its row opens (FR-9). `drop(1)` skips the
             // Flow's initial snapshot — the startup load already reads the
-            // store — and the exactness mask keeps the re-run from flickering
-            // the refined numbers back to estimates (§6.5).
+            // store — and the re-run carries only final numbers, so the row
+            // updates once for the real change (§6.5).
             exclusions
                 .excludedAlbumIdsFlow()
                 .drop(1)
@@ -192,7 +186,6 @@ class HomeViewModel(
                 smartRows = SmartFilter.entries.map { HomeSmartRow(it, null) },
                 albumRows = current.albumRows.map { it.copy(count = null) },
             )
-        exactRows = HomeExactRows()
         reloadRequests.tryEmit(type)
     }
 
@@ -203,59 +196,31 @@ class HomeViewModel(
 }
 
 /**
- * Which Home rows currently show their FR-9-exact count (§6.5): accumulated from
- * the exactness flags [SourceCounts] carries, so a `changes()` re-run's raw
- * arrivals can be told apart from refinements.
+ * Merge one progressive [SourceCounts] arrival into the state: an arrived count
+ * is final (FR-9-exact, WP-8.12), an absent one keeps what the state already
+ * had — the placeholder before the first arrival, the held final number across
+ * a `changes()` re-run — so a row updates once per real change and never dips
+ * (§6.5 *Home counts*). The smart rows keep their five-row §5.8 order whatever
+ * order the counts arrive in; an album row's number is [SourceCounts.albumCounts]
+ * for its id — the library's estimate in [AlbumSource] is never displayed.
  */
-internal data class HomeExactRows(
-    val shuffle: Boolean = false,
-    val smart: Set<SmartFilter> = emptySet(),
-    val albums: Set<String> = emptySet(),
-)
-
-/** Fold one arrival's exactness flags into the mask. */
-internal fun HomeExactRows.advance(counts: SourceCounts): HomeExactRows =
-    HomeExactRows(
-        shuffle = shuffle || counts.shuffleExact,
-        smart = smart + counts.exactSmart,
-        albums = albums + counts.exactAlbumIds,
-    )
-
-/**
- * Merge one progressive [SourceCounts] arrival into the state: absent members
- * keep what the state already had, arrived members replace it, and the smart
- * rows keep their five-row §5.8 order whatever arrives in which order. Rows the
- * [exact] mask marks FR-9-exact never regress to a raw arrival — a `changes()`
- * re-run's estimates wait behind the refined numbers until its own refinement
- * lands (§6.5).
- */
-internal fun HomeUiState.withCounts(
-    counts: SourceCounts,
-    exact: HomeExactRows,
-): HomeUiState =
+internal fun HomeUiState.withCounts(counts: SourceCounts): HomeUiState =
     copy(
-        shuffleCount =
-            counts.shuffleCount?.let { incoming ->
-                if (exact.shuffle && !counts.shuffleExact) shuffleCount else incoming
-            } ?: shuffleCount,
+        shuffleCount = counts.shuffleCount ?: shuffleCount,
         smartRows =
             SmartFilter.entries.map { kind ->
-                val held = smartRows.firstOrNull { it.kind == kind }?.count
                 HomeSmartRow(
                     kind = kind,
-                    count =
-                        counts.smartCounts[kind]?.let { incoming ->
-                            if (kind in exact.smart && kind !in counts.exactSmart) held else incoming
-                        } ?: held,
+                    count = counts.smartCounts[kind] ?: smartRows.firstOrNull { it.kind == kind }?.count,
                 )
             },
         albumRows =
             counts.albums?.map { album ->
-                val held = albumRows.firstOrNull { it.id == album.id }
-                if (held != null && album.id in exact.albums && album.id !in counts.exactAlbumIds) {
-                    held
-                } else {
-                    HomeAlbumRow(album.id, album.title, album.coverAssetId, album.count)
-                }
+                HomeAlbumRow(
+                    id = album.id,
+                    title = album.title,
+                    coverAssetId = album.coverAssetId,
+                    count = counts.albumCounts[album.id] ?: albumRows.firstOrNull { it.id == album.id }?.count,
+                )
             } ?: albumRows,
     )
