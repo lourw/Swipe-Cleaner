@@ -8,6 +8,8 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeShuffleExclusionStore
+import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,7 +34,7 @@ class BuildDeckUseCaseTest {
             store.record("a", Decision.KEEP, "old-session")
             store.record("c", Decision.DELETE, "old-session")
 
-            val deck = BuildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+            val deck = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
 
             assertEquals(setOf("b", "d"), deck.toSet())
         }
@@ -49,7 +51,7 @@ class BuildDeckUseCaseTest {
             val store = FakeDecisionStore()
             store.record("b", Decision.SKIP, "old-session")
 
-            val deck = BuildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+            val deck = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
 
             assertEquals(setOf("a", "b", "c"), deck.toSet())
         }
@@ -65,7 +67,7 @@ class BuildDeckUseCaseTest {
             store.record("a", Decision.KEEP, "old-session")
             store.record("b", Decision.DELETE, "old-session")
 
-            val deck = BuildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+            val deck = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
 
             assertEquals(emptyList(), deck)
         }
@@ -75,7 +77,7 @@ class BuildDeckUseCaseTest {
         runTest {
             val library = FakeMediaLibrary((0L until 10L).map { photo("p$it", it) })
             val store = FakeDecisionStore()
-            val build = BuildDeckUseCase(library, store)
+            val build = buildDeckUseCase(library, store)
 
             val first = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
             val second = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
@@ -89,7 +91,7 @@ class BuildDeckUseCaseTest {
         runTest {
             val library = FakeMediaLibrary((0L until 20L).map { photo("p$it", it) })
             val store = FakeDecisionStore()
-            val build = BuildDeckUseCase(library, store)
+            val build = buildDeckUseCase(library, store)
 
             val first = build(DeckSource.All, MediaTypeFilter.ALL, seed = 1L)
             val second = build(DeckSource.All, MediaTypeFilter.ALL, seed = 2L)
@@ -105,7 +107,7 @@ class BuildDeckUseCaseTest {
             // needs to reopen a session on the same card (FR-20).
             val library = FakeMediaLibrary((0L until 10L).map { photo("p$it", it) })
             val store = FakeDecisionStore()
-            val build = BuildDeckUseCase(library, store)
+            val build = buildDeckUseCase(library, store)
 
             val full = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
             val first = full[2]
@@ -116,6 +118,154 @@ class BuildDeckUseCaseTest {
             val rebuilt = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
 
             assertEquals(full.filterNot { it == first || it == second }, rebuilt)
+        }
+
+    @Test
+    fun `FR-20 one id added and one removed keeps the survivors' relative order`() =
+        runTest {
+            // The per-id key ordering (FR-20, §6.5): a library edit between
+            // sessions never re-keys the survivors, so resume lands on the same
+            // neighbourhood of cards. The new id may land anywhere; everything
+            // else keeps its order.
+            val library = FakeMediaLibrary((0L until 10L).map { photo("p$it", it) })
+            val store = FakeDecisionStore()
+            val build = buildDeckUseCase(library, store)
+
+            val full = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+
+            library.items.removeAll { it.id == "p4" }
+            library.items += photo("p10", 10L)
+
+            val rebuilt = build(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+
+            assertEquals(full.filterNot { it == "p4" }, rebuilt.filterNot { it == "p10" })
+        }
+
+    @Test
+    fun `FR-37 excluded albums keep their items out of the shuffle`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    (0L until 5L).map { photo("p$it", it) },
+                    albums = mapOf("a1" to setOf("p1", "p3")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+
+            val deck = buildDeckUseCase(library, FakeDecisionStore(), exclusions)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(setOf("p0", "p2", "p4"), deck.toSet())
+        }
+
+    @Test
+    fun `FR-37 turning the exclusion off puts the items back`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    (0L until 5L).map { photo("p$it", it) },
+                    albums = mapOf("a1" to setOf("p1", "p3")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val build = buildDeckUseCase(library, FakeDecisionStore(), exclusions)
+
+            val excluded = build(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+            exclusions.setExcluded("a1", false)
+            val included = build(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(setOf("p0", "p2", "p4"), excluded.toSet())
+            assertEquals((0L until 5L).map { "p$it" }.toSet(), included.toSet())
+        }
+
+    @Test
+    fun `FR-37 an item in two albums leaves the shuffle when either is excluded`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    (0L until 4L).map { photo("p$it", it) },
+                    albums =
+                        mapOf(
+                            "a1" to setOf("p1"),
+                            "a2" to setOf("p1", "p2"),
+                        ),
+                )
+            // a1 stays in; p1 still leaves through its a2 membership.
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a2"))
+
+            val deck = buildDeckUseCase(library, FakeDecisionStore(), exclusions)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(setOf("p0", "p3"), deck.toSet())
+        }
+
+    @Test
+    fun `FR-37 an exclusion for a deleted album changes nothing`() =
+        runTest {
+            // The store keeps ids, the library has moved on: an id with no
+            // album resolves to no members, so the deck is untouched.
+            val library =
+                FakeMediaLibrary(
+                    (0L until 4L).map { photo("p$it", it) },
+                    albums = mapOf("a1" to setOf("p1")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("gone"))
+
+            val deck = buildDeckUseCase(library, FakeDecisionStore(), exclusions)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals((0L until 4L).map { "p$it" }.toSet(), deck.toSet())
+        }
+
+    @Test
+    fun `FR-37 excluded shuffle keeps the seeded relative order`() =
+        runTest {
+            // Subtraction commutes with the keyed ordering: survivors of the
+            // exclusion sit in the same relative order as the full seeded deck,
+            // so a mid-session toggle never reshuffles what resume reopens.
+            val library =
+                FakeMediaLibrary(
+                    (0L until 10L).map { photo("p$it", it) },
+                    albums = mapOf("a1" to setOf("p2", "p5", "p8")),
+                )
+            val store = FakeDecisionStore()
+            val full = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+
+            val deck = buildDeckUseCase(library, store, exclusions)(DeckSource.All, MediaTypeFilter.ALL, seed = 42L)
+
+            assertEquals(full.filterNot { it in setOf("p2", "p5", "p8") }, deck)
+        }
+
+    @Test
+    fun `FR-37 exclusions reach only the shuffle and never an album deck`() =
+        runTest {
+            // Opening the excluded album itself still shows all of its items
+            // (FR-37): the subtraction lives on the DeckSource.All path only.
+            val library =
+                FakeMediaLibrary(
+                    (0L until 4L).map { photo("p$it", it) },
+                    albums = mapOf("a1" to setOf("p1", "p2")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val build = buildDeckUseCase(library, FakeDecisionStore(), exclusions)
+
+            val albumDeck = build(DeckSource.Album("a1", "Trip"), MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(setOf("p1", "p2"), albumDeck.toSet())
+        }
+
+    @Test
+    fun `FR-5 the type filter and exclusions both apply to the shuffle`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    listOf(photo("p1", 0L), photo("p2", 1L), video("v1", 5_000L), video("v2", 6_000L)),
+                    albums = mapOf("a1" to setOf("p2", "v1")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val build = buildDeckUseCase(library, FakeDecisionStore(), exclusions)
+
+            val photos = build(DeckSource.All, MediaTypeFilter.PHOTOS, seed = 7L)
+            val all = build(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+
+            assertEquals(setOf("p1"), photos.toSet())
+            assertEquals(setOf("p1", "v2"), all.toSet())
         }
 
     @Test
@@ -136,7 +286,7 @@ class BuildDeckUseCaseTest {
             val store = FakeDecisionStore()
 
             val deck =
-                BuildDeckUseCase(library, store)(
+                buildDeckUseCase(library, store)(
                     DeckSource.Smart(SmartFilter.LONG_VIDEOS),
                     MediaTypeFilter.ALL,
                     seed = 0L,
@@ -164,7 +314,7 @@ class BuildDeckUseCaseTest {
             store.record("d", Decision.KEEP, "old-session")
 
             val deck =
-                BuildDeckUseCase(library, store)(
+                buildDeckUseCase(library, store)(
                     DeckSource.Smart(SmartFilter.LIKELY_DUPLICATES),
                     MediaTypeFilter.ALL,
                     seed = 0L,

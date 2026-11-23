@@ -70,6 +70,8 @@ data class SourceCounts(
 class LoadSourcesUseCase(
     private val library: MediaLibrary,
     private val decisions: DecisionStore,
+    /** The deck's own membership path (FR-9, FR-37): every exact count below is the deck's size. */
+    private val membership: DeckMembership,
 ) {
     /** The progressive count snapshots for [type] (FR-5: the filter is ANDed into every source). */
     operator fun invoke(type: MediaTypeFilter): Flow<SourceCounts> =
@@ -118,22 +120,36 @@ class LoadSourcesUseCase(
         type: MediaTypeFilter,
         decided: Set<String>,
     ) {
-        var current = refineShuffle(counts, allIds, decided)
+        var current = refineShuffle(counts, allIds, type, decided)
         current = refineSmart(current, type, decided)
         refineAlbums(current, type, decided)
     }
 
-    /** FR-9-exact Shuffle count; emits only when the refinement moves the number. */
+    /**
+     * FR-9-exact Shuffle count: [DeckMembership.ids] for [DeckSource.All] —
+     * decided subtracted and FR-37 exclusions applied — so the row shows the
+     * size of the very deck it opens (FR-9).
+     *
+     * The refinement **always announces itself once per run**, even when its
+     * number equals the raw estimate: the Shuffle row is the one row whose
+     * refinement moves while the raw count stands still — FR-37 exclusions
+     * change the deck, not the source — and [HomeViewModel]'s exactness mask
+     * holds a refined number "until the re-run's own refinement replaces it"
+     * (§6.5). A refinement suppressed as equal would pin the old number
+     * forever; the announcement itself never moves a displayed number, so it
+     * cannot flicker the row (NFR-4). A failed refinement stays silent: the
+     * row keeps its number and the next refresh retries it (§6.8).
+     */
     private suspend fun FlowCollector<SourceCounts>.refineShuffle(
         counts: SourceCounts,
         allIds: List<String>?,
+        type: MediaTypeFilter,
         decided: Set<String>,
     ): SourceCounts {
         if (allIds == null || counts.shuffleCount == null) return counts
-        val refined = exact(allIds, decided)
-        val moved = counts.shuffleCount != refined
+        val refined = attempt { membership.ids(DeckSource.All, type, decided).size } ?: return counts
         val current = counts.copy(shuffleCount = refined, shuffleExact = true)
-        if (moved) emit(current)
+        emit(current)
         return current
     }
 
@@ -183,12 +199,14 @@ class LoadSourcesUseCase(
             val exactAlbumIds = counts.exactAlbumIds.toMutableSet()
             val refinedAlbums =
                 albumsNow.map { album ->
-                    val ids = attempt { library.assetIds(DeckSource.Album(album.id, album.title), type) }
-                    if (ids == null) {
+                    // The deck's own path for the row (FR-9): an album deck never
+                    // applies the FR-37 exclusions, so opening it keeps its items.
+                    val count = attempt { membership.ids(DeckSource.Album(album.id, album.title), type, decided).size }
+                    if (count == null) {
                         album
                     } else {
                         exactAlbumIds += album.id
-                        album.copy(count = exact(ids, decided)).also { if (it != album) moved = true }
+                        album.copy(count = count).also { if (it != album) moved = true }
                     }
                 }
             if (moved) {
@@ -210,21 +228,10 @@ class LoadSourcesUseCase(
         decided: Set<String>,
     ): Int =
         if (kind == SmartFilter.LIKELY_DUPLICATES) {
-            DuplicateGrouper
-                .group(
-                    library
-                        .duplicateCandidates(type)
-                        .filterNot { it.id in decided },
-                ).size
+            membership.duplicateDeckIds(type, decided).size
         } else {
-            exact(library.assetIds(DeckSource.Smart(kind), type), decided)
+            membership.ids(DeckSource.Smart(kind), type, decided).size
         }
-
-    /** Membership minus decided ids — what FR-9 asks of every source count. */
-    private fun exact(
-        ids: List<String>,
-        decided: Set<String>,
-    ): Int = ids.count { it !in decided }
 
     /**
      * Runs one library read; a failed read returns null so its row keeps its

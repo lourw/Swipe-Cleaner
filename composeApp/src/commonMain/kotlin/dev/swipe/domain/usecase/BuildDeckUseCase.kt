@@ -1,37 +1,38 @@
 package dev.swipe.domain.usecase
 
 import dev.swipe.data.DecisionStore
-import dev.swipe.data.MediaLibrary
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
-import kotlin.random.Random
 
 /**
  * Builds the deck of asset ids for one review session (REQUIREMENTS §6.5):
- * the source's ids with every already-decided item subtracted — a Keep or a pending
- * Delete never comes back (FR-9) — then ordered per source:
+ * the source's membership through [DeckMembership] — a Keep or a pending Delete
+ * never comes back (FR-9), and for [DeckSource.All] the items of any album the
+ * user excluded from Shuffle are already out (FR-37) — then ordered per source:
  *
- * - [DeckSource.All] is shuffled with `Random(seed)`, so the same seed always
- *   reproduces the order (the seed lives on the session row, §6.5 step 1).
+ * - [DeckSource.All] is ordered by a seeded per-id key ([stableShuffleOrder]),
+ *   so the same seed always reproduces the order (the seed lives on the session
+ *   row, §6.5 step 1) and items entering or leaving the library never move the
+ *   others (FR-20).
  * - `Smart(LONG_VIDEOS)` keeps the library order, which is pre-sorted
  *   duration-descending by a PhotoKit sort descriptor (FR-6, §6.5).
  * - `Smart(LIKELY_DUPLICATES)` comes from
- *   [MediaLibrary.duplicateCandidates] through [DuplicateGrouper], decided items
- *   subtracted before grouping so runs stay honest (FR-6).
+ *   [DeckMembership.duplicateDeckIds] — decided items subtracted before
+ *   grouping so runs stay honest (FR-6).
  * - Everything else keeps the library order, creation date descending (§6.5).
  */
 class BuildDeckUseCase(
-    private val library: MediaLibrary,
+    private val membership: DeckMembership,
     private val decisions: DecisionStore,
 ) {
     /**
-     * The deck for [source] narrowed by [typeFilter] (FR-5). [seed] drives the shuffle
-     * of [DeckSource.All] and is ignored by every other source. [DeckSource.All]
-     * shuffles the *full* id list before decided ids are subtracted, so the seeded
-     * order survives decisions: a rebuild with the same seed lands on the same order
-     * minus the decided items, which is what resume needs to reopen a session on the
-     * same card (FR-20). Other sources subtract before ordering.
+     * The deck for [source] narrowed by [typeFilter] (FR-5). [seed] drives the
+     * order of [DeckSource.All] and is ignored by every other source. The order
+     * is a per-id key sort, so it survives membership changes by construction:
+     * a rebuild with the same seed lands on the same order minus whatever has
+     * been decided or excluded since, which is what resume needs to reopen a
+     * session on the same card (FR-20).
      */
     suspend operator fun invoke(
         source: DeckSource,
@@ -40,19 +41,49 @@ class BuildDeckUseCase(
     ): List<String> {
         val decided = decisions.decidedIds()
         if (source.isLikelyDuplicates) {
-            val candidates =
-                library
-                    .duplicateCandidates(typeFilter)
-                    .filterNot { it.id in decided }
-            return DuplicateGrouper.group(candidates)
+            return membership.duplicateDeckIds(typeFilter, decided)
         }
-        val ids = library.assetIds(source, typeFilter)
-        // Shuffle first, subtract second (see the doc): filtering first would change
-        // the permutation as rows accumulate and break resume's order (FR-20).
-        val ordered = if (source == DeckSource.All) ids.shuffled(Random(seed)) else ids
-        return ordered.filterNot { it in decided }
+        val ids = membership.ids(source, typeFilter, decided)
+        return if (source == DeckSource.All) stableShuffleOrder(ids, seed) else ids
     }
 
     private val DeckSource.isLikelyDuplicates: Boolean
         get() = this is DeckSource.Smart && kind == SmartFilter.LIKELY_DUPLICATES
 }
+
+/**
+ * The FR-20 Shuffle order: ids sorted by [shuffleKey], the seed-mixed hash of
+ * each id, with the id string itself breaking the rare key tie so the result is
+ * total and never depends on fetch order (PhotoKit's All fetch is unordered,
+ * §6.5). Because the key is a property of (seed, id) alone, filtering the list
+ * — decided items (FR-9), FR-37 exclusions, a library that grew or shrank
+ * between sessions — commutes with the sort: surviving ids keep their relative
+ * order, where a positional `shuffled(Random(seed))` permutation would move
+ * every card after the first insertion or removal.
+ */
+internal fun stableShuffleOrder(
+    ids: List<String>,
+    seed: Long,
+): List<String> = ids.sortedWith(compareBy({ shuffleKey(it, seed) }, { it }))
+
+/**
+ * The per-id sort key: a splitmix64 finalizer over `seed xor id.hashCode()`,
+ * deterministic across launches and platforms (`String.hashCode` is specified).
+ * The avalanche spreads both inputs over all 64 bits, so neighbouring ids and
+ * neighbouring seeds both produce unrelated orders.
+ */
+private fun shuffleKey(
+    id: String,
+    seed: Long,
+): Long {
+    var z = (seed.toULong() xor id.hashCode().toULong()) + GOLDEN_RATIO
+    z = (z xor (z shr 30)) * MIX_A
+    z = (z xor (z shr 27)) * MIX_B
+    return (z xor (z shr 31)).toLong()
+}
+
+// The splitmix64 constants (the same ones the PRNG family uses); ULong so the
+// literals fit, with plain wrapping 64-bit arithmetic.
+private const val GOLDEN_RATIO = 0x9E3779B97F4A7C15uL
+private const val MIX_A = 0xBF58476D1CE4E5B9uL
+private const val MIX_B = 0x94D049BB133111EBuL

@@ -17,6 +17,7 @@ import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
+import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -154,7 +155,7 @@ class SwipeViewModelTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(library, store),
+                    buildDeck = buildDeckUseCase(library, store),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,

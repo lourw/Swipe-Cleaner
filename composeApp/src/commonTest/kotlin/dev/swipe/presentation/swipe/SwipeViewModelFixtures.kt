@@ -21,6 +21,7 @@ import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
+import dev.swipe.fakes.buildDeckUseCase
 import kotlin.time.Instant
 
 /** The fixed shuffle seed; unused by the source, stored on the session (§6.5 step 1). */
@@ -77,7 +78,7 @@ internal class Fixture(
         SwipeViewModel(
             source = SOURCE,
             typeFilter = MediaTypeFilter.ALL,
-            buildDeck = BuildDeckUseCase(library, store),
+            buildDeck = buildDeckUseCase(library, store),
             recordDecision = RecordDecisionUseCase(store),
             undoDecision = UndoDecisionUseCase(store),
             mediaLibrary = library,

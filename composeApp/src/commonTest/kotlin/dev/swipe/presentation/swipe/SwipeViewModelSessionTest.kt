@@ -19,6 +19,7 @@ import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
+import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -276,7 +277,7 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(library, store),
+                    buildDeck = buildDeckUseCase(library, store),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -313,7 +314,7 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = DeckSource.All,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(library, store),
+                    buildDeck = buildDeckUseCase(library, store),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -390,7 +391,7 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(f.library, f.store),
+                    buildDeck = buildDeckUseCase(f.library, f.store),
                     recordDecision = RecordDecisionUseCase(f.store),
                     undoDecision = UndoDecisionUseCase(f.store),
                     mediaLibrary = f.library,
@@ -436,7 +437,7 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(library, store),
+                    buildDeck = buildDeckUseCase(library, store),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -475,7 +476,7 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = BuildDeckUseCase(f.library, f.store),
+                    buildDeck = buildDeckUseCase(f.library, f.store),
                     recordDecision = RecordDecisionUseCase(f.store),
                     undoDecision = UndoDecisionUseCase(f.store),
                     mediaLibrary = f.library,
@@ -493,7 +494,7 @@ class SwipeViewModelSessionTest {
             SwipeViewModel(
                 source = DeckSource.All,
                 typeFilter = MediaTypeFilter.ALL,
-                buildDeck = BuildDeckUseCase(f.library, f.store),
+                buildDeck = buildDeckUseCase(f.library, f.store),
                 recordDecision = RecordDecisionUseCase(f.store),
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,
@@ -521,7 +522,7 @@ class SwipeViewModelSessionTest {
             SwipeViewModel(
                 source = SOURCE,
                 typeFilter = MediaTypeFilter.PHOTOS,
-                buildDeck = BuildDeckUseCase(f.library, f.store),
+                buildDeck = buildDeckUseCase(f.library, f.store),
                 recordDecision = RecordDecisionUseCase(f.store),
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,

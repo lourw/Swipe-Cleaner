@@ -9,6 +9,9 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeShuffleExclusionStore
+import dev.swipe.fakes.buildDeckUseCase
+import dev.swipe.fakes.loadSourcesUseCase
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +36,7 @@ class LoadSourcesUseCaseTest {
                     albums = mapOf("a1" to setOf("asset-1", "asset-2")),
                 )
             library.gateNextSmartCounts = true
-            val useCase = LoadSourcesUseCase(library, FakeDecisionStore())
+            val useCase = loadSourcesUseCase(library, FakeDecisionStore())
 
             useCase(MediaTypeFilter.ALL).test {
                 // Albums answer first — estimates and covers, no enumeration (NFR-4).
@@ -63,7 +66,12 @@ class LoadSourcesUseCaseTest {
                     ),
                     withSmart.smartCounts,
                 )
-                awaitComplete() // nothing decided → the estimates are already exact
+                // Nothing decided → no number moves, but the Shuffle refinement
+                // still announces its exactness once per run (FR-37 mask contract).
+                val refined = awaitItem()
+                assertEquals(3, refined.shuffleCount)
+                assertTrue(refined.shuffleExact)
+                awaitComplete()
             }
         }
 
@@ -84,7 +92,7 @@ class LoadSourcesUseCaseTest {
             val store = FakeDecisionStore()
             store.record("p1", Decision.KEEP, "s") // KEEP and pending DELETE both
             store.record("p2", Decision.DELETE, "s") // count as decided (FR-9)
-            val useCase = LoadSourcesUseCase(library, store)
+            val useCase = loadSourcesUseCase(library, store)
 
             useCase(MediaTypeFilter.ALL).test {
                 val albums = awaitItem()
@@ -126,7 +134,7 @@ class LoadSourcesUseCaseTest {
                     ),
                     albums = mapOf("a1" to setOf("p1", "v1", "v2")),
                 )
-            val useCase = LoadSourcesUseCase(library, FakeDecisionStore())
+            val useCase = loadSourcesUseCase(library, FakeDecisionStore())
 
             useCase(MediaTypeFilter.VIDEOS).test {
                 // The album estimate covers the whole album (PhotoKit's cheap
@@ -136,6 +144,11 @@ class LoadSourcesUseCaseTest {
                 assertEquals(3, albums.albums?.single()?.count)
                 assertEquals(2, awaitItem().shuffleCount)
                 awaitItem() // smart counts for VIDEOS: every source empty, so no refinement
+                // The Shuffle refinement runs even though the number stands at 2
+                // (the exactness announcement, FR-37 mask contract).
+                val refinedShuffle = awaitItem()
+                assertEquals(2, refinedShuffle.shuffleCount)
+                assertTrue(refinedShuffle.shuffleExact)
                 val refined = awaitItem()
                 assertEquals(2, refined.albums?.single()?.count) // a1 without p1
                 awaitComplete()
@@ -161,7 +174,7 @@ class LoadSourcesUseCaseTest {
                 )
             val store = FakeDecisionStore()
             store.record("d1", Decision.KEEP, "s")
-            val useCase = LoadSourcesUseCase(library, store)
+            val useCase = loadSourcesUseCase(library, store)
 
             useCase(MediaTypeFilter.ALL).test {
                 awaitItem() // albums: none seeded
@@ -182,7 +195,7 @@ class LoadSourcesUseCaseTest {
                 awaitComplete()
             }
             val deck =
-                BuildDeckUseCase(library, store)(
+                buildDeckUseCase(library, store)(
                     DeckSource.Smart(SmartFilter.LIKELY_DUPLICATES),
                     MediaTypeFilter.ALL,
                     0L,
@@ -201,19 +214,48 @@ class LoadSourcesUseCaseTest {
                     albums = mapOf("a1" to setOf("p1", "p2")),
                 )
             library.nextAlbumsEstimate = 0
-            val useCase = LoadSourcesUseCase(library, FakeDecisionStore())
+            val useCase = loadSourcesUseCase(library, FakeDecisionStore())
 
             useCase(MediaTypeFilter.ALL).test {
                 val albums = awaitItem()
                 assertEquals(0, albums.albums?.single()?.count) // the wrong estimate on screen
                 assertEquals(2, awaitItem().shuffleCount)
                 awaitItem() // smart counts: every source raw 0, nothing to refine
+                awaitItem() // the Shuffle refinement's exactness announcement (still 2)
                 val refined = awaitItem()
                 assertEquals(2, refined.albums?.single()?.count) // the fetch fixed it
                 assertTrue(refined.exactAlbumIds.contains("a1"))
                 awaitComplete()
             }
             assertTrue(DeckSource.Album("a1", "a1") in library.assetIdsCalls.map { it.first })
+        }
+
+    @Test
+    fun `FR-37 the exact shuffle count drops excluded albums`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    listOf(photo("p1"), photo("p2"), photo("p3"), photo("p4"), photo("p5")),
+                    albums = mapOf("a1" to setOf("p2", "p4")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val useCase = loadSourcesUseCase(library, FakeDecisionStore(), exclusions)
+
+            useCase(MediaTypeFilter.ALL).test {
+                val albums = awaitItem()
+                // The excluded album still lists with its full count (FR-37).
+                assertEquals(2, albums.albums?.single()?.count)
+                assertEquals(5, awaitItem().shuffleCount) // raw, exclusions not applied yet
+                awaitItem() // smart counts: every source raw 0, nothing to refine
+
+                // Refinement runs through the deck's own path, so the row shows
+                // the size of the deck Shuffle opens: p2 and p4 leave with a1.
+                val refined = awaitItem()
+                assertEquals(3, refined.shuffleCount)
+                assertTrue(refined.shuffleExact)
+                assertEquals(2, refined.albums?.single()?.count) // only the Shuffle row moves
+                awaitComplete()
+            }
         }
 
     private fun photo(

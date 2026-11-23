@@ -8,6 +8,7 @@ import dev.swipe.data.db.SqlSessionStore
 import dev.swipe.data.db.SqlShuffleExclusionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
+import dev.swipe.domain.usecase.DeckMembership
 import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
@@ -43,8 +44,13 @@ val commonModule: Module =
         // Permission flow (WP-1.7); its data interfaces bind in the platform module.
         viewModel { PermissionViewModel(mediaLibrary = get(), systemActions = get()) }
 
+        // Deck membership (FR-37): the single fetch path shared by the deck, the
+        // Home counts, and the Albums list, so a displayed count and the deck it
+        // opens are the same query (FR-9). Applies the FR-37 Shuffle exclusions.
+        single { DeckMembership(library = get(), exclusions = get()) }
+
         // Deck use cases (WP-1.6), bound for the Swipe pipeline (WP-1.8).
-        single { BuildDeckUseCase(library = get(), decisions = get()) }
+        single { BuildDeckUseCase(membership = get(), decisions = get()) }
         single { RecordDecisionUseCase(decisions = get()) }
         single { UndoDecisionUseCase(decisions = get()) }
 
@@ -57,7 +63,7 @@ val commonModule: Module =
 
         // Home counts (WP-5.2): the progressive placeholder → exact ladder for the
         // Shuffle, Smart, and Album rows (FR-4, FR-9, NFR-4, §6.5 *Home counts*).
-        single { LoadSourcesUseCase(library = get(), decisions = get()) }
+        single { LoadSourcesUseCase(library = get(), decisions = get(), membership = get()) }
 
         // The Swipe deck (WP-1.8). Source and filter are route parameters: WP-1.9
         // resolves it with `koinViewModel { parameters { parametersOf(source, typeFilter) } }`.
