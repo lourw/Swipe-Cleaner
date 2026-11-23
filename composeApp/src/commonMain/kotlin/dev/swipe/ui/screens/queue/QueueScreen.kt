@@ -90,9 +90,9 @@ fun QueueScreen(
 
                 // WP-9.3: the event's raw message is diagnostic only — the
                 // user sees the plain retry copy, never PhotoKit's own words.
-                is QueueEvent.ShowDeleteError -> toast = DELETE_FAILED_TOAST
+                is QueueEvent.ShowDeleteError -> toast = deleteFailedToast
 
-                QueueEvent.RestoreFailed -> toast = RESTORE_FAILED_TOAST
+                QueueEvent.RestoreFailed -> toast = restoreFailedToast
             }
         }
     }
@@ -299,7 +299,7 @@ private const val GRID_COLUMNS = 3
  * Toast copy for a failed commit (WP-9.3): plain retry copy on screen, never
  * PhotoKit's own message, which rides [QueueEvent.ShowDeleteError] for logs.
  */
-private val DELETE_FAILED_TOAST = ToastSpec("Couldn't delete — try again")
+private val deleteFailedToast = ToastSpec("Couldn't delete — try again")
 
 /** Toast copy for a restore whose KEEP write failed (NFR-7's convention). */
-private val RESTORE_FAILED_TOAST = ToastSpec("Couldn't restore — try again")
+private val restoreFailedToast = ToastSpec("Couldn't restore — try again")

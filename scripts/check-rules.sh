@@ -87,10 +87,12 @@ main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
 #    The 12 surfaces: Home, Albums, Months, Denied, Queue, QueueItemViewer,
 #    Settings, Summary, DeleteSuccess and the shared EmptyState clear both bars; the
 #    deck splits its insets (TopBar clears only the status bar inside its scrim,
-#    SwipeScreen and ActionBar only the Home Indicator); the debug gallery's first
-#    heading clears the status bar. Allowlist: card-interior components (CardMetadata,
-#    DeckMotion, VideoScrubber) ride inside the already-inset card, ScreenHeader takes
-#    its insets from the screens hosting it, and CommitLatencyTrace is not UI.
+#    ActionBar only the Home Indicator); the debug gallery's first heading clears
+#    the status bar. Allowlist: card-interior components (CardMetadata,
+#    DeckMotion, VideoScrubber) ride inside the already-inset card, ScreenHeader
+#    takes its insets from the screens hosting it, CommitLatencyTrace is not UI,
+#    and SwipeScreen delegates both bars (WP-9.3: its toast rides ToastHost above
+#    the action bar, which keeps the Home-Indicator guard above).
 safe_area_surfaces() {
     find "$SRC/commonMain/kotlin/dev/swipe/ui/screens" -name '*.kt' -print0
     printf '%s\0' "$SRC/commonMain/kotlin/dev/swipe/ui/components/DebugComponentGallery.kt"
@@ -99,10 +101,10 @@ safe_area_violations() {
     local file need modifier
     while IFS= read -r -d '' file; do
         case "$(basename "$file")" in
-            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt)
+            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt)
                 continue ;;
             TopBar.kt | DebugComponentGallery.kt) need='statusBarsPadding' ;;
-            SwipeScreen.kt | ActionBar.kt) need='navigationBarsPadding' ;;
+            ActionBar.kt) need='navigationBarsPadding' ;;
             *) need='statusBarsPadding navigationBarsPadding' ;;
         esac
         for modifier in $need; do

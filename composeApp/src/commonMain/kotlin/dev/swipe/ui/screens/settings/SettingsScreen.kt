@@ -3,6 +3,7 @@ package dev.swipe.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,18 +105,7 @@ fun SettingsScreen(
                 SettingsRows(state = state, onIntent = onIntent)
             }
         }
-        // WP-9.3: the one toast host and placement — bottom, clearing the
-        // Home Indicator (this Box's bottom edge is the screen's).
-        toast?.let { spec ->
-            ToastHost(
-                toast = spec,
-                onDismiss = { toast = null },
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .toastHostPlacement(),
-            )
-        }
+        SettingsToastOverlay(toast = toast, onDismiss = { toast = null })
     }
     if (state.confirmResetVisible) {
         ConfirmDialog(
@@ -128,6 +118,27 @@ fun SettingsScreen(
             onCancel = { onIntent(SettingsIntent.CancelReset) },
         )
         // Dialog host: the dialog renders in its own window; the flag drives it.
+    }
+}
+
+/**
+ * The §5.7 toast of Settings through the shared host (WP-9.3): bottom,
+ * clearing the Home Indicator (this Box's bottom edge is the screen's).
+ */
+@Composable
+private fun BoxScope.SettingsToastOverlay(
+    toast: ToastSpec?,
+    onDismiss: () -> Unit,
+) {
+    toast?.let { spec ->
+        ToastHost(
+            toast = spec,
+            onDismiss = onDismiss,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .toastHostPlacement(),
+        )
     }
 }
 

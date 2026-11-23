@@ -283,25 +283,7 @@ private fun DeckContent(
                     onToggleFill = { fillMode = !fillMode },
                     videoSlot = videoSlot,
                 )
-                // §5.7 Toast host: overlaid above the action bar (FR-15,
-                // FR-22, NFR-7); the card's size never depends on it.
-                state.toast?.let { message ->
-                    ToastHost(
-                        toast = toastSpec(message, state.pendingFavoriteDelete),
-                        onDismiss = { onIntent(SwipeIntent.DismissToast) },
-                        onAction = {
-                            // FR-13: the confirm names the pending card.
-                            val pending = state.pendingFavoriteDelete
-                            if (pending != null) onIntent(SwipeIntent.ConfirmFavoriteDelete(pending))
-                        },
-                        modifier =
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                // The action bar below clears the Home
-                                // Indicator itself, so the toast doesn't.
-                                .toastHostPlacement(clearHomeIndicator = false),
-                    )
-                }
+                DeckToastOverlay(state = state, onIntent = onIntent)
             }
         }
         ActionBar(
@@ -313,6 +295,35 @@ private fun DeckContent(
             // FR-32: straight to the intent — no fly-off, no haptic, no verdict.
             onShare = { onIntent(SwipeIntent.Share) },
             sharing = state.sharing,
+        )
+    }
+}
+
+/**
+ * The §5.7 Toast host of the deck (WP-9.3): overlaid above the action bar
+ * (FR-15, FR-22, NFR-7), so the card's size never depends on it. The FR-22
+ * confirm names the pending card on its Delete (FR-13).
+ */
+@Composable
+private fun BoxScope.DeckToastOverlay(
+    state: SwipeUiState,
+    onIntent: (SwipeIntent) -> Unit,
+) {
+    state.toast?.let { message ->
+        ToastHost(
+            toast = toastSpec(message, state.pendingFavoriteDelete),
+            onDismiss = { onIntent(SwipeIntent.DismissToast) },
+            onAction = {
+                // FR-13: the confirm names the pending card.
+                val pending = state.pendingFavoriteDelete
+                if (pending != null) onIntent(SwipeIntent.ConfirmFavoriteDelete(pending))
+            },
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    // The action bar below clears the Home
+                    // Indicator itself, so the toast doesn't.
+                    .toastHostPlacement(clearHomeIndicator = false),
         )
     }
 }
