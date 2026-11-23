@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.9 | implement | `fr-22-favorite-confirm-redesign` | ses_df6f8ba5cffeUiiMM932uFL3Oc | 2026-11-23 19:20 | Priority 6; builds on merged 9.3 ToastHost; includes U3 gesture-gating; before 8.6; 👤 user test after merge |
-| 2 | 7.7 | implement | `fr-7-month-order` | ses_df7355b11ffeKetaDO5nMhLnvU | 2026-11-23 18:05 | Month-sort fix + PhotoKit-vs-fake contract suite (month/All order, id resolution, type filtering) |
+| 2 | 7.7 | verify | `fr-7-month-order` | ses_df69175d7ffep3G6JcHKBXs9ER | 2026-11-23 20:10 | Impl done: 3 code commits, 433 tests, report in worktree. Real PhotoKit runner skips (no auth in Gradle host) w/ explicit reasons. Verifier: sort-spec seam, contract parity, fixture hygiene, external-writer leftovers |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -477,7 +477,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.4 | Decision and delete audit | merged | `fr-13-decision-audit` | Verified PASS; report at docs/audits/2026-11-decision-audit.md; 11 regression tests. Follow-ups: R1 fetch-error fix → noted on 8.3; U3 toast modality → 8.9; U4 undo fly-off → 9.2; U1/U2 diagonal-drag geometry → 👤 only after friend confirms his swipe style |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
 | 7.6 | Partial delete marked as full | merged | `fr-26-partial-delete` | Verified PASS 2026-11-23; 2 review nits fixed pre-merge. 👤 device check (Limited access): queue one in-selection + one removed-from-selection photo, delete → "1 deleted, 1 couldn't be found", second stays queued. Risk filed to 7.4/8.3: nil fetch-error in the zero-fetch short-circuit |
-| 7.7 | Month order and PhotoKit contract tests | implementing | `fr-7-month-order` | Priority 3; fix `PhotoKitSourceFetches.kt` month path (drops sort options); contract suite vs fake + real PhotoKit; burst/partial-delete slots deferred to 8.3/8.7 |
+| 7.7 | Month order and PhotoKit contract tests | verifying | `fr-7-month-order` | Impl done 2026-11-23: month+All fetches pass full sorted options; PhotoKitFetchOptionsTest seam + MediaLibraryContract (fake + real runners, real skips w/ reasons — Gradle host has no PhotoKit auth); 433 tests. All-path sort added beyond literal fix → verifier judging vs §6.5. ⚠ Implementer saw external overwrites mid-session (stale drafts, `MediaLibraryContractSuite` invention) — verifier grepping for leftovers; likely 11-19 zombie, all known zombies now terminated |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
 | 8.3 | Fix empty Bursts deck | blocked | | Priority 7; after 7.6 (merged); **blocked on 7.7** — both edit `PhotoKitSourceFetches.kt` and 8.3's burst contract cases build on 7.7's suite. Also: Home Bursts count, deck loading state, nil-error `fetchAssetsWithLocalIdentifiers` short-circuit fix (audit R1), single shared id-lookup helper (6 call sites incl. PhotoKitMediaSharer) |
