@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.12 | implement | `fr-5-count-flicker` | ses_df7eae382ffefi53a0HCyfPg2O | 2026-11-23 | Retry: first session (ses_df7f3973…) died with zero output. Priority 5; builds SourceCountsUseCase on DeckMembership |
-| 2 | 7.4 | merge-pending | `fr-13-decision-audit` | ses_df7a37d9affeza6LB2FUtmBgbC | 2026-11-23 | Verifier PASS on content; main agent rebased + fixed stale BuildDeckUseCase ctor + report citation (ed5fafc); validate.sh running (sh_208763376) before merge |
+| 2 | 9.3 | implement | `arch-toast-host` | ses_df7863705ffeR7JE3Er21F3Cxl | 2026-11-23 | Priority 6; before 8.9; coordinated vs running 8.12 (no file overlap) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -474,7 +474,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
-| 7.4 | Decision and delete audit | verifying | `fr-13-decision-audit` | Report-only; audit found no app-layer bug, 1 platform risk (R1 → WP-A) + 4 UX findings (U1–U4); 11 new passing regression tests; report at docs/audits/2026-11-decision-audit.md |
+| 7.4 | Decision and delete audit | merged | `fr-13-decision-audit` | Verified PASS; report at docs/audits/2026-11-decision-audit.md; 11 regression tests. Follow-ups: R1 fetch-error fix → noted on 8.3; U3 toast modality → 8.9; U4 undo fly-off → 9.2; U1/U2 diagonal-drag geometry → 👤 only after friend confirms his swipe style |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
 | 7.6 | Partial delete marked as full | merged | `fr-26-partial-delete` | Verified PASS 2026-11-23; 2 review nits fixed pre-merge. 👤 device check (Limited access): queue one in-selection + one removed-from-selection photo, delete → "1 deleted, 1 couldn't be found", second stays queued. Risk filed to 7.4/8.3: nil fetch-error in the zero-fetch short-circuit |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
@@ -493,7 +493,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
-| 9.3 | One toast host | queued | | Priority 6, before 8.9 |
+| 9.3 | One toast host | implementing | `arch-toast-host` | Priority 6, before 8.9 |
 | 9.4 | Race-free video preloading | queued | | |
 | 9.5 | Queue viewer safety | queued | | |
 | 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
