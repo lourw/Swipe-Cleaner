@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.3 | implement | `fr-6-burst-deck` | ses_df62612c6ffeDz1uI680ScvhLU | 2026-11-24 00:20 | Relaunch — first attempt (ses_df6337…) crashed with zero commits. Shared 6-site id-lookup w/ burst-frame options, R1 zero-fetch delete fix, unresolved id must not strand deck, loading state, Home Bursts count, contract-suite burst cases. Report → docs/reports/2026-11-wp-8.3-bursts-deck.md |
-| 2 | — | — | — | — | — | free |
+| 2 | 8.14 | implement | `fr-37-albums-switch-polish` | ses_df5ab8521ffePRydhNVOdjBT1x | 2026-11-24 02:30 | Switch touch box fits track + s gaps, explainer line, "Not in Shuffle" subtitle, §5.7/§5.8 + Albums wireframe, FR-37 layout tests. Guarded away from 8.3's files (SwipeScreen/SwipeViewModel/Home/iosMain/ToastHost). Report → docs/reports/2026-11-wp-8.14-albums-switch-polish.md |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
