@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.12 | implement | `fr-5-count-flicker` | ses_df7eae382ffefi53a0HCyfPg2O | 2026-11-23 | Retry: first session (ses_df7f3973…) died with zero output. Priority 5; builds SourceCountsUseCase on DeckMembership |
-| 2 | 7.4 | audit | `fr-13-decision-audit` | ses_df7f09799ffeT3rNF8r5QRPOJ6 | 2026-11-23 | Retry: first session (ses_df7f828f…) died with zero output. Report-only; base 6a534c1 (pre-8.10, audit areas untouched by it) |
+| 2 | 7.4 | verify | `fr-13-decision-audit` | ses_df7a37d9affeza6LB2FUtmBgbC | 2026-11-23 | Audit done (ses_df7f0979…, 3 commits, 390 tests green, report filed). Verifier auditing the audit. Findings to file after merge: WP-A fetch-error risk, U1–U4 UX |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -474,7 +474,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.1 | Bitmap lifetime | merged | `nfr-3-bitmap-lifetime` | |
 | 7.2 | Undo vs in-flight decision | merged | `fr-15-undo-decide-race` | |
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
-| 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
+| 7.4 | Decision and delete audit | verifying | `fr-13-decision-audit` | Report-only; audit found no app-layer bug, 1 platform risk (R1 → WP-A) + 4 UX findings (U1–U4); 11 new passing regression tests; report at docs/audits/2026-11-decision-audit.md |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
 | 7.6 | Partial delete marked as full | merged | `fr-26-partial-delete` | Verified PASS 2026-11-23; 2 review nits fixed pre-merge. 👤 device check (Limited access): queue one in-selection + one removed-from-selection photo, delete → "1 deleted, 1 couldn't be found", second stays queued. Risk filed to 7.4/8.3: nil fetch-error in the zero-fetch short-circuit |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
