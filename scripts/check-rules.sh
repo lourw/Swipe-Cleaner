@@ -91,8 +91,10 @@ main_kt -not -name 'VideoPlayer.kt' -not -name 'VideoPlayerView.kt' |
 #    the status bar. Allowlist: card-interior components (CardMetadata,
 #    DeckMotion, VideoScrubber) ride inside the already-inset card, ScreenHeader
 #    takes its insets from the screens hosting it, CommitLatencyTrace is not UI,
-#    and SwipeScreen delegates both bars (WP-9.3: its toast rides ToastHost above
-#    the action bar, which keeps the Home-Indicator guard above).
+#    and SwipeScreen delegates both bars (WP-9.3: its toast rides ToastHost
+#    above the action bar, which keeps the Home-Indicator guard; in the
+#    empty-state branch SwipeScreen's own ToastHost clears the indicator via
+#    toastHostPlacement(), whose navigationBarsPadding the guard cannot see).
 safe_area_surfaces() {
     find "$SRC/commonMain/kotlin/dev/swipe/ui/screens" -name '*.kt' -print0
     printf '%s\0' "$SRC/commonMain/kotlin/dev/swipe/ui/components/DebugComponentGallery.kt"

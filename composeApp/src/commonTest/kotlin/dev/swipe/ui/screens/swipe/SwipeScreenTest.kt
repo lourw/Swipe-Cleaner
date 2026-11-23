@@ -255,6 +255,44 @@ class SwipeScreenTest {
         }
 
     @Test
+    fun `WP-9-3 the deck confirm toast survives the host's three-second fuse`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(
+                    deckState().copy(
+                        toast = ToastMessage.FavoriteConfirm,
+                        pendingFavoriteDelete = "current-id",
+                    ),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            mainClock.advanceTimeBy(3100L)
+            waitForIdle()
+            // §5.7: the confirm stays until the user acts or the deck moves
+            // on; the host must not send DismissToast on its own fuse.
+            onNodeWithContentDescription("This is a favorite — delete anyway?").assertExists()
+            assertEquals(emptyList<SwipeIntent>(), intents)
+        }
+
+    @Test
+    fun `WP-9-3 a plain deck toast fades on the host's three-second fuse`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(
+                    deckState().copy(toast = ToastMessage.SaveFailed),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            waitForIdle()
+            onNodeWithContentDescription("Couldn't save — try again").assertExists()
+            mainClock.advanceTimeBy(3100L)
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.DismissToast), intents)
+        }
+
+    @Test
     fun `NFR-7 save-failed toast surfaces the retry copy`() =
         runComposeUiTest {
             setContent {

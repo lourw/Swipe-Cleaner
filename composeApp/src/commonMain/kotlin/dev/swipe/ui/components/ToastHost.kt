@@ -41,9 +41,10 @@ data class ToastSpec(
 /**
  * The one toast host (WP-9.3, §5.7/§6.6): renders at most one [Toast] for
  * [toast] and owns the *only* auto-dismiss timer and dismissal signal —
- * neither the screen nor the [Toast] keeps a second visibility flag. When
- * the 3 s fuse lands (or the user taps the action of a toast whose owner
- * clears it on tap), [onDismiss] tells the owner to drop the spec; the
+ * neither the screen nor the [Toast] keeps a second visibility flag. The
+ * timer is the only caller of [onDismiss]: when the 3 s fuse lands it tells
+ * the owner to drop the spec (tapping an action just runs [onAction]; an
+ * owner that clears the toast on tap does so from its own handler). The
  * confirm style ([ToastSpec.autoDismisses] false) never fires the timer and
  * stays until its owner removes it.
  *
