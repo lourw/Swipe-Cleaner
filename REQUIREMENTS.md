@@ -172,7 +172,7 @@ Numbers that change (counters, progress) use tabular figures (`fontFeatureSettin
 - **Corner radii:** card **24 dp**, sheet **20 dp**, grid tile **8 dp**, buttons fully round (pill or circle).
 - **Touch targets:** at least 44 × 44 dp.
 - **Elevation:** no shadows except on the top card, which gets a soft black shadow (blur 24 dp, 40% opacity). Layering uses `surface` / `surfaceRaised` steps instead.
-- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Settings = `settings`. Icons render through `dev.vicart:compose-material-symbols` (Rounded style) from the bundled Google variable fonts.
+- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Settings = `settings`, Back / close = `arrow_back`. Icons render through `dev.vicart:compose-material-symbols` (Rounded style) from the bundled Google variable fonts. In the FR-24 queue viewer the close affordance is `arrow_back`, never `close`: × means Delete in this app, and it must not sit beside the Restore check (WP-9.5).
 
 ### 5.6 Motion and gestures (swipe card)
 
@@ -323,6 +323,10 @@ cancels the confirmation (§5.7).
 │ Deleted for 30 days.         │
 └──────────────────────────────┘
 ```
+
+The CTA and the §6.7 confirm title pluralize the count — "Delete 1 item" / "Delete 1 item?" for a single queued item, "Delete 18 items" / "Delete 18 items?" above it (WP-9.5).
+
+**Queue item viewer** (FR-24, WP-9.5): a tile tap opens the item full-screen on `bg`. Videos **play** through the deck's `VideoPlayer` (muted, like FR-16) so an item can be checked before it is deleted; photos and Live Photos show the still. Top-left a back affordance (`arrow_back`, not ×, per §5.5) closes it; bottom-center the **Restore** pill (`check`, `keep @ 16%`) records KEEP. The viewer is modal while it is up: it consumes every tap, and the grid and the delete CTA behind it receive neither touches nor VoiceOver focus. The grid keeps its scroll position across open and close.
 
 **Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — where M is the number of ids that stayed queued.
 
