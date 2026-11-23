@@ -61,7 +61,8 @@ class FakeMediaLibrary(
     /** Calendar zone for month membership and buckets (FR-7); UTC keeps tests deterministic. */
     private val monthZone: TimeZone = TimeZone.UTC,
 ) : MediaLibrary {
-    /** Current library contents; a [DeleteResult.Deleted] removes ids from it (FR-26). */
+    /** Current library contents; a [DeleteResult.Deleted] removes the ids it names from it (FR-26);
+     * a verbatim [nextDeleteResult] override leaves it untouched. */
     val items = items.toMutableList()
 
     val authorizationCalls = mutableListOf<Unit>()

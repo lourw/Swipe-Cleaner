@@ -297,7 +297,7 @@ denied screen (Open-Settings); every other answer stays on Home.
 └──────────────────────────────┘
 ```
 
-**Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — naming the ids that stayed queued.
+**Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — where M is the number of ids that stayed queued.
 
 **Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home. On the review queue the CTA reads "Back home" instead — there is no other source to try from there (WP-3.3).
 
