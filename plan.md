@@ -356,6 +356,25 @@ Reported by the user on a device, 2026-11-10: videos never play sound. FR-16 say
 - **Tests:** `FR-16` cases that the button toggles mute, the state carries to the next video in the session, a new session starts from the setting (off and on), and the audio session is requested only when sound is on (fake).
 - 👤 On a device: sound plays after unmuting with the silent switch on and off, music from another app keeps playing while videos are muted, and the setting takes effect on the next session.
 
+### WP-8.14 Fix the Albums switch spacing and explain what it does
+
+**Branch:** `fr-37-albums-switch-polish`. **Requirements:** FR-37, FR-8, §5.7 `SourceRow`, §5.8 Albums, NFR-8. **Conflicts with:** WP-9.6 (both edit `AlbumsScreen.kt`). Don't run them side by side.
+
+Reported by the user on the simulator, 2026-11-23. The Albums screen's Exclude from Shuffle switch (WP-8.10) has two problems:
+
+1. **It sits right against the count.** In `SourceRow.kt`, `SourceRowSwitch` puts the 51 dp `SwipeSwitch` track (`switchTrackWidth`) inside a box sized to `minTouchTarget` (44 dp). The track spills about 3.5 dp past each side of the box, and nothing separates the count from the switch, so the count and the track touch. The chevron gets only `xs` start padding.
+2. **A new user can't tell what it's for.** Each row has a bare switch with no visible label. The only explanation is the VoiceOver description. "On" means "left out of Shuffle". That is the opposite of what most people expect a switch on an album to mean ("included"), and nothing on screen says so.
+
+**What to build**
+
+- **Spacing.** Make the switch's touch box at least as wide as the track (`max(minTouchTarget, switchTrackWidth)` or a new `ComponentSizes` token), keeping the ≥ 44 dp height. Put a spacing token (`s`) between the count and the switch, and between the switch and the chevron. Fix this in the shared `SourceRow`, so Home rows without a switch don't change. Tokens only (hard rule 3).
+- **Explain it on the screen.** Add a short line of `footnote textSecondary` text under the Albums header, above the list: "Turn an album on to leave its photos out of Shuffle everything." Show it every time, not only on first launch. It costs one line and the app has no onboarding (WP-8.7 removed it).
+- **Label the excluded rows.** When an album's switch is on, show "Not in Shuffle" under its title in `caption textSecondary`, so the state reads without having to interpret the switch. The row stays 64 dp. If the two-line layout doesn't fit, raise it in the WP report rather than changing the row height silently.
+- **Spec.** Update the §5.7 `SourceRow` entry (switch box width, spacing, the excluded subtitle) and the §5.8 Albums text, and add a small Albums wireframe to §5.8 showing the explainer line and one excluded row. That wireframe was already listed as a 👤 follow-up on 8.10. FR-37's behavior doesn't change.
+- **Accessibility (NFR-8).** Keep the existing switch description. Read the explainer as normal text before the first row. On an excluded row, include "not in Shuffle" in the row's description.
+- **Tests:** a `FR-37` layout test showing the count's right edge and the switch's left edge don't overlap, with at least the `s` gap, for a 5-digit count and a long album title. A case that the subtitle appears only when the album is excluded. Run on the simulator and compare against the new §5.8 wireframe (§8.4).
+- 👤 Look at Albums on the simulator with a few albums, one of them excluded, and confirm the spacing and that the explainer reads clearly.
+
 ## 6. Architecture follow-ups
 
 From the 2026-11-19 architecture audit (two read-only reviews: data/domain/platform and presentation/UI). Each item was checked in the code unless marked *suspected*. These don't change behavior unless they say so, so most need no spec edit beyond §6. Several conflict with feature WPs; the "Run" line says how to order them.
@@ -491,6 +510,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
 | 8.12 | Home count flicker and correctness | merged | `fr-5-count-flicker` | Priority 5; verified PASS 2026-11-23 (404 tests, every count path traced); merged at c727a6f with doc fixups. SourceCountsUseCase is the single count path, LoadSourcesUseCase deleted. Deferred: smartCounts removal + albumRows render → 9.9; 👤 simulator quick-switch check after merge |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
+| 8.14 | Albums switch spacing and explainer | queued | | Reported by user 2026-11-23 on simulator. Conflicts with 9.6 (`AlbumsScreen.kt`); also adds the §5.8 Albums wireframe flagged on 8.10 |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocks 8.9 (running) and 8.6 |
