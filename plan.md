@@ -460,7 +460,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.12 | implement | `fr-5-count-flicker` | ses_df7eae382ffefi53a0HCyfPg2O | 2026-11-23 | Retry: first session (ses_df7f3973…) died with zero output. Priority 5; builds SourceCountsUseCase on DeckMembership |
+| 1 | 8.12 | verify | `fr-5-count-flicker` | ses_df7613dcfffejC0zaP6m6j43me | 2026-11-23 | Impl done (ses_df7eae38…, 2 commits, 404 tests green, full report). Deferred: smartCounts removal, albumRows unrendered → note for 9.x |
 | 2 | 9.3 | implement | `arch-toast-host` | ses_df7863705ffeR7JE3Er21F3Cxl | 2026-11-23 | Priority 6; before 8.9; coordinated vs running 8.12 (no file overlap) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
@@ -489,7 +489,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
 | 8.10 | Exclude albums from Shuffle | merged | `fr-37-shuffle-album-exclusions` | Priority 1; verified PASS 2026-11-23; merged after clean rebase onto 7.6 + combined `--full` pass. Verify nits filed: mid-session guarantee untested + duplicate homeViewModel test helper → 9.x cleanup; §5.8 Albums wireframe → 👤 may want one |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
-| 8.12 | Home count flicker and correctness | implementing | `fr-5-count-flicker` | Priority 5; after 8.10 (merged); builds SourceCountsUseCase on DeckMembership |
+| 8.12 | Home count flicker and correctness | verifying | `fr-5-count-flicker` | Priority 5; impl done 2026-11-23 (SourceCountsUseCase, By-month subtraction bug fixed, LoadSourcesUseCase deleted); deferred: smartCounts removal + albumRows render → 9.x cleanup; 👤 simulator quick-switch check after merge |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
