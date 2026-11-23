@@ -72,22 +72,7 @@ fun SourceRow(
                 .semantics { contentDescription = description }
                 .padding(horizontal = SwipeTheme.spacing.gutter),
     ) {
-        val loader = mediaLoader
-        val cover = coverAssetId
-        if (cover != null && loader != null) {
-            SourceRowCover(cover, loader)
-        } else if (icon != null) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(tokens.sourceRowThumbnail),
-            ) {
-                SwipeIcon(
-                    symbol = icon,
-                    tint = colors.accent,
-                    modifier = Modifier.size(SwipeTheme.sizes.icon),
-                )
-            }
-        }
+        SourceRowLeading(coverAssetId, mediaLoader, icon)
         BasicText(
             text = title,
             style = SwipeTheme.typography.headline.copy(color = colors.textPrimary),
@@ -120,6 +105,37 @@ fun SourceRow(
             tint = colors.textSecondary,
             modifier = Modifier.size(SwipeTheme.sizes.icon).padding(start = SwipeTheme.spacing.xs),
         )
+    }
+}
+
+/**
+ * The 40 dp leading slot of a [SourceRow]: the album cover when [coverAssetId]
+ * and [mediaLoader] are both given, otherwise the decorative [icon] in
+ * `accent`, otherwise nothing (§5.7).
+ */
+@Composable
+private fun SourceRowLeading(
+    coverAssetId: String?,
+    mediaLoader: MediaLoader?,
+    icon: String?,
+) {
+    val colors = SwipeTheme.colors
+    val tokens = SwipeTheme.componentSizes
+    val loader = mediaLoader
+    val cover = coverAssetId
+    if (cover != null && loader != null) {
+        SourceRowCover(cover, loader)
+    } else if (icon != null) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(tokens.sourceRowThumbnail),
+        ) {
+            SwipeIcon(
+                symbol = icon,
+                tint = colors.accent,
+                modifier = Modifier.size(SwipeTheme.sizes.icon),
+            )
+        }
     }
 }
 

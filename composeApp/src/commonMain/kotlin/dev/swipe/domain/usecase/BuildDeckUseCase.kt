@@ -77,9 +77,9 @@ private fun shuffleKey(
     seed: Long,
 ): Long {
     var z = (seed.toULong() xor id.hashCode().toULong()) + GOLDEN_RATIO
-    z = (z xor (z shr 30)) * MIX_A
-    z = (z xor (z shr 27)) * MIX_B
-    return (z xor (z shr 31)).toLong()
+    z = (z xor (z shr MIX_SHIFT_1)) * MIX_A
+    z = (z xor (z shr MIX_SHIFT_2)) * MIX_B
+    return (z xor (z shr MIX_SHIFT_3)).toLong()
 }
 
 // The splitmix64 constants (the same ones the PRNG family uses); ULong so the
@@ -87,3 +87,6 @@ private fun shuffleKey(
 private const val GOLDEN_RATIO = 0x9E3779B97F4A7C15uL
 private const val MIX_A = 0xBF58476D1CE4E5B9uL
 private const val MIX_B = 0x94D049BB133111EBuL
+private const val MIX_SHIFT_1 = 30
+private const val MIX_SHIFT_2 = 27
+private const val MIX_SHIFT_3 = 31

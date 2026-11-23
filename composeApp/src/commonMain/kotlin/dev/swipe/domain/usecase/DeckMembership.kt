@@ -37,8 +37,9 @@ class DeckMembership(
         decided: Set<String>,
     ): List<String> {
         val ids = library.assetIds(source, type).filterNot { it in decided }
-        if (source != DeckSource.All) return ids
-        val excludedAlbums = exclusions.excludedAlbumIds()
+        // FR-37 scope: only the Shuffle source consults the exclusion store.
+        val excludedAlbums =
+            if (source == DeckSource.All) exclusions.excludedAlbumIds() else emptySet()
         if (excludedAlbums.isEmpty()) return ids
         val excludedItems = mutableSetOf<String>()
         excludedAlbums.forEach { albumId ->

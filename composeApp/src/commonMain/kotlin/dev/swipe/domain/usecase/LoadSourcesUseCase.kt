@@ -146,8 +146,13 @@ class LoadSourcesUseCase(
         type: MediaTypeFilter,
         decided: Set<String>,
     ): SourceCounts {
-        if (allIds == null || counts.shuffleCount == null) return counts
-        val refined = attempt { membership.ids(DeckSource.All, type, decided).size } ?: return counts
+        val refined =
+            if (allIds != null && counts.shuffleCount != null) {
+                attempt { membership.ids(DeckSource.All, type, decided).size }
+            } else {
+                null
+            }
+        if (refined == null) return counts
         val current = counts.copy(shuffleCount = refined, shuffleExact = true)
         emit(current)
         return current
