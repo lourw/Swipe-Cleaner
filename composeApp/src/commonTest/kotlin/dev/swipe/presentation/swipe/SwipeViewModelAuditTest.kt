@@ -201,6 +201,7 @@ class SwipeViewModelAuditTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(3)
+            advanceUntilIdle()
             f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
 
@@ -234,6 +235,7 @@ class SwipeViewModelAuditTest {
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(10)
+            advanceUntilIdle()
             f.viewModel.onIntent(f.viewModel.keep())
             advanceUntilIdle()
             f.viewModel.onIntent(f.viewModel.skip())
