@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import dev.swipe.data.MediaLoader
 import dev.swipe.presentation.queue.QueueEvent
@@ -39,6 +40,8 @@ import dev.swipe.ui.components.PrimaryButton
 import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.ToastHost
 import dev.swipe.ui.components.ToastSpec
+import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
+import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.components.toastHostPlacement
 import dev.swipe.ui.screens.swipe.EmptyState
 import dev.swipe.ui.theme.SwipeTheme
@@ -78,6 +81,8 @@ fun QueueScreen(
         notFound: Int,
     ) -> Unit,
     modifier: Modifier = Modifier,
+    /** The deck's player slot, mounted by the FR-24 viewer for video items. */
+    videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var toast by remember { mutableStateOf<ToastSpec?>(null) }
     // The collector restarts only with the events flow; the latest
@@ -116,12 +121,27 @@ fun QueueScreen(
     ) {
         // Safe areas (WP-6.4): the bg above paints edge-to-edge; the header
         // clears the status bar and the pinned CTA the Home Indicator.
+        //
+        // While the FR-24 viewer is up the whole background goes
+        // semantically blank (WP-9.5): clearAndSetSemantics drops the grid,
+        // the header, and the delete CTA out of the semantics tree, so
+        // VoiceOver cannot reach them, and the viewer's own tap consumer
+        // stops touches reaching them either. The grid stays composed, so
+        // its scroll position survives open and close.
+        val viewerOpen = state.selected != null
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .navigationBarsPadding(),
+                    .navigationBarsPadding()
+                    .then(
+                        if (viewerOpen) {
+                            Modifier.clearAndSetSemantics { }
+                        } else {
+                            Modifier
+                        },
+                    ),
         ) {
             QueueHeader(count = state.items.size, onBack = onBack)
             QueueGrid(
@@ -136,7 +156,14 @@ fun QueueScreen(
                 onRequestDelete = { onIntent(QueueIntent.RequestDelete) },
             )
         }
-        QueueOverlays(state = state, mediaLoader = mediaLoader, onIntent = onIntent, toast = toast, onDismissToast = { toast = null })
+        QueueOverlays(
+            state = state,
+            mediaLoader = mediaLoader,
+            videoSlot = videoSlot,
+            onIntent = onIntent,
+            toast = toast,
+            onDismissToast = { toast = null },
+        )
     }
 }
 
@@ -149,6 +176,7 @@ fun QueueScreen(
 private fun BoxScope.QueueOverlays(
     state: QueueUiState,
     mediaLoader: MediaLoader,
+    videoSlot: VideoPlayerSlot,
     onIntent: (QueueIntent) -> Unit,
     toast: ToastSpec?,
     onDismissToast: () -> Unit,
@@ -170,7 +198,7 @@ private fun BoxScope.QueueOverlays(
         // NFR-5: this dialog is the gate. Cancel (or dismissing it) only
         // closes it; the Delete tap is the sole ConfirmDelete path.
         ConfirmDialog(
-            title = "Delete ${state.items.size} items?",
+            title = deleteItemsLabel(state.items.size) + "?",
             message = "They'll move to Recently Deleted for 30 days.",
             confirmLabel = "Delete",
             onConfirm = { onIntent(QueueIntent.ConfirmDelete) },
@@ -185,6 +213,7 @@ private fun BoxScope.QueueOverlays(
             loader = mediaLoader,
             onRestore = { onIntent(QueueIntent.Restore(selected)) },
             onClose = { onIntent(QueueIntent.Close) },
+            player = videoSlot,
         )
     }
 }
@@ -271,7 +300,7 @@ private fun QueueFooter(
         verticalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.xs),
     ) {
         PrimaryButton(
-            label = "Delete $count items",
+            label = deleteItemsLabel(count),
             onClick = onRequestDelete,
             destructive = true,
             enabled = !deleting,
@@ -291,6 +320,18 @@ private fun QueueFooter(
 
 /** A tile whose metadata vanished with its queue row; the viewer still shows the media. */
 private fun metadataLessTile(id: String) = QueueTile(id = id, type = null, createdAt = null, durationMs = null)
+
+/**
+ * The count label with correct plurals (WP-9.5): "Delete 1 item", "Delete 2
+ * items". Shared by the pinned CTA and the confirm dialog title so the two
+ * can never drift apart.
+ */
+private fun deleteItemsLabel(count: Int): String =
+    if (count == 1) {
+        "Delete 1 item"
+    } else {
+        "Delete $count items"
+    }
 
 /** §5.8: the Review queue is a 3-column grid. */
 private const val GRID_COLUMNS = 3
