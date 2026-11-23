@@ -210,7 +210,7 @@ Other gestures on the card:
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
-| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **Exclude from Shuffle** switch (FR-37) before the chevron: the iOS-shape `SwipeSwitch` in a ≥ 44 dp target owning `Role.Switch` semantics; its tap toggles the exclusion and never opens the row. |
+| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **Exclude from Shuffle** switch (FR-37) before the chevron: the iOS-shape `SwipeSwitch` in a touch box `max(minTouchTarget, switch track width)` = 51 × 44 dp owning `Role.Switch` semantics — the 51 dp track fits its box instead of spilling toward the count (WP-8.14). `s` gaps separate count → switch and switch → chevron; rows without a switch keep the `xs` chevron spacing, so Home and By month render unchanged. An excluded album shows a "Not in Shuffle" subtitle under its title in `caption textSecondary` — the row stays 64 dp — and the subtitle joins the row's VoiceOver description (NFR-8). The switch's tap toggles the exclusion and never opens the row. |
 | `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in `textPrimary`; unselected labels `textSecondary`. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
@@ -269,6 +269,25 @@ One `SourceRow` per album (FR-8), user albums first. Each row also carries the
 **Exclude from Shuffle** switch described in §5.7 (FR-37): toggling it takes the
 album's items out of the Shuffle deck and refreshes Home's Shuffle count, but
 never changes the album's own row count or what tapping the row opens.
+
+Under the header, above the list, a `caption textSecondary` explainer shows
+every time the screen opens (WP-8.14) — "Turn an album on to leave its photos
+out of Shuffle everything." — because a switch that means *excluded* needs
+saying, and the app has no onboarding to explain it. VoiceOver reads it as
+normal text before the first row (NFR-8). An excluded row shows
+"Not in Shuffle" under its title in `caption textSecondary`; the row stays
+64 dp.
+
+```
+┌──────────────────────────────────┐
+│ ‹ Albums                         │  header
+│ Turn an album on to leave its    │  explainer, caption textSecondary
+│ photos out of Shuffle everything.│  (FR-37, shown every time)
+│ ▣ Trip           1,204  [—●]  ›  │  excluded: switch on, s gaps around it
+│    Not in Shuffle                │  caption textSecondary (FR-37)
+│ ▣ Family        12,345  [●—]  ›  │  not excluded: no subtitle
+└──────────────────────────────────┘
+```
 
 **Swipe**
 
