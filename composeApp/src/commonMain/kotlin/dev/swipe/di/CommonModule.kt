@@ -2,8 +2,10 @@ package dev.swipe.di
 
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.SessionStore
+import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.data.db.SqlDecisionStore
 import dev.swipe.data.db.SqlSessionStore
+import dev.swipe.data.db.SqlShuffleExclusionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.LoadSourcesUseCase
@@ -36,6 +38,7 @@ val commonModule: Module =
         single<Clock> { Clock.System }
         single<DecisionStore> { SqlDecisionStore(database = get(), clock = get()) }
         single<SessionStore> { SqlSessionStore(database = get(), clock = get()) }
+        single<ShuffleExclusionStore> { SqlShuffleExclusionStore(database = get()) }
 
         // Permission flow (WP-1.7); its data interfaces bind in the platform module.
         viewModel { PermissionViewModel(mediaLibrary = get(), systemActions = get()) }

@@ -1,0 +1,22 @@
+-- Albums excluded from Shuffle everything (FR-37, REQUIREMENTS §7). One row per
+-- excluded album id; nothing is excluded by default (no rows). Membership is
+-- resolved against the live library at deck-build time, so a deleted album's
+-- stale id simply matches nothing and never blocks anything (FR-37).
+
+CREATE TABLE shuffle_exclusion (
+  album_id    TEXT NOT NULL PRIMARY KEY
+);
+
+-- Every excluded album id, for the deck build and the Albums switches (FR-37).
+allIds:
+SELECT album_id
+FROM shuffle_exclusion;
+
+-- Exclude an album; excluding the same album twice is a no-op (FR-37).
+exclude:
+INSERT OR IGNORE INTO shuffle_exclusion(album_id)
+VALUES (?);
+
+-- Include an album in Shuffle again; a missing row is a no-op (FR-37).
+include:
+DELETE FROM shuffle_exclusion WHERE album_id = ?;

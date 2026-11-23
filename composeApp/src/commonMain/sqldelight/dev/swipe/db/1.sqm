@@ -1,0 +1,4 @@
+-- FR-37 (WP-8.10): albums the user excludes from Shuffle everything.
+CREATE TABLE shuffle_exclusion (
+  album_id    TEXT NOT NULL PRIMARY KEY
+);
