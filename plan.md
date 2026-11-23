@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.12 | implement | `fr-5-count-flicker` | ses_df7eae382ffefi53a0HCyfPg2O | 2026-11-23 | Retry: first session (ses_df7f3973…) died with zero output. Priority 5; builds SourceCountsUseCase on DeckMembership |
-| 2 | 7.4 | verify | `fr-13-decision-audit` | ses_df7a37d9affeza6LB2FUtmBgbC | 2026-11-23 | Audit done (ses_df7f0979…, 3 commits, 390 tests green, report filed). Verifier auditing the audit. Findings to file after merge: WP-A fetch-error risk, U1–U4 UX |
+| 2 | 7.4 | merge-pending | `fr-13-decision-audit` | ses_df7a37d9affeza6LB2FUtmBgbC | 2026-11-23 | Verifier PASS on content; main agent rebased + fixed stale BuildDeckUseCase ctor + report citation (ed5fafc); validate.sh running (sh_208763376) before merge |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
