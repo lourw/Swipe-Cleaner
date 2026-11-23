@@ -6,10 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -112,15 +114,15 @@ fun SourceRow(
                         color = colors.textSecondary,
                         fontFeatureSettings = TABULAR_FIGURES,
                     ),
-                modifier =
-                    if (hasSwitch) {
-                        Modifier.padding(end = SwipeTheme.spacing.s)
-                    } else {
-                        Modifier
-                    },
             )
         }
         if (checked != null && toggle != null) {
+            // The FR-37 gap is its own node (a padding modifier would ride
+            // inside the count's semantics bounds, and the FR-37 layout test
+            // measures the edge-to-edge gap).
+            if (count != null) {
+                Spacer(Modifier.width(SwipeTheme.spacing.s))
+            }
             SourceRowSwitch(
                 checked = checked,
                 contentDescription = switchContentDescription ?: "Exclude from Shuffle, $title",
