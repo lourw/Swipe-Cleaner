@@ -315,6 +315,62 @@ class SqlStoresTest {
 
             assertEquals(null, sessions.openSession())
         }
+
+    @Test
+    fun `FR-20 an undecodable session row is ended instead of blocking resume`() =
+        runTest {
+            // WP-8.10 prerequisite: a row this build cannot read (a `source`
+            // JSON from a future schema) must not throw on every future
+            // openSession — the row is retired and reported as no session.
+            database.sessionQueries.insert(
+                id = "corrupt-1",
+                source = "{not valid DeckSource json",
+                type_filter = "NOT_A_FILTER",
+                seed = 1L,
+                started_at = clock.now().toEpochMilliseconds(),
+            )
+            val sessions = SqlSessionStore(database, clock)
+
+            assertEquals(null, sessions.openSession())
+            // The row was ended, not left to poison every later call.
+            assertEquals(null, sessions.openSession())
+
+            // A healthy session afterwards still resumes.
+            val id = sessions.create(DeckSource.All, MediaTypeFilter.ALL, seed = 2L)
+            assertEquals(id, sessions.openSession()?.id)
+        }
+
+    // ——— FR-37: shuffle album exclusions ———
+
+    @Test
+    fun `FR-37 exclusions round-trip through a new store instance`() =
+        runTest {
+            val name = "fr37-${Uuid.random()}.db"
+            val factory = DatabaseDriverFactory()
+            val first = factory.createIn(NSTemporaryDirectory(), name)
+            val written = SqlShuffleExclusionStore(SwipeDatabase(first))
+            written.setExcluded("a1", true)
+            written.setExcluded("a2", true)
+            written.setExcluded("a2", false) // include is a plain delete
+            first.close()
+
+            val reopened = SqlShuffleExclusionStore(SwipeDatabase(factory.createIn(NSTemporaryDirectory(), name)))
+            assertEquals(setOf("a1"), reopened.excludedAlbumIds())
+            deleteTempDatabase(name)
+        }
+
+    @Test
+    fun `FR-37 the exclusion flow re-emits on every toggle`() =
+        runTest {
+            val store = SqlShuffleExclusionStore(database)
+            store.excludedAlbumIdsFlow().test {
+                assertEquals(emptySet(), awaitItem())
+                store.setExcluded("a1", true)
+                assertEquals(setOf("a1"), awaitItem())
+                store.setExcluded("a1", false)
+                assertEquals(emptySet(), awaitItem())
+            }
+        }
 }
 
 /** Removes the temp database and its sidecars written by [DatabaseDriverFactory]. */

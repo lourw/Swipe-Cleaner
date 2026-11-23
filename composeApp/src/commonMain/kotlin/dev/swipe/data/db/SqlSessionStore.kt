@@ -60,19 +60,36 @@ class SqlSessionStore(
         }
     }
 
+    /**
+     * The most recent open session, or null when there is none. An undecodable
+     * row — a `source` JSON or `type_filter` from a build this version cannot
+     * read — is *ended* on the spot and reported as no open session, so one
+     * corrupt row never blocks every future deck (WP-8.10 prerequisite): the
+     * next call sees a clean table instead of throwing on the same row forever.
+     */
     override suspend fun openSession(): SessionRecord? =
         withContext(dispatcher) {
-            sessions.selectOpen().executeAsOneOrNull()?.let { row ->
-                SessionRecord(
-                    id = row.id,
-                    source = json.decodeFromString(DeckSource.serializer(), row.source),
-                    typeFilter = MediaTypeFilter.valueOf(row.type_filter),
-                    seed = row.seed,
-                    position = row.position.toInt(),
-                    startedAt = Instant.fromEpochMilliseconds(row.started_at),
-                    endedAt = row.ended_at?.let(Instant::fromEpochMilliseconds),
-                )
+            val row = sessions.selectOpen().executeAsOneOrNull() ?: return@withContext null
+            val record =
+                try {
+                    SessionRecord(
+                        id = row.id,
+                        source = json.decodeFromString(DeckSource.serializer(), row.source),
+                        typeFilter = MediaTypeFilter.valueOf(row.type_filter),
+                        seed = row.seed,
+                        position = row.position.toInt(),
+                        startedAt = Instant.fromEpochMilliseconds(row.started_at),
+                        endedAt = row.ended_at?.let(Instant::fromEpochMilliseconds),
+                    )
+                } catch (_: Exception) {
+                    null
+                }
+            if (record == null) {
+                // Retire the unreadable row; its decisions (if any) stay in the
+                // decision table, only this resume pointer is dropped.
+                sessions.endSession(clock.now().toEpochMilliseconds(), row.id)
             }
+            record
         }
 
     override suspend fun skippedIds(sessionId: String): Set<String> =
