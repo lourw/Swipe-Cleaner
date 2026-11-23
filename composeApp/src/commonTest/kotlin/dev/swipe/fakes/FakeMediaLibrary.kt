@@ -113,6 +113,15 @@ class FakeMediaLibrary(
     val unresolvableDeleteIds: MutableSet<String> = mutableSetOf()
 
     /**
+     * Ids [items] does not return even though the library still holds them — models
+     * the gap between a source fetch enumerating an id and that id resolving later
+     * (a burst frame outside the default view, an asset deleted elsewhere that the
+     * source fetch has not caught up with; FR-6, WP-8.3). [assetIds] still lists
+     * them, exactly like the real deck build.
+     */
+    val hiddenItemIds: MutableSet<String> = mutableSetOf()
+
+    /**
      * When non-null, [delete] records the call and then suspends until this
      * completes — lets tests hold a commit between PhotoKit and markDeleted.
      */
@@ -317,9 +326,10 @@ class FakeMediaLibrary(
             failNextItems = null
             throw it
         }
-        // Keep the input order; ids the library no longer has are dropped (FR-28).
+        // Keep the input order; ids the library no longer has are dropped (FR-28),
+        // and so are ids hidden via [hiddenItemIds] (FR-6, WP-8.3).
         val byId = items.associateBy { it.id }
-        return ids.mapNotNull { byId[it] }
+        return ids.mapNotNull { id -> byId[id]?.takeUnless { id in hiddenItemIds } }
     }
 
     override suspend fun delete(ids: List<String>): DeleteResult {

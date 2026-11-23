@@ -44,6 +44,13 @@ data class SwipeUiState(
      * share button shows its loading state and ignores taps while it is up.
      */
     val sharing: Boolean = false,
+    /**
+     * The deck is still opening (FR-6, WP-8.3): from the first frame until the start
+     * path settles — first card published, deck exhausted with a summary, or the
+     * start failed. While it is up the screen shows a card placeholder instead of
+     * the §5.8 empty state, so a slow open never flashes "nothing to review".
+     */
+    val loading: Boolean = true,
 )
 
 /**

@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -17,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.NoPerfTrace
@@ -89,9 +92,10 @@ internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
  *   and shows its loading state while [SwipeUiState.sharing].
  *
  * With no card and no summary to show the screen renders the §5.8
- * [EmptyState]; a moment of it during the deck's first load is accepted.
- * Once [SwipeUiState.finished] is set the container navigates to the
- * summary (FR-21), so this keeps the deck area empty meanwhile.
+ * [EmptyState]; while the deck is still opening ([SwipeUiState.loading], FR-6,
+ * WP-8.3) the [DeckLoadingPlaceholder] stands in instead, so a slow open never
+ * flashes "nothing to review". Once [SwipeUiState.finished] is set the container
+ * navigates to the summary (FR-21), so this keeps the deck area empty meanwhile.
  */
 @Composable
 fun SwipeScreen(
@@ -119,6 +123,13 @@ fun SwipeScreen(
             state.finished != null -> {
                 // FR-21: the container navigates to the summary on `finished`;
                 // hold the background until the route swap lands.
+            }
+
+            state.current == null && state.loading -> {
+                // FR-6 (WP-8.3): the deck is still opening — a card placeholder
+                // stands in so a slow first metadata page never flashes the
+                // §5.8 empty state.
+                DeckLoadingPlaceholder(modifier = Modifier.fillMaxSize())
             }
 
             state.current == null -> {
@@ -160,6 +171,37 @@ fun SwipeScreen(
                 )
             }
         }
+    }
+}
+
+/** Tag of the deck loading placeholder the screen tests assert on (FR-6, WP-8.3). */
+internal const val DECK_LOADING_TEST_TAG = "deck-loading-placeholder"
+
+/**
+ * The deck-open placeholder (FR-6, WP-8.3): a raised card-shaped panel in the
+ * deck area while [SwipeUiState.loading] is up — the start path is running and
+ * the first card has not been published yet. Tokens only (§5): `surfaceRaised`
+ * on the page background with the card radius; no spinner, no copy.
+ */
+@Composable
+internal fun DeckLoadingPlaceholder(modifier: Modifier = Modifier) {
+    Box(
+        modifier =
+            modifier
+                .padding(
+                    horizontal = SwipeTheme.spacing.m,
+                    vertical = SwipeTheme.spacing.l,
+                ),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        SwipeTheme.colors.surfaceRaised,
+                        RoundedCornerShape(SwipeTheme.radii.card),
+                    ).testTag(DECK_LOADING_TEST_TAG),
+        )
     }
 }
 

@@ -56,6 +56,9 @@ import kotlinx.coroutines.launch
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
  * session's stored counts and ends the session row. A deck that opens empty shows no
  * summary — the §5.8 empty state stands in — and its row ends immediately ([start]).
+ * Until the start path settles, [SwipeUiState.loading] keeps the placeholder card up
+ * (FR-6, WP-8.3), and deck ids whose metadata never resolves are dropped from the
+ * deck rather than ending it or showing a blank card.
  *
  * **Share** (FR-32): [SwipeIntent.Share] hands the current card to [MediaSharer]
  * with [SwipeUiState.sharing] up while the media loads, and shows
@@ -286,7 +289,7 @@ class SwipeViewModel(
         } catch (cancellation: CancellationException) {
             throw cancellation // ViewModel teardown, not a failed start
         } catch (_: Exception) {
-            _uiState.update { it.copy(toast = ToastMessage.StartFailed) }
+            _uiState.update { it.copy(toast = ToastMessage.StartFailed, loading = false) }
         }
     }
 
@@ -366,8 +369,19 @@ class SwipeViewModel(
                     // itself is already durable, so a failed position write must not
                     // revert the card.
                     savePosition()
-                    if (index == deck.size) finish() else publish()
-                    ensureMetadataLoaded()
+                    // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
+                    // testing exhaustion, so a deck whose tail ids never resolve
+                    // carries on to reviewable cards instead of finishing early. A
+                    // failed page fetch leaves the ids in the deck for the next
+                    // trigger; the durable decision still advances (NFR-7).
+                    try {
+                        ensureMetadataLoaded()
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation // ViewModel teardown, not a failed page
+                    } catch (_: Exception) {
+                        // Ignored on purpose; see above.
+                    }
+                    if (index >= deck.size) finish() else publish()
                     refreshPrefetch()
                 }
             }
@@ -477,6 +491,7 @@ class SwipeViewModel(
                 toast = if (summary == null) ToastMessage.SaveFailed else null,
                 pendingFavoriteDelete = null,
                 sharing = false,
+                loading = false,
             )
         }
         if (summary == null) {
@@ -498,6 +513,16 @@ class SwipeViewModel(
      * §6.5 step 2: metadata in pages of 20, loading the next page while the index is
      * within 5 of the loaded end. Called after each page decision so the first card
      * emits as soon as its page is in.
+     *
+     * FR-6 (WP-8.3): an id whose metadata does not come back is **dropped from the
+     * deck**, not left as a card that can never show. The deck is built from ids a
+     * source fetch enumerated; between then and paging an asset can go away (deleted
+     * in the Photos app) or stay unresolvable, and the deck must run on to the
+     * reviewable cards instead of ending on the gap. Drops only ever remove
+     * positions at or beyond [loadedCount], and the loaded region always contains
+     * the index, so undo entries — whose `index` is behind the head — are never
+     * disturbed. A failing page fetch throws before anything is dropped: the ids
+     * stay in the deck and the next call retries.
      */
     private suspend fun ensureMetadataLoaded() {
         while (loadedCount < deck.size && index + METADATA_PAGE_TRIGGER >= loadedCount) {
@@ -505,7 +530,13 @@ class SwipeViewModel(
             for (item in mediaLibrary.items(page)) {
                 metadata[item.id] = item
             }
-            loadedCount += page.size
+            // FR-6: ids the page did not resolve leave the deck; the loaded region
+            // advances only over what it actually resolved (or dropped).
+            val unresolved = page.filterNot { it in metadata }.toSet()
+            if (unresolved.isNotEmpty()) {
+                deck = deck.filterNot { it in unresolved }
+            }
+            loadedCount += page.size - unresolved.size
         }
     }
 
@@ -554,6 +585,7 @@ class SwipeViewModel(
                 toast = toast,
                 pendingFavoriteDelete = null,
                 sharing = false,
+                loading = false,
             )
         }
     }

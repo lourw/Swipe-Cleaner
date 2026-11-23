@@ -251,13 +251,36 @@ class SwipeScreenTest {
         runComposeUiTest {
             var closed = 0
             setContent {
-                TestScreen(SwipeUiState(), onClose = { closed += 1 })
+                TestScreen(SwipeUiState(loading = false), onClose = { closed += 1 })
             }
             onNodeWithText("Nothing left here 🎉").assertExists()
             onNodeWithContentDescription("Keep").assertDoesNotExist()
             onNodeWithText("Try another source").performClick()
             waitForIdle()
             assertEquals(1, closed)
+        }
+
+    @Test
+    fun `FR-6 loading placeholder stands in while the deck opens`() =
+        runComposeUiTest {
+            setContent {
+                // The fresh SwipeUiState default: no card yet, start still running.
+                TestScreen(SwipeUiState())
+            }
+            onNodeWithTag(DECK_LOADING_TEST_TAG).assertExists()
+            // Not the empty state, and no action bar: the deck just has not landed.
+            onNodeWithText("Nothing left here 🎉").assertDoesNotExist()
+            onNodeWithContentDescription("Keep").assertDoesNotExist()
+        }
+
+    @Test
+    fun `FR-6 placeholder makes way for the empty state once loading settles`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(SwipeUiState(loading = false))
+            }
+            onNodeWithTag(DECK_LOADING_TEST_TAG).assertDoesNotExist()
+            onNodeWithText("Nothing left here 🎉").assertExists()
         }
 
     @Test
@@ -277,7 +300,7 @@ class SwipeScreenTest {
         runComposeUiTest {
             val loader = FakeMediaLoader()
             setContent {
-                TestScreen(SwipeUiState(), mediaLoader = loader)
+                TestScreen(SwipeUiState(loading = false), mediaLoader = loader)
             }
             waitForIdle()
             assertEquals(emptyList(), loader.imageRequests)

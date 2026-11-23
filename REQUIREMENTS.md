@@ -330,7 +330,7 @@ The CTA and the §6.7 confirm title pluralize the count — "Delete 1 item" / "D
 
 **Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — where M is the number of ids that stayed queued.
 
-**Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home. On the review queue the CTA reads "Back home" instead — there is no other source to try from there (WP-3.3).
+**Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home. On the review queue the CTA reads "Back home" instead — there is no other source to try from there (WP-3.3). While a deck is opening — until its first card is published, it summarizes, or the start fails — a raised card-shaped placeholder stands in for the deck instead ([SwipeUiState.loading], FR-6, WP-8.3): a slow first metadata page never flashes an empty state. The empty state therefore appears only when an opened deck has genuinely nothing left to review; ids whose metadata never resolves are dropped from the deck (§6.5, §6.8), not shown as blank cards.
 
 ---
 
@@ -530,7 +530,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
    - Everything else: creation date descending (the library returns that order).
-2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20.
+2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20. An id whose page does not resolve is dropped from the deck rather than ending it or showing a blank card (FR-6, WP-8.3); drops sit at or beyond the loaded end, so undo entries behind the head are never disturbed.
 3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
 4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top. `SwipeViewModel` calls `VideoPreloader.preload(id)` for video ids entering the same current + next 3 window (metadata `type == VIDEO` only) and `cancel(id)` for ids leaving it — alongside the image prefetch of step 3 (WP-4.1).
 5. On swipe, the ViewModel saves to `DecisionStore` first, then advances `index`. If the save fails, it emits an error and reverts the card (NFR-7).
@@ -560,6 +560,7 @@ data class SwipeUiState(
     val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
     val pendingFavoriteDelete: String?, // the favorite awaiting confirm, else null (FR-22)
     val sharing: Boolean,           // the current item's media is loading for the share sheet (FR-32)
+    val loading: Boolean,           // the deck is still opening; the placeholder card stands in (FR-6, WP-8.3)
 )
 sealed interface SwipeIntent {
     data class Decide(val id: String, val verdict: Decision) // Keep / Delete / Skip for card `id`
