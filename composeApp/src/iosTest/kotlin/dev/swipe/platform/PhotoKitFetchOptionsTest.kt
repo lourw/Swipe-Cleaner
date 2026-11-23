@@ -22,6 +22,8 @@ import kotlin.test.assertTrue
  * sorts. These tests capture the exact [PHFetchOptions] each fetch passes to PhotoKit
  * (the `fetch` seam on the functions under test) and pin the sort descriptor and the
  * predicate, so the bug cannot return whatever the test host's photo-library access is.
+ * WP-8.3 adds the same treatment to the shared id lookup: its options must carry
+ * `includeAllBurstAssets`, and a failing fetch must answer null (audit R1).
  */
 class PhotoKitFetchOptionsTest {
     /** Runs [block] capturing the options handed to the fetch seam. */
@@ -75,5 +77,35 @@ class PhotoKitFetchOptionsTest {
         val options = capturedOptions { fetch -> allAssetIds(MediaTypeFilter.ALL, fetch) }
         assertCreationDateDescending("FR-5 All deck", options)
         assertNull(options.predicate, "the ALL type filter must not restrict the fetch")
+    }
+
+    @Test
+    fun `FR-6 the id lookup hands PhotoKit includeAllBurstAssets options`() {
+        // WP-8.3: the empty Bursts deck. Source fetches enumerate every burst
+        // frame with includeAllBurstAssets, so every id → asset lookup must
+        // use the same view — with nil options PhotoKit's default view carries
+        // one representative per burst and the deck's burst ids resolved to
+        // nothing. This pins the shared fetchAssetsByIds options on any host.
+        val requested = listOf("wp83-burst-a1", "wp83-burst-b2")
+        val captured = mutableListOf<PHFetchOptions>()
+        fetchAssetsByIds(requested) { ids, options ->
+            assertEquals(requested, ids, "the lookup must fetch exactly the requested ids")
+            captured += options
+            null // No real fetch needed; the host may have no photo library at all.
+        }
+        assertEquals(1, captured.size, "the lookup must fetch exactly once")
+        assertTrue(
+            captured.single().includeAllBurstAssets,
+            "id lookups must pass includeAllBurstAssets so every frame a source fetch enumerated stays resolvable (FR-6, WP-8.3)",
+        )
+    }
+
+    @Test
+    fun `FR-6 a failed id fetch answers null not an empty result`() {
+        // Audit R1: callers separate "PhotoKit could not answer" from "no such
+        // assets" on this null. The seam answering null must pass straight
+        // through (the binding types the result non-null, so production wraps
+        // the call in runCatching — this pins that the seam's null is honored).
+        assertNull(fetchAssetsByIds(listOf("wp83-any-id")) { _, _ -> null })
     }
 }

@@ -4,6 +4,7 @@ import dev.swipe.data.MediaLibrary
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.model.SmartFilter
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,7 +26,10 @@ import kotlin.time.Instant
  *    [MediaLibrary.assetIds] KDoc), so months appear newest-first,
  *  - [MediaTypeFilter] filters every deck (FR-5),
  *  - [MediaLibrary.items] resolves ids in the order requested and drops
- *    unknown ones (§6.5 step 2).
+ *    unknown ones (§6.5 step 2),
+ *  - the Bursts deck enumerates **every frame** of every burst and every one
+ *    of those ids resolves back through [MediaLibrary.items] (FR-6, WP-8.3),
+ *  - the Bursts count and the Bursts deck agree (FR-9).
  *
  * Assertions compare *relative* order and membership against the shared
  * [fixtureAssets], never absolute id lists, so both runners can agree.
@@ -93,6 +97,48 @@ abstract class MediaLibraryContract {
             println("SKIPPED (WP-7.7): fixture could not be seeded into this host's media library")
         }
         return seeded.isSeeded
+    }
+
+    // ---- Burst fixture (FR-6, WP-8.3) ----
+
+    /**
+     * One photo frame of a seeded burst: [id], the [burstId] shared by every
+     * frame of the same burst, and a [day] of the newer fixture month (5…9,
+     * clear of the base fixture's days so every creation date is distinct).
+     */
+    protected data class BurstFrame(
+        val id: String,
+        val burstId: String,
+        val day: Int,
+    )
+
+    /**
+     * The burst fixture: two bursts, three frames and two. PhotoKit has no API
+     * to create burst assets, so only runners whose store can model bursts
+     * seed them (the fake, via [dev.swipe.domain.model.MediaItem.burstId]);
+     * the real runner leaves [burstFrameIds] empty and the burst cases skip
+     * with a printed reason.
+     */
+    protected val burstFixture: List<BurstFrame> =
+        listOf(
+            BurstFrame("wp83-burst-a1", "wp83-burst-a", day = 5),
+            BurstFrame("wp83-burst-a2", "wp83-burst-a", day = 6),
+            BurstFrame("wp83-burst-a3", "wp83-burst-a", day = 7),
+            BurstFrame("wp83-burst-b1", "wp83-burst-b", day = 8),
+            BurstFrame("wp83-burst-b2", "wp83-burst-b", day = 9),
+        )
+
+    /** The burst-fixture ids this runner seeded; empty when bursts cannot be modeled. */
+    protected open val burstFrameIds: List<String> get() = emptyList()
+
+    /** True when the burst fixture is in the library; prints an explicit skip otherwise. */
+    protected fun assumeBurstsSeeded(): Boolean {
+        if (!assumeSeeded()) return false
+        if (burstFrameIds.isEmpty()) {
+            println("SKIPPED (WP-8.3): this runner cannot seed burst assets (PhotoKit has no burst write API)")
+            return false
+        }
+        return true
     }
 
     protected suspend fun idsFor(
@@ -236,6 +282,64 @@ abstract class MediaLibraryContract {
             val requested = listOf("wp77-no-such-asset") + seeded.ids!!
             val resolved = library.items(requested)
             assertEquals(seeded.ids, resolved.map { it.id }, "unknown ids drop out, the rest resolve in order")
+        }
+    }
+
+    // ---- Bursts (FR-6, WP-8.3) ----
+
+    @Test
+    fun `FR-6 the burst deck enumerates every frame of every burst`() {
+        if (!assumeBurstsSeeded()) return
+        runBlocking {
+            val deck = idsFor(DeckSource.Smart(SmartFilter.BURSTS), MediaTypeFilter.ALL)
+            // The empty-Bursts-deck bug started here: a deck source that answers
+            // without the frames the count promised.
+            assertEquals(
+                burstFrameIds.toSet(),
+                deck.toSet(),
+                "the Bursts deck must hold every frame of every seeded burst",
+            )
+            // And in deck order (§6.5): creation date descending.
+            val days = deck.map { id -> burstFixture.first { it.id == id }.day }
+            assertEquals(days.sortedDescending(), days, "burst deck must be newest first (§6.5)")
+        }
+    }
+
+    @Test
+    fun `FR-6 the id lookup resolves every burst frame the deck lists`() {
+        if (!assumeBurstsSeeded()) return
+        runBlocking {
+            // WP-8.3 regression, at the contract level: an id a source fetch
+            // enumerated must resolve back through items(). The shipped bug
+            // enumerated burst frames with includeAllBurstAssets but looked them
+            // up with nil options — the default view carries one representative
+            // per burst, so the deck's burst ids resolved to nothing and every
+            // burst deck opened empty.
+            val resolved = library.items(burstFrameIds)
+            assertEquals(burstFrameIds, resolved.map { it.id }, "every burst frame must resolve, in request order")
+            val byBurst = burstFixture.associate { it.id to it.burstId }
+            assertEquals(
+                burstFrameIds.map { byBurst.getValue(it) },
+                resolved.map { it.burstId },
+                "resolved frames must carry their burst identity (FR-6)",
+            )
+        }
+    }
+
+    @Test
+    fun `FR-9 the Bursts count equals the deck the row opens`() {
+        if (!assumeSeeded()) return
+        runBlocking {
+            // The count and the deck are one enumeration in the real library
+            // (forEachBurstId) and one filter in the fake; this pins that they
+            // never drift apart — on a granted host this runs against its real
+            // bursts, seeded or not.
+            val deck = idsFor(DeckSource.Smart(SmartFilter.BURSTS), MediaTypeFilter.ALL)
+            val count = library.smartCounts(MediaTypeFilter.ALL)[SmartFilter.BURSTS]
+            assertEquals(deck.size, count, "the Home Bursts row must count exactly the cards its deck shows (FR-9)")
+            if (burstFrameIds.isNotEmpty()) {
+                assertEquals(burstFrameIds.size, count, "the count must count frames, not bursts (FR-6, FR-9)")
+            }
         }
     }
 

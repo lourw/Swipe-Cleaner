@@ -153,6 +153,44 @@ class SourceCountsUseCaseTest {
         }
 
     @Test
+    fun `FR-9 the bursts count equals the deck the row opens`() =
+        runTest {
+            // WP-8.3: the Home Bursts row opens a deck of burst frames, so the
+            // row's number is the frame count — every frame of both bursts,
+            // not the two bursts and not the Photos-app grouping.
+            val library =
+                FakeMediaLibrary(
+                    listOf(
+                        burstFrame("b1a", "burst-1", "2026-01-01T10:00:00Z"),
+                        burstFrame("b1b", "burst-1", "2026-01-01T10:00:01Z"),
+                        burstFrame("b1c", "burst-1", "2026-01-01T10:00:02Z"),
+                        burstFrame("b2a", "burst-2", "2026-01-02T10:00:00Z"),
+                        burstFrame("b2b", "burst-2", "2026-01-02T10:00:01Z"),
+                        photo("p3"),
+                    ),
+                )
+            val store = FakeDecisionStore()
+            val useCase = sourceCountsUseCase(library, store)
+
+            useCase(MediaTypeFilter.ALL).test {
+                awaitItem() // identity
+                assertEquals(6, awaitItem().shuffleCount)
+                val seen = mutableMapOf<SmartFilter, Int>()
+                repeat(SmartFilter.entries.size) { seen += awaitItem().smartCounts }
+                assertEquals(5, seen.getValue(SmartFilter.BURSTS)) // frames, not bursts
+                awaitComplete()
+            }
+            val deck =
+                buildDeckUseCase(library, store)(
+                    DeckSource.Smart(SmartFilter.BURSTS),
+                    MediaTypeFilter.ALL,
+                    0L,
+                )
+            assertEquals(setOf("b1a", "b1b", "b1c", "b2a", "b2b"), deck.toSet())
+            assertEquals(5, deck.size) // count == deck size
+        }
+
+    @Test
     fun `FR-37 the shuffle count drops excluded albums`() =
         runTest {
             val library =
@@ -300,4 +338,11 @@ class SourceCountsUseCaseTest {
         id: String,
         createdAt: String,
     ): MediaItem = photo(id, createdAt = createdAt)
+
+    /** A burst frame (FR-6): a dated [photo] carrying a [burstId]. */
+    private fun burstFrame(
+        id: String,
+        burstId: String,
+        createdAt: String,
+    ): MediaItem = photo(id, createdAt = createdAt).copy(burstId = burstId)
 }

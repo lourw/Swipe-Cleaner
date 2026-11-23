@@ -70,6 +70,13 @@ import kotlin.test.AfterTest
  * The fetch-options specification that pins the fix deterministically on any
  * host lives in [PhotoKitFetchOptionsTest], which needs no photo library.
  *
+ * The WP-8.3 burst cases skip on every host: PhotoKit exposes no API to
+ * create burst assets from tests, so this runner cannot seed the burst
+ * fixture ([burstFrameIds] stays empty and [assumeBurstsSeeded] prints the
+ * reason). The burst id-lookup itself is pinned deterministically in
+ * [PhotoKitFetchOptionsTest] via the `fetchAssetsByIds` seam, and the FR-9
+ * count/deck agreement runs here against a granted host's real bursts.
+ *
  * Writes go to the simulator's shared photo library, so the runner cleans up
  * after itself and only ever deletes the asset ids it created (AGENTS.md
  * rule 1 holds in app code: `CommitDeletionsUseCase` remains the only delete
