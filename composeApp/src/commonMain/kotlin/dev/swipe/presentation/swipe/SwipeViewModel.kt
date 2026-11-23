@@ -513,8 +513,8 @@ class SwipeViewModel(
      * reviewable cards instead of ending on the gap. Drops only ever remove
      * positions at or beyond [loadedCount], and the loaded region always contains
      * the index, so undo entries — whose `index` is behind the head — are never
-     * disturbed. A failing page fetch throws before anything is dropped: the ids
-     * stay in the deck and the next call retries.
+     * disturbed. A failing page fetch keeps its ids in the deck (nothing is
+     * dropped on a failed fetch) and the next call retries.
      */
     private suspend fun ensureMetadataLoaded() {
         while (loadedCount < deck.size && index + METADATA_PAGE_TRIGGER >= loadedCount) {

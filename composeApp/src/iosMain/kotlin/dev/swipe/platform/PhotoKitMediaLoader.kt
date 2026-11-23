@@ -10,8 +10,6 @@ import dev.swipe.data.MediaLoader
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.image.BitmapCacheKey
 import dev.swipe.data.image.BitmapLruCache
-import dev.swipe.platform.assetById
-import dev.swipe.platform.fetchAssetsByIds
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents

@@ -305,7 +305,10 @@ class PhotoKitMediaLibrary(
                 // answers cleanly (non-null) is "all requested ids are gone" verified
                 // — the retry-convergence path of §6.8. A failing probe means the
                 // batch fetch was simply unreliable; retry rather than report gone.
-                val verifiedGone = ids.all { id -> fetchAssetsByIds(listOf(id)) != null }
+                val verifiedGone =
+                    ids.all { id ->
+                        fetchAssetsByIds(listOf(id)).let { it != null && it.count == 0UL }
+                    }
                 return@withContext if (verifiedGone) {
                     DeleteResult.Deleted(ids.toSet())
                 } else {
