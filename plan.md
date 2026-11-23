@@ -460,7 +460,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.9 | implement | `fr-22-favorite-confirm-redesign` | ses_df6f8ba5cffeUiiMM932uFL3Oc | 2026-11-23 19:20 | Priority 6; builds on merged 9.3 ToastHost; includes U3 gesture-gating; before 8.6; 👤 user test after merge |
+| 1 | 8.9 | verify | `fr-22-favorite-confirm-redesign` | ses_df669355bffe3AnSce7cPLr1JW | 2026-11-23 21:00 | Impl done: 4 commits, validate.sh PASS, 441 tests. Verifier: tokens rule-3, U3 gating tests real-order, spec-vs-code, lifetime/timer |
 | 2 | 7.7 | verify | `fr-7-month-order` | ses_df69175d7ffep3G6JcHKBXs9ER | 2026-11-23 20:10 | Impl done: 3 code commits, 433 tests, report in worktree. Real PhotoKit runner skips (no auth in Gradle host) w/ explicit reasons. Verifier: sort-spec seam, contract parity, fixture hygiene, external-writer leftovers |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
@@ -486,7 +486,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
-| 8.9 | Favorite confirmation redesign | implementing | `fr-22-favorite-confirm-redesign` | Priority 6; on top of merged 9.3; + U3 gesture-gating (audit); before 8.6; 👤 §3 user test after merge |
+| 8.9 | Favorite confirmation redesign | verifying | `fr-22-favorite-confirm-redesign` | Impl done 2026-11-23: `FavoriteConfirmCard` (bottom card above action bar, Cancel/Delete 44 dp, 150 ms fade, live-region announce), U3 drag-to-cancel via `SwipeCard.onDragStart`, spec updated (FR-22, §5.7, §5.8 wireframe, §6.6); 441 tests, validate.sh PASS. Deviation: no forced VO focus (CMP limit). 👤 §3 user test (2–3 people, TestFlight) after merge — WP not done until findings dealt with |
 | 8.10 | Exclude albums from Shuffle | merged | `fr-37-shuffle-album-exclusions` | Priority 1; verified PASS 2026-11-23; merged after clean rebase onto 7.6 + combined `--full` pass. Verify nits filed: mid-session guarantee untested + duplicate homeViewModel test helper → 9.x cleanup; §5.8 Albums wireframe → 👤 may want one |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
 | 8.12 | Home count flicker and correctness | merged | `fr-5-count-flicker` | Priority 5; verified PASS 2026-11-23 (404 tests, every count path traced); merged at c727a6f with doc fixups. SourceCountsUseCase is the single count path, LoadSourcesUseCase deleted. Deferred: smartCounts removal + albumRows render → 9.9; 👤 simulator quick-switch check after merge |
