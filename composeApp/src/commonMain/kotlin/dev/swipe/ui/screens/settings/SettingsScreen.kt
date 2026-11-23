@@ -34,7 +34,9 @@ import dev.swipe.presentation.settings.SettingsIntent
 import dev.swipe.presentation.settings.SettingsUiState
 import dev.swipe.ui.components.ConfirmDialog
 import dev.swipe.ui.components.SwipeSwitch
-import dev.swipe.ui.components.Toast
+import dev.swipe.ui.components.ToastHost
+import dev.swipe.ui.components.ToastSpec
+import dev.swipe.ui.components.toastHostPlacement
 import dev.swipe.ui.screens.home.ScreenHeader
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.theme.SwipeTheme
@@ -53,7 +55,7 @@ internal const val EXPIRY_ROW_TEST_TAG = "settings-expiry-row"
  * "Reset all decisions" row behind a [ConfirmDialog] (FR-30), and the info
  * rows — app version and, when readable, the free-provisioning signing expiry
  * (FR-31; the row is simply absent otherwise). One-shot [events] surface as
- * the §5.7 [Toast].
+ * the §5.7 toast through the shared [ToastHost] (WP-9.3).
  */
 @Composable
 fun SettingsScreen(
@@ -64,15 +66,17 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = SwipeTheme.colors
-    var toastText by remember { mutableStateOf<String?>(null) }
+    var toast by remember { mutableStateOf<ToastSpec?>(null) }
     LaunchedEffect(events) {
         events.collect { event ->
-            toastText =
-                when (event) {
-                    SettingsEvent.ResetDone -> "Keep history cleared"
-                    SettingsEvent.ResetFailed -> "Couldn't reset"
-                    SettingsEvent.SaveFailed -> "Couldn't save setting"
-                }
+            toast =
+                ToastSpec(
+                    when (event) {
+                        SettingsEvent.ResetDone -> "Keep history cleared"
+                        SettingsEvent.ResetFailed -> "Couldn't reset"
+                        SettingsEvent.SaveFailed -> "Couldn't save setting"
+                    },
+                )
         }
     }
     Box(
@@ -100,15 +104,16 @@ fun SettingsScreen(
                 SettingsRows(state = state, onIntent = onIntent)
             }
         }
-        toastText?.let { text ->
-            Toast(
-                text = text,
-                onDismiss = { toastText = null },
+        // WP-9.3: the one toast host and placement — bottom, clearing the
+        // Home Indicator (this Box's bottom edge is the screen's).
+        toast?.let { spec ->
+            ToastHost(
+                toast = spec,
+                onDismiss = { toast = null },
                 modifier =
                     Modifier
                         .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = SwipeTheme.spacing.xl),
+                        .toastHostPlacement(),
             )
         }
     }

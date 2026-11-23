@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.domain.model.Decision
@@ -161,6 +162,28 @@ class SettingsScreenTest {
             setContent { TestScreen(SettingsUiState(), events = flowOf(SettingsEvent.SaveFailed)) }
             waitForIdle()
             onNodeWithContentDescription("Couldn't save setting").assertExists()
+        }
+
+    @Test
+    fun `WP-9-3 settings toast sits at the bottom edge like every other toast`() =
+        runComposeUiTest {
+            setContent { TestScreen(SettingsUiState(), events = flowOf(SettingsEvent.ResetFailed)) }
+            waitForIdle()
+            val toast = onNodeWithContentDescription("Couldn't reset").fetchSemanticsNode().boundsInWindow
+            val screen = onRoot().fetchSemanticsNode().boundsInWindow
+            // One placement (WP-9.3): bottom half of the screen.
+            assertTrue(toast.top > screen.height / 2f, "expected a bottom toast, got $toast of $screen")
+        }
+
+    @Test
+    fun `WP-9-3 settings toast fades on the host's three-second fuse`() =
+        runComposeUiTest {
+            setContent { TestScreen(SettingsUiState(), events = flowOf(SettingsEvent.ResetDone)) }
+            waitForIdle()
+            onNodeWithContentDescription("Keep history cleared").assertExists()
+            mainClock.advanceTimeBy(3100L) // the §5.7 3 s auto-dismiss
+            waitForIdle()
+            onNodeWithContentDescription("Keep history cleared").assertDoesNotExist()
         }
 
     /** The screen under the theme, driven by a fixed [state] with inert defaults. */
