@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.3 | implement | `fr-6-burst-deck` | ses_df62612c6ffeDz1uI680ScvhLU | 2026-11-24 00:20 | Relaunch — first attempt (ses_df6337…) crashed with zero commits. Shared 6-site id-lookup w/ burst-frame options, R1 zero-fetch delete fix, unresolved id must not strand deck, loading state, Home Bursts count, contract-suite burst cases. Report → docs/reports/2026-11-wp-8.3-bursts-deck.md |
-| 2 | 9.5 | implement | `fr-24-queue-viewer` | ses_df616c790ffejQ2tUk3M5DsWD9 | 2026-11-24 00:35 | Attempt 3 (first two crashed with zero commits; infra probe OK). Brief now mandates first commit within 15 tool calls. Viewer consumes input + own traversal group, videos play in viewer, unambiguous close icon (§5.2), plurals. Queue files only — must not touch SwipeScreen/SwipeViewModel/Home/iosMain. Report → docs/reports/2026-11-wp-9.5-queue-viewer.md |
+| 2 | 9.5 | verify | `fr-24-queue-viewer` | ses_df5db6e21ffeT4TGUw6dW38pCm | 2026-11-24 01:30 | Impl done: 5 commits, validate.sh PASS (pre+post rebase onto 01579e3), 465 tests (+6). Claims: tap consume + clearAndSetSemantics modal, VideoPlayerSlot via videoSlot seam, arrow_back close (§5.5 not §5.2 — verify), deleteItemsLabel plurals. Verifier: real-order tests, scope guard, layering, §0 DoD. Report → T/opencode/wp-reports/wp-9.5-verify.md |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -515,7 +515,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocked 8.9 (merged) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
-| 9.5 | Queue viewer safety | implementing | `fr-24-queue-viewer` | Launched 2026-11-23 beside 8.3 (no file overlap; guarded to Queue files) |
+| 9.5 | Queue viewer safety | verifying | `fr-24-queue-viewer` | Impl done 2026-11-24 (attempt 3): viewer root consumes taps, background `clearAndSetSemantics` while open (grid stays composed → scroll preserved), videos play via `videoSlot` seam (mirrors deck), close icon `arrow_back` (§5.5+§5.8 updated; WP brief said §5.2), `deleteItemsLabel()` plurals. 465 tests (+6), validate.sh PASS. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber (→ 8.13 territory) |
 | 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
