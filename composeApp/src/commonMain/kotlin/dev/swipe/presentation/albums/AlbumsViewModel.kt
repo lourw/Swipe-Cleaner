@@ -6,8 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.usecase.DeckMembership
 import dev.swipe.presentation.home.HomeAlbumRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -23,11 +25,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The Albums screen's state owner (FR-8, FR-9, §6.5 *Home counts*): the album
- * rows with covers, arriving with PhotoKit's cheap estimate (NFR-4) and each
- * converging to the exact FR-9 count for the screen's filter — the same
+ * The Albums screen's state owner (FR-8, FR-9, FR-37, §6.5 *Home counts*): the
+ * album rows with covers, arriving with PhotoKit's cheap estimate (NFR-4) and
+ * each converging to the exact FR-9 count for the screen's filter — the same
  * estimate → exact ladder the Home rows use, over the album path only, so
- * opening Albums never pays for the Shuffle or smart counts (NFR-4).
+ * opening Albums never pays for the Shuffle or smart counts (NFR-4). The exact
+ * count runs through [DeckMembership], the deck's own path.
+ *
+ * **Exclude from Shuffle (FR-37):** every row carries a switch backed by
+ * [ShuffleExclusionStore]; [AlbumsUiState.excludedAlbumIds] is driven by the
+ * store's Flow, so a write that fails leaves the switch exactly where it was
+ * (NFR-7). Exclusion reaches only the Shuffle source — tapping a row still
+ * opens that album's full deck — so toggling never reloads this list.
  *
  * **Refreshes (§6.8):** one collector owns reloads; `latest-wins` via
  * [flatMapLatest] the way [dev.swipe.presentation.home.HomeViewModel] does it,
@@ -39,6 +48,10 @@ class AlbumsViewModel(
     private val typeFilter: MediaTypeFilter,
     private val library: MediaLibrary,
     private val decisions: DecisionStore,
+    /** FR-37 exclusions: the switch states and where toggles are written. */
+    private val exclusions: ShuffleExclusionStore,
+    /** The deck's own membership path, so each row's count is the deck's size (FR-9). */
+    private val membership: DeckMembership,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AlbumsUiState(typeFilter = typeFilter))
 
@@ -63,6 +76,11 @@ class AlbumsViewModel(
         viewModelScope.launch {
             library.changes().collect { reloads.tryEmit(Unit) }
         }
+        viewModelScope.launch {
+            exclusions.excludedAlbumIdsFlow().collect { ids ->
+                _uiState.update { it.copy(excludedAlbumIds = ids) }
+            }
+        }
     }
 
     /** Handle one UI intent (convention: one `StateFlow` in, sealed intents out). */
@@ -77,15 +95,22 @@ class AlbumsViewModel(
                         ),
                     )
                 }
+
+                is AlbumsIntent.ToggleShuffleExclusion -> {
+                    // The state comes back from the store's Flow, so a failed
+                    // write changes nothing on screen (NFR-7).
+                    val excludedNow = intent.row.id in _uiState.value.excludedAlbumIds
+                    attempt { exclusions.setExcluded(intent.row.id, !excludedNow) }
+                }
             }
         }
     }
 
     /**
      * One load: the album rows with estimates first (FR-8, NFR-4), then each
-     * row's exact FR-9 count — the deck's own path minus the decided set
-     * (§6.5 *Home counts*) — emitted as each one actually moves. A row whose
-     * fetch fails keeps its estimate for the next refresh.
+     * row's exact FR-9 count — [DeckMembership.ids] for the album, the deck's
+     * own path (§6.5 *Home counts*) — emitted as each one actually moves. A row
+     * whose fetch fails keeps its estimate for the next refresh.
      */
     private fun load(): Flow<List<HomeAlbumRow>> =
         flow {
@@ -94,13 +119,10 @@ class AlbumsViewModel(
             emit(rows)
             val decided = attempt { decisions.decidedIds() }.orEmpty()
             albums.forEachIndexed { index, album ->
-                val ids = attempt { library.assetIds(DeckSource.Album(album.id, album.title), typeFilter) }
-                if (ids != null) {
-                    val exact = ids.count { it !in decided }
-                    if (rows[index].count != exact) {
-                        rows = rows.mapIndexed { i, row -> if (i == index) row.copy(count = exact) else row }
-                        emit(rows)
-                    }
+                val exact = attempt { membership.ids(DeckSource.Album(album.id, album.title), typeFilter, decided).size }
+                if (exact != null && rows[index].count != exact) {
+                    rows = rows.mapIndexed { i, row -> if (i == index) row.copy(count = exact) else row }
+                    emit(rows)
                 }
             }
         }

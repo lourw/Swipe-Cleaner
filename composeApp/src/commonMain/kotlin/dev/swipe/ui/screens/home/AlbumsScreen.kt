@@ -17,11 +17,12 @@ import dev.swipe.ui.components.formatCount
 import dev.swipe.ui.theme.SwipeTheme
 
 /**
- * The Albums screen (§5.8, FR-8): a back header and one [SourceRow] per
+ * The Albums screen (§5.8, FR-8, FR-37): a back header and one [SourceRow] per
  * album — user albums first, then the main smart albums — each with its
  * cover thumbnail (40 dp, `MediaLoader.image` at the row's own pixel size,
- * never the full-screen target, NFR-3) and its converging count (FR-9). The
- * empty list renders just the header until `albums()` answers (NFR-4).
+ * never the full-screen target, NFR-3), its converging count (FR-9), and an
+ * **Exclude from Shuffle** switch (FR-37). The empty list renders just the
+ * header until `albums()` answers (NFR-4).
  *
  * Taps leave as [AlbumsIntent]s; the App host collects the ViewModel's
  * [dev.swipe.presentation.albums.AlbumsEvent]s and navigates to the deck
@@ -53,6 +54,9 @@ fun AlbumsScreen(
                     coverAssetId = row.coverAssetId,
                     mediaLoader = mediaLoader,
                     onClick = { onIntent(AlbumsIntent.OpenAlbum(row)) },
+                    switchChecked = row.id in state.excludedAlbumIds,
+                    onSwitchToggle = { onIntent(AlbumsIntent.ToggleShuffleExclusion(row)) },
+                    switchContentDescription = "Exclude ${row.title} from Shuffle",
                 )
             }
         }

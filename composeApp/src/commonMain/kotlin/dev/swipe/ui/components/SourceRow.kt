@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import dev.swipe.data.MediaLoader
@@ -35,6 +36,11 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * textSecondary`, and a chevron. Used by Home (FR-4) and the Albums screen
  * (FR-8); the tap opens the row's destination.
  *
+ * With [onSwitchToggle] the row grows a trailing [SwipeSwitch] before the
+ * chevron — the FR-37 **Exclude from Shuffle** control, the same iOS-shape
+ * switch and `Role.Switch` semantics the Settings rows use. The switch is its
+ * own touch target and consumes its taps, so the row tap still navigates.
+ *
  * The cover is a *small-target* request (the 40 dp slot's pixels, never the
  * full-screen target), so row lists can't evict card bitmaps from the
  * loader's cache (NFR-3, §6.8), and leaving the composition cancels the
@@ -49,6 +55,9 @@ fun SourceRow(
     coverAssetId: String? = null,
     mediaLoader: MediaLoader? = null,
     icon: String? = null,
+    switchChecked: Boolean? = null,
+    onSwitchToggle: (() -> Unit)? = null,
+    switchContentDescription: String? = null,
 ) {
     val colors = SwipeTheme.colors
     val tokens = SwipeTheme.componentSizes
@@ -97,6 +106,15 @@ fun SourceRow(
                     ),
             )
         }
+        val checked = switchChecked
+        val toggle = onSwitchToggle
+        if (checked != null && toggle != null) {
+            SourceRowSwitch(
+                checked = checked,
+                contentDescription = switchContentDescription ?: "Exclude from Shuffle, $title",
+                onToggle = toggle,
+            )
+        }
         SwipeIcon(
             symbol = SwipeIcons.CHEVRON_RIGHT,
             tint = colors.textSecondary,
@@ -132,6 +150,33 @@ private fun SourceRowCover(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+}
+
+/**
+ * The FR-37 trailing switch of a [SourceRow]: the visual [SwipeSwitch] inside a
+ * `minTouchTarget` box that owns the `Role.Switch` semantics, mirroring the
+ * Settings `ToggleRow` (WP-6.1). Its clickable consumes the tap, so toggling
+ * never opens the row.
+ */
+@Composable
+private fun SourceRowSwitch(
+    checked: Boolean,
+    contentDescription: String,
+    onToggle: () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier =
+            Modifier
+                .size(SwipeTheme.sizes.minTouchTarget)
+                .clickable(role = Role.Switch, onClick = onToggle)
+                .semantics {
+                    this.contentDescription = contentDescription
+                    selected = checked
+                },
+    ) {
+        SwipeSwitch(checked = checked)
     }
 }
 

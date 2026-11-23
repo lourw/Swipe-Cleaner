@@ -104,6 +104,7 @@ val commonModule: Module =
                 library = get(),
                 decisions = get(),
                 loadSources = get(),
+                exclusions = get(),
             )
         }
 
@@ -114,6 +115,8 @@ val commonModule: Module =
                 typeFilter = params.get(),
                 library = get(),
                 decisions = get(),
+                exclusions = get(),
+                membership = get(),
             )
         }
 

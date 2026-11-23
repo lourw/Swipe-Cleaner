@@ -84,6 +84,47 @@ class AlbumsScreenTest {
         }
 
     @Test
+    fun `FR-37 tapping the switch toggles the exclusion without opening the album`() =
+        runComposeUiTest {
+            val intents = mutableListOf<AlbumsIntent>()
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state = AlbumsUiState(rows = rows, excludedAlbumIds = setOf("a1")),
+                        onIntent = { intents.add(it) },
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithContentDescription("Exclude Trip from Shuffle").performClick()
+            waitForIdle()
+            // The switch owns its tap: a toggle, never an OpenAlbum.
+            assertEquals(listOf<AlbumsIntent>(AlbumsIntent.ToggleShuffleExclusion(rows.first())), intents)
+        }
+
+    @Test
+    fun `FR-37 an excluded album's row still opens`() =
+        runComposeUiTest {
+            val intents = mutableListOf<AlbumsIntent>()
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state = AlbumsUiState(rows = rows, excludedAlbumIds = setOf("a1")),
+                        onIntent = { intents.add(it) },
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            waitForIdle()
+            onNodeWithText("Trip").performClick()
+            waitForIdle()
+            assertEquals(listOf<AlbumsIntent>(AlbumsIntent.OpenAlbum(rows.first())), intents)
+        }
+
+    @Test
     fun `5-8 header names the screen and back leaves it`() =
         runComposeUiTest {
             var backTaps = 0

@@ -14,4 +14,9 @@ data class AlbumsUiState(
     val typeFilter: MediaTypeFilter = MediaTypeFilter.ALL,
     /** The album rows (FR-8): user albums first, then the main smart albums. */
     val rows: List<HomeAlbumRow> = emptyList(),
+    /**
+     * The ids of the albums excluded from Shuffle (FR-37); drives each row's
+     * switch. Empty by default — nothing is excluded until the user says so.
+     */
+    val excludedAlbumIds: Set<String> = emptySet(),
 )

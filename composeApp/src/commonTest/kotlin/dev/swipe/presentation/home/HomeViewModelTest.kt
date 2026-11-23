@@ -3,6 +3,7 @@
 package dev.swipe.presentation.home
 
 import app.cash.turbine.test
+import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
@@ -12,9 +13,11 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.model.Stats
+import dev.swipe.domain.usecase.DeckMembership
 import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeShuffleExclusionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -126,6 +129,32 @@ class HomeViewModelTest {
             val settled = viewModel.awaitSettled(this)
             assertEquals(2, settled.shuffleCount) // 4 items minus the two decided
             assertTrue(settled.smartRows.all { it.count == 0 })
+        }
+
+    @Test
+    fun `FR-37 toggling an exclusion refreshes the Shuffle count`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photoItems(4),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2")),
+                )
+            val exclusions = FakeShuffleExclusionStore()
+            val viewModel =
+                homeViewModel(library, FakeDecisionStore(), exclusions)
+            val settled = viewModel.awaitSettled(this)
+            assertEquals(4, settled.shuffleCount)
+
+            // Toggling an album off Shuffle (from the Albums screen) refreshes the
+            // Home count: 4 minus the two members of a1 (FR-9, FR-37).
+            exclusions.setExcluded("a1", true)
+            testScheduler.advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.shuffleCount)
+
+            exclusions.setExcluded("a1", false)
+            testScheduler.advanceUntilIdle()
+            assertEquals(4, viewModel.uiState.value.shuffleCount)
         }
 
     @Test
@@ -247,7 +276,14 @@ class HomeViewModelTest {
     private fun homeViewModel(
         library: FakeMediaLibrary,
         store: FakeDecisionStore,
-    ): HomeViewModel = HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+        exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
+    ): HomeViewModel =
+        HomeViewModel(
+            library,
+            store,
+            LoadSourcesUseCase(library, store, DeckMembership(library, exclusions)),
+            exclusions,
+        )
 
     /** Drive the scheduler until every row's count has arrived (ungated fixtures). */
     private suspend fun HomeViewModel.awaitSettled(scope: TestScope): HomeUiState {

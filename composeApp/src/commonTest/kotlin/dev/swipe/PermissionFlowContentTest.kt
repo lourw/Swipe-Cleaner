@@ -28,6 +28,7 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.LoadSourcesUseCase
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.homeViewModel
 import dev.swipe.presentation.home.HomeViewModel
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
@@ -161,7 +162,7 @@ class PermissionFlowContentTest {
                             {},
                             homeViewModel = {
                                 mounted = true
-                                HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+                                homeViewModel(library, store)
                             },
                         )
                     },
@@ -206,7 +207,7 @@ class PermissionFlowContentTest {
                             state,
                             {},
                             homeViewModel = {
-                                built ?: HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+                                built ?: homeViewModel(library, store)
                                     .also { built = it }
                             },
                         )
@@ -495,7 +496,7 @@ class PermissionFlowContentTest {
                 repeat(queued) { i -> store.record("queued-$i", Decision.DELETE, "session-1") }
             }
             Dispatchers.setMain(UnconfinedTestDispatcher())
-            viewModel = HomeViewModel(library, store, LoadSourcesUseCase(library, store))
+            viewModel = homeViewModel(library, store)
         }
     }
 }

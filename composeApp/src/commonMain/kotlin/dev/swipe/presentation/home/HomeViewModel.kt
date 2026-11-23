@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaTypeFilter
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -49,6 +51,8 @@ class HomeViewModel(
     private val library: MediaLibrary,
     private val decisions: DecisionStore,
     private val loadSources: LoadSourcesUseCase,
+    /** FR-37: exclusions change which items the Shuffle row's deck holds. */
+    private val exclusions: ShuffleExclusionStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
 
@@ -97,6 +101,20 @@ class HomeViewModel(
                 applyAccess()
                 reloadRequests.tryEmit(_uiState.value.typeFilter)
             }
+        }
+
+        viewModelScope.launch {
+            // FR-37: an Albums toggle re-runs the counts so the Shuffle row
+            // keeps matching the deck its row opens (FR-9). `drop(1)` skips the
+            // Flow's initial snapshot — the startup load already reads the
+            // store — and the exactness mask keeps the re-run from flickering
+            // the refined numbers back to estimates (§6.5).
+            exclusions
+                .excludedAlbumIdsFlow()
+                .drop(1)
+                .collect {
+                    reloadRequests.tryEmit(_uiState.value.typeFilter)
+                }
         }
 
         viewModelScope.launch {

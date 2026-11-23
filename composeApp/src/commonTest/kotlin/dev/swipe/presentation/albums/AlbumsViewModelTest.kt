@@ -10,6 +10,8 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeShuffleExclusionStore
+import dev.swipe.fakes.albumsViewModel
 import dev.swipe.presentation.home.HomeAlbumRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -20,13 +22,15 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The Albums screen's state owner (WP-5.3, FR-8, FR-9, FR-5, §6.5 *Home
+ * The Albums screen's state owner (WP-5.3, FR-8, FR-9, FR-5, FR-37, §6.5 *Home
  * counts*): rows arriving with the cheap estimate and converging to the exact
- * FR-9 count, the `changes()` reload, the failed fetch keeping the rows, and
- * the deck event carrying the screen's fixed filter.
+ * FR-9 count, the `changes()` reload, the failed fetch keeping the rows, the
+ * deck event carrying the screen's fixed filter, and the FR-37 exclude-from-
+ * Shuffle switches.
  */
 class AlbumsViewModelTest {
     @AfterTest
@@ -47,7 +51,7 @@ class AlbumsViewModelTest {
                 )
             library.nextAlbumsEstimate = 99 // PhotoKit's lagging estimate first
 
-            AlbumsViewModel(MediaTypeFilter.ALL, library, store).uiState.test {
+            albumsViewModel(MediaTypeFilter.ALL, library, store).uiState.test {
                 var state = awaitItem()
                 while (state.rows.isEmpty()) state = awaitItem()
                 assertEquals(99, state.rows.single().count) // the estimate lands first
@@ -62,7 +66,7 @@ class AlbumsViewModelTest {
     fun `FR-8 opening an album navigates with the screen's filter`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-            val viewModel = AlbumsViewModel(MediaTypeFilter.VIDEOS, FakeMediaLibrary(emptyList()), FakeDecisionStore())
+            val viewModel = albumsViewModel(MediaTypeFilter.VIDEOS, FakeMediaLibrary(emptyList()), FakeDecisionStore())
 
             viewModel.events.test {
                 val row = HomeAlbumRow("a1", "Trip", "asset-1", 3)
@@ -83,7 +87,7 @@ class AlbumsViewModelTest {
                     photos(2),
                     albums = mapOf("a1" to setOf("asset-1", "asset-2")),
                 )
-            val viewModel = AlbumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
             testScheduler.advanceUntilIdle()
             assertEquals(1, library.albumsCalls)
 
@@ -107,7 +111,7 @@ class AlbumsViewModelTest {
                     photos(2),
                     albums = mapOf("a1" to setOf("asset-1", "asset-2")),
                 )
-            val viewModel = AlbumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
             testScheduler.advanceUntilIdle()
             val settled = viewModel.uiState.value.rows
 
@@ -120,6 +124,89 @@ class AlbumsViewModelTest {
                 viewModel.uiState.value.rows
                     .isNotEmpty(),
             )
+        }
+
+    @Test
+    fun `FR-37 toggling a row excludes the album and marks the switch`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photos(3),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2", "asset-3")),
+                )
+            val exclusions = FakeShuffleExclusionStore()
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore(), exclusions)
+            testScheduler.advanceUntilIdle()
+            assertEquals(emptySet(), viewModel.uiState.value.excludedAlbumIds)
+
+            val row =
+                viewModel.uiState.value.rows
+                    .single()
+            viewModel.onIntent(AlbumsIntent.ToggleShuffleExclusion(row))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(listOf("a1" to true), exclusions.setExcludedCalls)
+            assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
+
+            // Toggling again includes it (FR-37).
+            viewModel.onIntent(AlbumsIntent.ToggleShuffleExclusion(row))
+            testScheduler.advanceUntilIdle()
+            assertEquals(listOf("a1" to true, "a1" to false), exclusions.setExcludedCalls)
+            assertEquals(emptySet(), viewModel.uiState.value.excludedAlbumIds)
+        }
+
+    @Test
+    fun `FR-37 a failed exclusion write leaves the switch where it was`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photos(2),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore(), exclusions)
+            testScheduler.advanceUntilIdle()
+            assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
+
+            exclusions.failNextSetExcluded = IllegalStateException("write failed")
+            viewModel.onIntent(
+                AlbumsIntent.ToggleShuffleExclusion(
+                    viewModel.uiState.value.rows
+                        .single(),
+                ),
+            )
+            testScheduler.advanceUntilIdle()
+
+            // The switch state comes back from the store, so the failed write
+            // changed nothing on screen (NFR-7).
+            assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
+            assertFalse(exclusions.setExcludedCalls.any())
+        }
+
+    @Test
+    fun `FR-37 exclusions never change the row counts`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photos(3),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2", "asset-3")),
+                )
+            // The album is excluded, yet opening it still shows its full deck,
+            // so its row keeps the full FR-9 count.
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore(), exclusions)
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(
+                3,
+                viewModel.uiState.value.rows
+                    .single()
+                    .count,
+            )
+            assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
         }
 
     // ---- helpers ----
