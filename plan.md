@@ -460,7 +460,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.3 | verify | `arch-toast-host` | ses_df71b1aa4ffeK0acvTvEOnZ6uL | 2026-11-23 18:40 | Impl done: 6 commits, validate.sh PASS, report in worktree. Verifier reviews diff vs §5.7/§6.6/FR-15/FR-22/NFR-7 + hard rules |
+| 1 | 8.9 | implement | `fr-22-favorite-confirm-redesign` | ses_df6f8ba5cffeUiiMM932uFL3Oc | 2026-11-23 19:20 | Priority 6; builds on merged 9.3 ToastHost; includes U3 gesture-gating; before 8.6; 👤 user test after merge |
 | 2 | 7.7 | implement | `fr-7-month-order` | ses_df7355b11ffeKetaDO5nMhLnvU | 2026-11-23 18:05 | Month-sort fix + PhotoKit-vs-fake contract suite (month/All order, id resolution, type filtering) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
@@ -480,20 +480,20 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.7 | Month order and PhotoKit contract tests | implementing | `fr-7-month-order` | Priority 3; fix `PhotoKitSourceFetches.kt` month path (drops sort options); contract suite vs fake + real PhotoKit; burst/partial-delete slots deferred to 8.3/8.7 |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
-| 8.3 | Fix empty Bursts deck | queued | | Priority 7; after 7.6; also the Home Bursts count and a deck loading state. From 7.6 verify: also fix the nil-error `fetchAssetsWithLocalIdentifiers` short-circuit in `PhotoKitMediaLibrary.delete` (total transient fetch failure marks the batch DELETED) |
+| 8.3 | Fix empty Bursts deck | blocked | | Priority 7; after 7.6 (merged); **blocked on 7.7** — both edit `PhotoKitSourceFetches.kt` and 8.3's burst contract cases build on 7.7's suite. Also: Home Bursts count, deck loading state, nil-error `fetchAssetsWithLocalIdentifiers` short-circuit fix (audit R1), single shared id-lookup helper (6 call sites incl. PhotoKitMediaSharer) |
 | 8.4 | Storage freed (nice to have) | queued | | Earlier attempt discarded 2026-11-19 (branch tip was 4b047c1). Its review flagged a KVC crash guard, a stale-estimate race, and batching |
 | 8.5 | Duplicate set label | queued | | |
 | 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
-| 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
+| 8.9 | Favorite confirmation redesign | implementing | `fr-22-favorite-confirm-redesign` | Priority 6; on top of merged 9.3; + U3 gesture-gating (audit); before 8.6; 👤 §3 user test after merge |
 | 8.10 | Exclude albums from Shuffle | merged | `fr-37-shuffle-album-exclusions` | Priority 1; verified PASS 2026-11-23; merged after clean rebase onto 7.6 + combined `--full` pass. Verify nits filed: mid-session guarantee untested + duplicate homeViewModel test helper → 9.x cleanup; §5.8 Albums wireframe → 👤 may want one |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
 | 8.12 | Home count flicker and correctness | merged | `fr-5-count-flicker` | Priority 5; verified PASS 2026-11-23 (404 tests, every count path traced); merged at c727a6f with doc fixups. SourceCountsUseCase is the single count path, LoadSourcesUseCase deleted. Deferred: smartCounts removal + albumRows render → 9.9; 👤 simulator quick-switch check after merge |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
-| 9.3 | One toast host | implementing | `arch-toast-host` | Priority 6, before 8.9 |
+| 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocks 8.9 (running) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
 | 9.5 | Queue viewer safety | queued | | |
 | 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
