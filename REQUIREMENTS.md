@@ -215,7 +215,7 @@ Other gestures on the card:
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
-| `Toast` | Bottom, above the action bar, `surfaceRaised`, radius 12, auto-dismisses after 3 s — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone", the favorite confirm, and errors (save failed, share failed). |
+| `Toast` | `surfaceRaised`, radius 12. One shared `ToastHost` renders at most one toast per screen, always bottom-anchored (§6.6): on the deck it **overlays** the card's bottom edge directly above the action bar — the card never resizes when a toast appears — elsewhere at the bottom of the screen clear of the Home Indicator. The host owns the 3 s auto-dismiss — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone", the favorite confirm, and errors (save failed, share failed, delete failed, restore failed); errors show plain user copy, never raw PhotoKit text. |
 
 ### 5.8 Screens
 
@@ -566,6 +566,19 @@ reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22, "delete anyway?" — whil
 that the first tap refused to record), `StartFailed` (the session could not be opened or
 resumed; the screen stays empty instead of crashing), and `ShareFailed` (FR-32, the
 current item's media could not be loaded for the share sheet).
+
+**One toast host (WP-9.3).** Every screen renders at most one toast through the shared
+`ToastHost` (`ui/components/`), always bottom-anchored: on the deck it overlays the card's
+bottom edge directly above the `ActionBar` — the card's size never depends on whether a
+toast is up — and on the Queue and Settings screens it sits at the bottom of the screen.
+The host owns the only auto-dismiss timer and visibility decision: the `Toast` composable
+is pure presentation and holds no dismissal state of its own. Each screen keeps the toast
+value in exactly one place — the deck shows `SwipeUiState.toast` and dismisses through
+`SwipeIntent.DismissToast`; the Queue and Settings screens fold their one-shot `Channel`
+events into a single nullable `ToastSpec` UI state and clear it on dismiss. A confirm-style
+`ToastSpec` (`autoDismisses = false`) stays until its owner removes it. Error toasts show
+plain user copy — PhotoKit's own text (e.g. `QueueEvent.ShowDeleteError.message`) stays
+diagnostic and is never shown.
 
 `Share` (FR-32) hands the current card's id to `MediaSharer.share` with `sharing` up
 until the sheet is on screen or the load fails. It is single-flight (taps while
