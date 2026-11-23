@@ -460,8 +460,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | ses_e0b7c383bffe1SNRZPwnCc40Uq | 2026-11-19 | Priority 1; deck-membership + stable-shuffle prerequisites in-branch |
-| 2 | 7.5 | verify | `fr-13-decision-card-binding` | ses_e0a88b2f1ffexB83OOLtheNiGP | 2026-11-19 | Independent review of branch diff vs FR-12–15, FR-22, NFR-7/8, §0 |
+| 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | ses_df8a71158ffeE0M7wxYenCC2sz | 2026-11-23 | Fresh session; predecessor (ses_e0b7c38…, crashed) left ~29 files uncommitted in the worktree — new session audits, finishes, commits |
+| 2 | 7.5 | verify | `fr-13-decision-card-binding` | ses_df8a59507ffeVguOYeysi7em1h | 2026-11-23 | Fresh verifier; prior verifier (ses_e0a88b2f…, stale) never reported back |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
