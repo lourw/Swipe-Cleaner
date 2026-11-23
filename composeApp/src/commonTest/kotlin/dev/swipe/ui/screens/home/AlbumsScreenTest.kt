@@ -254,7 +254,8 @@ class AlbumsScreenTest {
             val rowBounds = row.boundsInWindow
             val subtitleBounds =
                 onNodeWithText(EXCLUDED_SUBTITLE, useUnmergedTree = true)
-                    .fetchSemanticsNode().boundsInWindow
+                    .fetchSemanticsNode()
+                    .boundsInWindow
             val height = with(density) { row.size.height.toDp() }
             val expected = SwipeComponentSizes().sourceRowHeight
             assertTrue(abs((height - expected).value) <= 0.5f, "the row stays $expected, got $height")

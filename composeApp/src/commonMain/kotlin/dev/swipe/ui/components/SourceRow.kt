@@ -232,8 +232,7 @@ private fun SourceRowSwitch(
                 .size(
                     width = trackWidth.coerceAtLeast(SwipeTheme.sizes.minTouchTarget),
                     height = SwipeTheme.sizes.minTouchTarget,
-                )
-                .clickable(role = Role.Switch, onClick = onToggle)
+                ).clickable(role = Role.Switch, onClick = onToggle)
                 .semantics {
                     this.contentDescription = contentDescription
                     selected = checked
