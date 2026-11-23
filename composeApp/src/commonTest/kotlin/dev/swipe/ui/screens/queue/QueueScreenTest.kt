@@ -14,6 +14,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.data.MediaLoader
@@ -242,7 +243,35 @@ class QueueScreenTest {
         runComposeUiTest {
             setContent { TestScreen(queueState(2), events = flowOf(QueueEvent.ShowDeleteError("PhotoKit said no"))) }
             waitForIdle()
-            onNodeWithContentDescription("PhotoKit said no").assertExists()
+            // WP-9.3: the user sees plain retry copy; the raw PhotoKit
+            // message is diagnostic and never rendered.
+            onNodeWithContentDescription("Couldn't delete — try again").assertExists()
+            onNodeWithContentDescription("PhotoKit said no").assertDoesNotExist()
+            onNodeWithText("To delete (2)").assertExists()
+        }
+
+    @Test
+    fun `WP-9-3 queue toast sits at the bottom edge like every other toast`() =
+        runComposeUiTest {
+            setContent { TestScreen(queueState(2), events = flowOf(QueueEvent.ShowDeleteError("nope"))) }
+            waitForIdle()
+            val toast = onNodeWithContentDescription("Couldn't delete — try again").fetchSemanticsNode().boundsInWindow
+            val screen = onRoot().fetchSemanticsNode().boundsInWindow
+            // One placement (WP-9.3): the toast lives in the bottom half of
+            // the screen, not the top it used to hang from.
+            assertTrue(toast.top > screen.height / 2f, "expected a bottom toast, got $toast of $screen")
+        }
+
+    @Test
+    fun `WP-9-3 queue toast fades on the host's three-second fuse`() =
+        runComposeUiTest {
+            setContent { TestScreen(queueState(2), events = flowOf(QueueEvent.RestoreFailed)) }
+            waitForIdle()
+            onNodeWithContentDescription("Couldn't restore — try again").assertExists()
+            mainClock.advanceTimeBy(3100L) // the §5.7 3 s auto-dismiss
+            waitForIdle()
+            onNodeWithContentDescription("Couldn't restore — try again").assertDoesNotExist()
+            // Only the toast went away; the queue is untouched.
             onNodeWithText("To delete (2)").assertExists()
         }
 

@@ -22,9 +22,10 @@ sealed interface QueueEvent {
     ) : QueueEvent
 
     /**
-     * The commit failed with PhotoKit's [message] (§6.7 error branch): show a
-     * toast; the queue is unchanged. A cancelled iOS dialog emits **nothing**
-     * (FR-27).
+     * The commit failed with PhotoKit's [message] (§6.7 error branch): the
+     * screen shows its plain retry-copy toast — [message] is diagnostic only
+     * and never rendered (WP-9.3); the queue is unchanged. A cancelled iOS
+     * dialog emits **nothing** (FR-27).
      */
     data class ShowDeleteError(
         val message: String,

@@ -37,7 +37,9 @@ import dev.swipe.ui.components.ConfirmDialog
 import dev.swipe.ui.components.GridTile
 import dev.swipe.ui.components.PrimaryButton
 import dev.swipe.ui.components.SwipeIcons
-import dev.swipe.ui.components.Toast
+import dev.swipe.ui.components.ToastHost
+import dev.swipe.ui.components.ToastSpec
+import dev.swipe.ui.components.toastHostPlacement
 import dev.swipe.ui.screens.swipe.EmptyState
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.flow.Flow
@@ -56,9 +58,10 @@ import kotlinx.coroutines.flow.Flow
  *
  * [events] carries the one-shots: [QueueEvent.ShowDeleteSuccess] navigates
  * through [onShowDeleteSuccess] (the ViewModel never navigates), and the two
- * error events render as a local [Toast] (§6.7). Thumbnails request their
- * tile-sized target through [mediaLoader], never the full-screen LRU
- * (NFR-3, §6.8).
+ * error events fold into one local [ToastSpec] rendered through the shared
+ * [ToastHost] (§6.7, WP-9.3 — plain retry copy on screen, the raw PhotoKit
+ * message stays diagnostic). Thumbnails request their tile-sized target
+ * through [mediaLoader], never the full-screen LRU (NFR-3, §6.8).
  */
 @Composable
 fun QueueScreen(
@@ -76,7 +79,7 @@ fun QueueScreen(
     ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var toast by remember { mutableStateOf<String?>(null) }
+    var toast by remember { mutableStateOf<ToastSpec?>(null) }
     // The collector restarts only with the events flow; the latest
     // navigation callback still receives it (Compose-rule fix).
     val navigate by rememberUpdatedState(onShowDeleteSuccess)
@@ -84,8 +87,12 @@ fun QueueScreen(
         events.collect { event ->
             when (event) {
                 is QueueEvent.ShowDeleteSuccess -> navigate(event.count, event.notFound)
-                is QueueEvent.ShowDeleteError -> toast = event.message
-                QueueEvent.RestoreFailed -> toast = RESTORE_FAILED_COPY
+
+                // WP-9.3: the event's raw message is diagnostic only — the
+                // user sees the plain retry copy, never PhotoKit's own words.
+                is QueueEvent.ShowDeleteError -> toast = DELETE_FAILED_TOAST
+
+                QueueEvent.RestoreFailed -> toast = RESTORE_FAILED_TOAST
             }
         }
     }
@@ -143,18 +150,19 @@ private fun BoxScope.QueueOverlays(
     state: QueueUiState,
     mediaLoader: MediaLoader,
     onIntent: (QueueIntent) -> Unit,
-    toast: String?,
+    toast: ToastSpec?,
     onDismissToast: () -> Unit,
 ) {
-    toast?.let { message ->
-        Toast(
-            text = message,
+    // WP-9.3: one placement for every toast — bottom, clear of the Home
+    // Indicator (this Box's bottom edge is the screen's).
+    toast?.let { spec ->
+        ToastHost(
+            toast = spec,
             onDismiss = onDismissToast,
             modifier =
                 Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = SwipeTheme.spacing.xl),
+                    .align(Alignment.BottomCenter)
+                    .toastHostPlacement(),
         )
     }
 
@@ -287,5 +295,11 @@ private fun metadataLessTile(id: String) = QueueTile(id = id, type = null, creat
 /** §5.8: the Review queue is a 3-column grid. */
 private const val GRID_COLUMNS = 3
 
+/**
+ * Toast copy for a failed commit (WP-9.3): plain retry copy on screen, never
+ * PhotoKit's own message, which rides [QueueEvent.ShowDeleteError] for logs.
+ */
+private val DELETE_FAILED_TOAST = ToastSpec("Couldn't delete — try again")
+
 /** Toast copy for a restore whose KEEP write failed (NFR-7's convention). */
-private const val RESTORE_FAILED_COPY = "Couldn't restore — try again"
+private val RESTORE_FAILED_TOAST = ToastSpec("Couldn't restore — try again")
