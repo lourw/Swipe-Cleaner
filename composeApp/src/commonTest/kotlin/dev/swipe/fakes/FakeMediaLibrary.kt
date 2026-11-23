@@ -43,7 +43,9 @@ import kotlinx.datetime.TimeZone
  *
  * Calls are recorded (`assetIdsCalls`, `deleteCalls`, …). Each `failNext…` switch throws
  * once. [delete] models the FR-26 resolve-then-delete behavior (ids in
- * [unresolvableDeleteIds] stay queued); [nextDeleteResult] overrides it verbatim when set.
+ * [unresolvableDeleteIds] stay queued) and the audit-R1 guards (WP-8.3: no read-write
+ * [access], or [failNextDeleteFetch], answers Failed); [nextDeleteResult] overrides it
+ * verbatim when set.
  * Deleted assets leave the library, so a later FR-28 prune sees them gone.
  * [access] can be reassigned to simulate a permission change (FR-3 re-check), and
  * [nextRequestAuthorizationResult] lets the prompt answer differently from [access] (FR-1).
@@ -115,6 +117,13 @@ class FakeMediaLibrary(
      * completes — lets tests hold a commit between PhotoKit and markDeleted.
      */
     var deleteGate: CompletableDeferred<Unit>? = null
+
+    /**
+     * When true, the next [delete] answers [DeleteResult.Failed] without touching
+     * the library — models the real library's audit-R1 guards (WP-8.3): a failed id
+     * fetch, or no read-write access, never answers "already gone". Resets after use.
+     */
+    var failNextDeleteFetch: Boolean = false
 
     /**
      * When non-null, the next [requestAuthorization] answers with this instead of [access],
@@ -317,6 +326,16 @@ class FakeMediaLibrary(
         deleteCalls += ids
         deleteGate?.await()
         nextDeleteResult?.let { return it }
+        // Audit R1 (WP-8.3), mirroring the real library: without read-write access,
+        // or when the id fetch cannot answer, delete fails — it never reports ids as
+        // gone on the strength of a fetch that was never really performed.
+        if (access != LibraryAccess.FULL && access != LibraryAccess.LIMITED) {
+            return DeleteResult.Failed("Photo library access is not granted")
+        }
+        if (failNextDeleteFetch) {
+            failNextDeleteFetch = false
+            return DeleteResult.Failed("Could not fetch the assets to delete")
+        }
         // Model the real library (FR-26, §6.8): only ids that resolve to an asset
         // are handed to the change request, and only those come back as deleted.
         val present = items.map { it.id }.toSet()

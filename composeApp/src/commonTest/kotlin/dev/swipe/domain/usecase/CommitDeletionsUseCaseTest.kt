@@ -4,6 +4,7 @@ package dev.swipe.domain.usecase
 
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeleteResult
+import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import dev.swipe.fakes.FakeClock
@@ -202,6 +203,63 @@ class CommitDeletionsUseCaseTest {
             // No iOS dialog for an empty batch, and no store write.
             assertTrue(library.deleteCalls.isEmpty())
             assertTrue(store.markDeletedCalls.isEmpty())
+        }
+
+    @Test
+    fun `FR-26 R1 delete with denied access fails and leaves the queue untouched`() =
+        runTest {
+            queue("a", "b")
+            library.access = LibraryAccess.DENIED
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "a")))
+
+            // Audit R1 (WP-8.3): without read-write access every id fetches empty —
+            // that must never be reported as "already gone".
+            assertTrue(outcome is CommitOutcome.Error)
+            assertTrue(store.markDeletedCalls.isEmpty())
+            assertEquals(listOf("b", "a"), store.deleteQueue().first())
+            // The still-present assets were not deleted either.
+            assertEquals(4, library.items.size)
+        }
+
+    @Test
+    fun `FR-26 R1 delete with undetermined access fails instead of converging`() =
+        runTest {
+            queue("a", "b")
+            library.unresolvableDeleteIds += setOf("a", "b")
+            library.access = LibraryAccess.NOT_DETERMINED
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "a")))
+
+            // Even a would-be zero-fetch batch does not converge while access is
+            // undetermined: the empty fetch proves nothing here (§6.8, R1).
+            assertTrue(outcome is CommitOutcome.Error)
+            assertTrue(store.markDeletedCalls.isEmpty())
+        }
+
+    @Test
+    fun `FR-26 R1 failed asset fetch reports an error and stores nothing`() =
+        runTest {
+            queue("a", "b")
+            library.failNextDeleteFetch = true
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "a")))
+
+            assertTrue(outcome is CommitOutcome.Error)
+            assertTrue(store.markDeletedCalls.isEmpty())
+            assertEquals(listOf("b", "a"), store.deleteQueue().first())
+        }
+
+    @Test
+    fun `FR-26 limited access still deletes the selected assets`() =
+        runTest {
+            queue("a", "b")
+            library.access = LibraryAccess.LIMITED
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "a")))
+
+            assertEquals(CommitOutcome.Success(deleted = 2), outcome)
+            assertEquals(listOf(listOf("b", "a")), store.markDeletedCalls)
         }
 
     /** Records [ids] as pending DELETEs, one clock tick apart, oldest first. */
