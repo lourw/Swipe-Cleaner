@@ -87,6 +87,8 @@ fun QueueItemViewer(
                         .semantics { contentDescription = tileDescription(tile) },
                 contentAlignment = Alignment.Center,
             ) {
+                // Positional: the slot is a function type (named args are
+                // prohibited on function-type invocations) — mirrors the deck.
                 player(tile.id, true, true, {}, Modifier.fillMaxSize(), false, null)
             }
         } else {
