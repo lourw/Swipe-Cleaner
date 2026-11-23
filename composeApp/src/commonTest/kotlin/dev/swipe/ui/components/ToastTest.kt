@@ -14,40 +14,31 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * §5.7 Toast: renders its text, announces it as an assertive live region, and
- * auto-dismisses after 3 s — advanced virtually through the test scheduler,
- * so the test runs instantly without a real delay (FR-25 undo toast).
+ * §5.7 Toast as pure presentation (WP-9.3): it renders its text, announces it
+ * as an assertive live region, and stays for as long as its caller renders
+ * it — the 3 s fuse and the one placement belong to [ToastHost] (see
+ * [ToastHostTest]).
  */
 class ToastTest {
     @Test
     fun `5-7 toast renders its text with assertive live region`() =
         runComposeUiTest {
-            setContent { Toast(text = "Undone", autoDismissDelay = Duration.INFINITE) }
+            setContent { Toast(text = "Undone") }
             onNodeWithText("Undone").assertExists()
             val node = onNodeWithContentDescription("Undone").fetchSemanticsNode()
             assertEquals(LiveRegionMode.Assertive, node.config[SemanticsProperties.LiveRegion])
         }
 
     @Test
-    fun `5-7 toast auto-dismisses after 3 s`() =
+    fun `5-7 toast stays until its caller stops rendering it`() =
         runComposeUiTest {
-            setContent { Toast(text = "Undone", autoDismissDelay = 3000.milliseconds) }
+            setContent { Toast(text = "Undone") }
             onNodeWithText("Undone").fetchSemanticsNode()
-            mainClock.advanceTimeBy(3000)
-            waitForIdle()
-            onAllNodesWithText("Undone").assertCountEquals(0)
-        }
-
-    @Test
-    fun `5-7 toast is still visible 1 second after it appears`() =
-        runComposeUiTest {
-            setContent { Toast(text = "Undone", autoDismissDelay = 3000.milliseconds) }
-            onNodeWithText("Undone").fetchSemanticsNode()
-            mainClock.advanceTimeBy(1000)
+            // The pill owns no timer (WP-9.3): long past the old 3 s fuse it
+            // is still on screen — only its caller can take it away.
+            mainClock.advanceTimeBy(10_000L)
             waitForIdle()
             onAllNodesWithText("Undone").assertCountEquals(1)
         }

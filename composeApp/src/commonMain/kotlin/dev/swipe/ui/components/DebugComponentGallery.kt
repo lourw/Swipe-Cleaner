@@ -104,14 +104,15 @@ private fun GalleryBannerSection() {
 private fun GalleryToastSection() {
     Column {
         GalleryHeading("4 · Toast")
-        Toast(text = "Undone — card returned", icon = SwipeIcons.UNDO, autoDismissDelay = NEVER_AUTO_DISMISS)
+        // `Toast` is pure presentation (WP-9.3): it stays while the gallery
+        // renders it — the 3 s fuse lives in `ToastHost`, not here.
+        Toast(text = "Undone — card returned", icon = SwipeIcons.UNDO)
         Toast(
             text = "This is a favorite — delete anyway?",
             icon = SwipeIcons.FAVORITE,
             iconTint = SwipeTheme.colors.warning,
             actionLabel = "Delete",
             onAction = {},
-            autoDismissDelay = NEVER_AUTO_DISMISS,
         )
     }
 }

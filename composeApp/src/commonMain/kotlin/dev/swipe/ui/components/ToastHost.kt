@@ -12,6 +12,10 @@ import androidx.compose.ui.graphics.Color
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+
+/** §5.7: toasts auto-dismiss 3 seconds after they appear. */
+val DEFAULT_AUTO_DISMISS: Duration = 3000.milliseconds
 
 /**
  * Everything one screen shows in its §5.7 toast, as one immutable value
@@ -73,10 +77,6 @@ fun ToastHost(
         iconTint = current.iconTint ?: SwipeTheme.colors.textPrimary,
         actionLabel = current.actionLabel,
         onAction = if (current.actionLabel != null) onAction else null,
-        // Transitional (WP-9.3 step 1): keep the old `Toast` timer in step
-        // with the host's so screens not yet on the host keep behaving;
-        // dropped when `Toast` becomes pure presentation.
-        autoDismissDelay = if (current.autoDismisses) DEFAULT_AUTO_DISMISS else Duration.INFINITE,
         modifier = modifier,
     )
 }
