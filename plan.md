@@ -461,7 +461,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.10 | verify | `fr-37-shuffle-album-exclusions` | ses_df84bbfa2ffew4ffXMjnqieKLx | 2026-11-23 | Impl done (ses_df8a711…, 6 commits, rebased onto main, validate.sh PASSED at 43fb66b). Verifier briefed on extra scrutiny: predecessor crash + "lost fixes" incident; implementer never filed §0 report |
-| 2 | 7.6 | implement | `fr-26-partial-delete` | ses_df8791141ffeg25milc645oILO | 2026-11-23 | Priority 3; cut from main after WP-7.5 merged; coordinated against running WP-8.10 |
+| 2 | 7.6 | verify | `fr-26-partial-delete` | ses_df80dfbd0ffebcm35T5I2RAa74 | 2026-11-23 | Impl done (ses_df87911…, 2 commits ffa6c9f+3c93090, validate.sh --full PASSED, full §0 report). Verifier scrutinizing zero-resolvable short-circuit |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -476,7 +476,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
-| 7.6 | Partial delete marked as full | implementing | `fr-26-partial-delete` | Priority 3; before 8.3 |
+| 7.6 | Partial delete marked as full | verifying | `fr-26-partial-delete` | Priority 3; before 8.3; impl done 2026-11-23, 2 commits, validate.sh --full passed; 👤 Limited-access device check after merge |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
