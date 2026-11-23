@@ -125,43 +125,7 @@ fun QueueScreen(
                 .fillMaxSize()
                 .background(SwipeTheme.colors.bg),
     ) {
-        // Safe areas (WP-6.4): the bg above paints edge-to-edge; the header
-        // clears the status bar and the pinned CTA the Home Indicator.
-        //
-        // While the FR-24 viewer is up the whole background goes
-        // semantically blank (WP-9.5): clearAndSetSemantics drops the grid,
-        // the header, and the delete CTA out of the semantics tree, so
-        // VoiceOver cannot reach them, and the viewer's own tap consumer
-        // stops touches reaching them either. The grid stays composed, so
-        // its scroll position survives open and close.
-        val viewerOpen = state.selected != null
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .then(
-                        if (viewerOpen) {
-                            Modifier.clearAndSetSemantics { }
-                        } else {
-                            Modifier
-                        },
-                    ),
-        ) {
-            QueueHeader(count = state.items.size, onBack = onBack)
-            QueueGrid(
-                tiles = state.tiles,
-                selectedId = state.selected,
-                loader = mediaLoader,
-                onOpen = { onIntent(QueueIntent.Open(it)) },
-            )
-            QueueFooter(
-                count = state.items.size,
-                deleting = state.deleting,
-                onRequestDelete = { onIntent(QueueIntent.RequestDelete) },
-            )
-        }
+        QueueBackground(state = state, mediaLoader = mediaLoader, onIntent = onIntent, onBack = onBack)
         QueueOverlays(
             state = state,
             mediaLoader = mediaLoader,
@@ -169,6 +133,55 @@ fun QueueScreen(
             onIntent = onIntent,
             toast = toast,
             onDismissToast = { toast = null },
+        )
+    }
+}
+
+/**
+ * The queue's own content — header, grid, and pinned CTA — behind every
+ * overlay.
+ *
+ * Safe areas (WP-6.4): the screen background paints edge-to-edge while this
+ * Column clears the status bar and the pinned CTA the Home Indicator. While
+ * the FR-24 viewer is up the whole column goes semantically blank (WP-9.5):
+ * clearAndSetSemantics drops the grid, the header, and the delete CTA out
+ * of the semantics tree, so VoiceOver cannot reach them, and the viewer's
+ * own tap consumer stops touches reaching them either. The grid stays
+ * composed, so its scroll position survives open and close.
+ */
+@Composable
+private fun QueueBackground(
+    state: QueueUiState,
+    mediaLoader: MediaLoader,
+    onIntent: (QueueIntent) -> Unit,
+    onBack: () -> Unit,
+) {
+    val viewerOpen = state.selected != null
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .then(
+                    if (viewerOpen) {
+                        Modifier.clearAndSetSemantics { }
+                    } else {
+                        Modifier
+                    },
+                ),
+    ) {
+        QueueHeader(count = state.items.size, onBack = onBack)
+        QueueGrid(
+            tiles = state.tiles,
+            selectedId = state.selected,
+            loader = mediaLoader,
+            onOpen = { onIntent(QueueIntent.Open(it)) },
+        )
+        QueueFooter(
+            count = state.items.size,
+            deleting = state.deleting,
+            onRequestDelete = { onIntent(QueueIntent.RequestDelete) },
         )
     }
 }
