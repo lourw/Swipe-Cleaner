@@ -460,7 +460,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.10 | implement | `fr-37-shuffle-album-exclusions` | ses_df8a71158ffeE0M7wxYenCC2sz | 2026-11-23 | Fresh session; predecessor (ses_e0b7c38…, crashed) left ~29 files uncommitted in the worktree — new session audits, finishes, commits |
+| 1 | 8.10 | verify | `fr-37-shuffle-album-exclusions` | ses_df84bbfa2ffew4ffXMjnqieKLx | 2026-11-23 | Impl done (ses_df8a711…, 6 commits, rebased onto main, validate.sh PASSED at 43fb66b). Verifier briefed on extra scrutiny: predecessor crash + "lost fixes" incident; implementer never filed §0 report |
 | 2 | 7.6 | implement | `fr-26-partial-delete` | ses_df8791141ffeg25milc645oILO | 2026-11-23 | Priority 3; cut from main after WP-7.5 merged; coordinated against running WP-8.10 |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
@@ -487,7 +487,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
-| 8.10 | Exclude albums from Shuffle | implementing | `fr-37-shuffle-album-exclusions` | Priority 1; starts with the deck-membership and stable-shuffle prerequisites |
+| 8.10 | Exclude albums from Shuffle | verifying | `fr-37-shuffle-album-exclusions` | Priority 1; impl done 2026-11-23 (6 commits incl. prerequisites: DeckMembership, stable shuffle key, session-row decode recovery); validate.sh passed; §0 report missing — verifier covering spec completeness |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
 | 8.12 | Home count flicker and correctness | queued | | Priority 5; after 8.10 |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
