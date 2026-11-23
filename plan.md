@@ -479,8 +479,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.3 | implement | `fr-6-burst-deck` | ses_df6337670ffedjGtLeLSdFQkg3 | 2026-11-23 23:40 | Shared 6-site id-lookup w/ burst-frame options, R1 zero-fetch delete fix, unresolved id must not strand deck, loading state, Home Bursts count, contract-suite burst cases. Report → docs/reports/2026-11-wp-8.3-bursts-deck.md |
-| 2 | 9.5 | implement | `fr-24-queue-viewer` | ses_df633766fffeERrW4WOf3Alghh | 2026-11-23 23:40 | Viewer consumes input + own traversal group, videos play in viewer, unambiguous close icon (§5.2), plurals. Queue files only — must not touch SwipeScreen/SwipeViewModel/Home/iosMain. Report → docs/reports/2026-11-wp-9.5-queue-viewer.md |
+| 1 | 8.3 | implement | `fr-6-burst-deck` | ses_df62612c6ffeDz1uI680ScvhLU | 2026-11-24 00:20 | Relaunch — first attempt (ses_df6337…) crashed with zero commits. Shared 6-site id-lookup w/ burst-frame options, R1 zero-fetch delete fix, unresolved id must not strand deck, loading state, Home Bursts count, contract-suite burst cases. Report → docs/reports/2026-11-wp-8.3-bursts-deck.md |
+| 2 | 9.5 | implement | `fr-24-queue-viewer` | ses_df616c790ffejQ2tUk3M5DsWD9 | 2026-11-24 00:35 | Attempt 3 (first two crashed with zero commits; infra probe OK). Brief now mandates first commit within 15 tool calls. Viewer consumes input + own traversal group, videos play in viewer, unambiguous close icon (§5.2), plurals. Queue files only — must not touch SwipeScreen/SwipeViewModel/Home/iosMain. Report → docs/reports/2026-11-wp-9.5-queue-viewer.md |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
