@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.3 | implement | `fr-6-burst-deck` | ses_df62612c6ffeDz1uI680ScvhLU | 2026-11-24 00:20 | Relaunch — first attempt (ses_df6337…) crashed with zero commits. Shared 6-site id-lookup w/ burst-frame options, R1 zero-fetch delete fix, unresolved id must not strand deck, loading state, Home Bursts count, contract-suite burst cases. Report → docs/reports/2026-11-wp-8.3-bursts-deck.md |
-| 2 | 9.5 | verify | `fr-24-queue-viewer` | ses_df5db6e21ffeT4TGUw6dW38pCm | 2026-11-24 01:30 | Impl done: 5 commits, validate.sh PASS (pre+post rebase onto 01579e3), 465 tests (+6). Claims: tap consume + clearAndSetSemantics modal, VideoPlayerSlot via videoSlot seam, arrow_back close (§5.5 not §5.2 — verify), deleteItemsLabel plurals. Verifier: real-order tests, scope guard, layering, §0 DoD. Report → T/opencode/wp-reports/wp-9.5-verify.md |
+| 2 | — | — | — | — | — | free |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -515,7 +515,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocked 8.9 (merged) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
-| 9.5 | Queue viewer safety | verifying | `fr-24-queue-viewer` | Impl done 2026-11-24 (attempt 3): viewer root consumes taps, background `clearAndSetSemantics` while open (grid stays composed → scroll preserved), videos play via `videoSlot` seam (mirrors deck), close icon `arrow_back` (§5.5+§5.8 updated; WP brief said §5.2), `deleteItemsLabel()` plurals. 465 tests (+6), validate.sh PASS. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber (→ 8.13 territory) |
+| 9.5 | Queue viewer safety | merged | `fr-24-queue-viewer` | Verified PASS (no blockers) 2026-11-24: verifier re-ran the suite fresh (465 tests) and confirmed the tap test fails against old code. Nits folded pre-merge (slot-convention comment, report SHA). Merged at adf3f75. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber + `autoplayVideos` setting (product call; 8.13 territory); scroll-block claim untested (behavior verified by hit-testing) |
 | 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
