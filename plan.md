@@ -460,7 +460,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.3 | implement | `arch-toast-host` | ses_348995e8dffegvV8B4D5uZa7Ej | 2026-11-23 17:25 | Relaunch (earlier 9.3 sessions died stale). Worktree from 3579d75; first commit 8f8d1de |
+| 1 | 9.3 | verify | `arch-toast-host` | ses_df71b1aa4ffeK0acvTvEOnZ6uL | 2026-11-23 18:40 | Impl done: 6 commits, validate.sh PASS, report in worktree. Verifier reviews diff vs §5.7/§6.6/FR-15/FR-22/NFR-7 + hard rules |
 | 2 | 7.7 | implement | `fr-7-month-order` | ses_df7355b11ffeKetaDO5nMhLnvU | 2026-11-23 18:05 | Month-sort fix + PhotoKit-vs-fake contract suite (month/All order, id resolution, type filtering) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
