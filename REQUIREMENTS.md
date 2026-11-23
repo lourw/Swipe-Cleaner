@@ -83,7 +83,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-19** The progress indicator shows `reviewed / total` for the session.
 - **FR-20** Every decision is saved immediately, so killing the app loses nothing.
 - **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue. A deck that **opens** empty never runs out: the screen shows its §5.8 empty state instead of a summary, and the session row ends immediately — with no decisions and nothing to resume, the session is over as soon as it opened (WP-7.3).
-- **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left shows an inline confirm toast, "This is a favorite — delete anyway?", before it is queued.
+- **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left is asked about before it is queued: a compact confirm card anchored at the bottom of the deck stage above the action bar (§5.7 `FavoriteConfirmCard`), titled "Delete this favorite?" with a supporting line, and **Cancel** and **Delete** actions. The card never covers or resizes the photo, stays until the user acts or the deck moves on, and nothing is pre-selected or auto-accepted (NFR-5): the DELETE is recorded only when **Delete** is tapped. Starting a drag on the pending card while the card is up cancels the confirmation (same as **Cancel**) and records nothing; a completed swipe after that is an ordinary verdict (U3).
 - **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
 
 ### Review and delete
@@ -215,7 +215,8 @@ Other gestures on the card:
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
-| `Toast` | `surfaceRaised`, radius 12. One shared `ToastHost` renders at most one toast per screen, always bottom-anchored (§6.6): on the deck it **overlays** the card's bottom edge directly above the action bar — the card never resizes when a toast appears — elsewhere at the bottom of the screen clear of the Home Indicator. The host owns the 3 s auto-dismiss — except a confirm-style toast (the FR-22 favorite confirm), which stays until the user acts or the deck moves on. Used for "Undone", the favorite confirm, and errors (save failed, share failed, delete failed, restore failed); errors show plain user copy, never raw PhotoKit text. |
+| `Toast` | `surfaceRaised`, radius 12. One shared `ToastHost` renders at most one toast per screen, always bottom-anchored (§6.6): on the deck it **overlays** the card's bottom edge directly above the action bar — the card never resizes when a toast appears — elsewhere at the bottom of the screen clear of the Home Indicator. The host owns the 3 s auto-dismiss — except a confirm-style toast (`autoDismisses = false`), which stays until the user acts or the deck moves on. Used for "Undone" and errors (save failed, share failed, delete failed, restore failed); errors show plain user copy, never raw PhotoKit text. |
+| `FavoriteConfirmCard` (FR-22, WP-8.9) | The favorite-delete confirmation — a compact card, not a toast. Anchored at the bottom of the deck stage directly above the action bar (the deck toast's anchor), overlaying it so the photo being confirmed never resizes. `surfaceRaised`, sheet radius, `m` padding: title `headline` and one supporting line `callout textSecondary`, both centered. Buttons side by side at equal width with a hairline between, each a ≥ 44 dp target (§5.5): **Cancel** left in `accent` (the secondary text style), **Delete** right — the only element in the card wearing the `delete` verdict color. Nothing pre-selected, nothing auto-dismisses (NFR-5). VoiceOver: the title is announced as the card appears (assertive live region), and the buttons read "Cancel, keep this photo" / "Delete favorite" (NFR-8). Entrance fade 150 ms, skipped under Reduce Motion. |
 
 ### 5.8 Screens
 
@@ -284,6 +285,24 @@ never changes the album's own row count or what tapping the row opens.
 │ └──────────────────────────┘ │
 │  ──●──────────── 0:12        │  video scrubber (videos only)
 │ ↶     ( ✕ )  (↑)  ( ✓ )    ⇪ │  ActionBar: undo, delete, skip, keep, share (FR-32)
+└──────────────────────────────┘
+```
+
+**Swipe — favorite confirm (FR-22)**: swiping a favorite left flies the card out and back,
+then `FavoriteConfirmCard` rides the deck stage above the action bar. The photo stays
+exactly as it was — the card overlays, it never resizes — and a fresh drag on the card
+cancels the confirmation (§5.7).
+
+```
+┌──────────────────────────────┐
+│        [ media ]             │  the pending card, returned to rest
+│  ┌────────────────────────┐  │
+│  │  Delete this favorite? │  │  title, headline, centered
+│  │ Queues it with the     │  │  supporting line, callout
+│  │ items waiting to be…   │  │
+│  │   Cancel  │   Delete   │  │  equal cells ≥ 44 dp; Delete in `delete`
+│  └────────────────────────┘  │  FavoriteConfirmCard, surfaceRaised
+│ ↶     ( ✕ )  (↑)  ( ✓ )    ⇪ │  ActionBar
 └──────────────────────────────┘
 ```
 
@@ -561,9 +580,12 @@ release time, so the flight's commit names the card that was on screen when the 
 lifted. `ConfirmFavoriteDelete(id)` additionally requires `id == pendingFavoriteDelete`.
 
 `ToastMessage` variants: `SaveFailed` (NFR-7, the decision write failed and the card
-reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22, "delete anyway?" — while it is up
-`pendingFavoriteDelete` holds the id, and `ConfirmFavoriteDelete(id)` records the DELETE
-that the first tap refused to record), `StartFailed` (the session could not be opened or
+reverted), `Undone` (FR-15), `FavoriteConfirm` (FR-22 — the deck renders it as the §5.7
+`FavoriteConfirmCard`, not a toast (WP-8.9): while it is up `pendingFavoriteDelete` holds
+the id, and `ConfirmFavoriteDelete(id)` records the DELETE that the first tap refused to
+record; starting a drag on the pending card is the U3 cancel — it clears the confirm
+through `DismissToast` and records nothing, and a swipe completed after it is an ordinary
+verdict), `StartFailed` (the session could not be opened or
 resumed; the screen stays empty instead of crashing), and `ShareFailed` (FR-32, the
 current item's media could not be loaded for the share sheet).
 
@@ -576,7 +598,12 @@ is pure presentation and holds no dismissal state of its own. Each screen keeps 
 value in exactly one place — the deck shows `SwipeUiState.toast` and dismisses through
 `SwipeIntent.DismissToast`; the Queue and Settings screens fold their one-shot `Channel`
 events into a single nullable `ToastSpec` UI state and clear it on dismiss. A confirm-style
-`ToastSpec` (`autoDismisses = false`) stays until its owner removes it. Error toasts show
+`ToastSpec` (`autoDismisses = false`) stays until its owner removes it. The FR-22 favorite
+confirm is not a toast (WP-8.9): with `toast == FavoriteConfirm` and a non-null
+`pendingFavoriteDelete` the deck renders the §5.7 `FavoriteConfirmCard` at the same anchor
+— **Cancel** sends `DismissToast` (records nothing) and **Delete** sends
+`ConfirmFavoriteDelete(id)` — and the card stays until the user acts, an Undo closes it,
+or any deck move clears it. Error toasts show
 plain user copy — PhotoKit's own text (e.g. `QueueEvent.ShowDeleteError.message`) stays
 diagnostic and is never shown.
 
