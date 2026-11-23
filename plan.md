@@ -460,8 +460,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.10 | verify | `fr-37-shuffle-album-exclusions` | ses_df84bbfa2ffew4ffXMjnqieKLx | 2026-11-23 | Impl done (ses_df8a711…, 6 commits, rebased onto main, validate.sh PASSED at 43fb66b). Verifier briefed on extra scrutiny: predecessor crash + "lost fixes" incident; implementer never filed §0 report |
-| 2 | 7.6 | verify | `fr-26-partial-delete` | ses_df80dfbd0ffebcm35T5I2RAa74 | 2026-11-23 | Impl done (ses_df87911…, 2 commits ffa6c9f+3c93090, validate.sh --full PASSED, full §0 report). Verifier scrutinizing zero-resolvable short-circuit |
+| 1 | 8.12 | implement | `fr-5-count-flicker` | ses_df7eae382ffefi53a0HCyfPg2O | 2026-11-23 | Retry: first session (ses_df7f3973…) died with zero output. Priority 5; builds SourceCountsUseCase on DeckMembership |
+| 2 | 7.4 | audit | `fr-13-decision-audit` | ses_df7f09799ffeT3rNF8r5QRPOJ6 | 2026-11-23 | Retry: first session (ses_df7f828f…) died with zero output. Report-only; base 6a534c1 (pre-8.10, audit areas untouched by it) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -476,20 +476,20 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.3 | Fresh empty deck session | merged | `fr-21-empty-deck-session` | Empty deck at open: show empty state, end row, no summary |
 | 7.4 | Decision and delete audit | queued | | Priority 4; report-only; 👤 ask the friend for session details |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
-| 7.6 | Partial delete marked as full | verifying | `fr-26-partial-delete` | Priority 3; before 8.3; impl done 2026-11-23, 2 commits, validate.sh --full passed; 👤 Limited-access device check after merge |
+| 7.6 | Partial delete marked as full | merged | `fr-26-partial-delete` | Verified PASS 2026-11-23; 2 review nits fixed pre-merge. 👤 device check (Limited access): queue one in-selection + one removed-from-selection photo, delete → "1 deleted, 1 couldn't be found", second stays queued. Risk filed to 7.4/8.3: nil fetch-error in the zero-fetch short-circuit |
 | 7.7 | Month order and PhotoKit contract tests | queued | | |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
-| 8.3 | Fix empty Bursts deck | queued | | Priority 7; after 7.6; also the Home Bursts count and a deck loading state |
+| 8.3 | Fix empty Bursts deck | queued | | Priority 7; after 7.6; also the Home Bursts count and a deck loading state. From 7.6 verify: also fix the nil-error `fetchAssetsWithLocalIdentifiers` short-circuit in `PhotoKitMediaLibrary.delete` (total transient fetch failure marks the batch DELETED) |
 | 8.4 | Storage freed (nice to have) | queued | | Earlier attempt discarded 2026-11-19 (branch tip was 4b047c1). Its review flagged a KVC crash guard, a stale-estimate race, and batching |
 | 8.5 | Duplicate set label | queued | | |
 | 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
-| 8.10 | Exclude albums from Shuffle | verifying | `fr-37-shuffle-album-exclusions` | Priority 1; impl done 2026-11-23 (6 commits incl. prerequisites: DeckMembership, stable shuffle key, session-row decode recovery); validate.sh passed; §0 report missing — verifier covering spec completeness |
+| 8.10 | Exclude albums from Shuffle | merged | `fr-37-shuffle-album-exclusions` | Priority 1; verified PASS 2026-11-23; merged after clean rebase onto 7.6 + combined `--full` pass. Verify nits filed: mid-session guarantee untested + duplicate homeViewModel test helper → 9.x cleanup; §5.8 Albums wireframe → 👤 may want one |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
-| 8.12 | Home count flicker and correctness | queued | | Priority 5; after 8.10 |
+| 8.12 | Home count flicker and correctness | implementing | `fr-5-count-flicker` | Priority 5; after 8.10 (merged); builds SourceCountsUseCase on DeckMembership |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
