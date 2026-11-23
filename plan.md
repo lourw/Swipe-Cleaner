@@ -460,8 +460,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.12 | verify | `fr-5-count-flicker` | ses_df7613dcfffejC0zaP6m6j43me | 2026-11-23 | Impl done (ses_df7eae38…, 2 commits, 404 tests green, full report). Deferred: smartCounts removal, albumRows unrendered → note for 9.x |
-| 2 | 9.3 | implement | `arch-toast-host` | ses_df7863705ffeR7JE3Er21F3Cxl | 2026-11-23 | Priority 6; before 8.9; coordinated vs running 8.12 (no file overlap) |
+| 1 | 9.3 | implement | `arch-toast-host` | ses_348995e8dffegvV8B4D5uZa7Ej | 2026-11-23 17:25 | Relaunch (earlier 9.3 sessions died stale). Worktree from 3579d75; first commit 8f8d1de |
+| 2 | 7.7 | implement | `fr-7-month-order` | ses_df7355b11ffeKetaDO5nMhLnvU | 2026-11-23 18:05 | Month-sort fix + PhotoKit-vs-fake contract suite (month/All order, id resolution, type filtering) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -477,7 +477,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 7.4 | Decision and delete audit | merged | `fr-13-decision-audit` | Verified PASS; report at docs/audits/2026-11-decision-audit.md; 11 regression tests. Follow-ups: R1 fetch-error fix → noted on 8.3; U3 toast modality → 8.9; U4 undo fly-off → 9.2; U1/U2 diagonal-drag geometry → 👤 only after friend confirms his swipe style |
 | 7.5 | Bind decisions to the card on screen | merged | `fr-13-decision-card-binding` | Verified PASS 2026-11-23 (validate.sh + fresh 370-test run). Follow-up nit filed to 9.2: Undo tapped during the 220 ms fly-off silently drops that swipe (no corruption; card is re-presented) |
 | 7.6 | Partial delete marked as full | merged | `fr-26-partial-delete` | Verified PASS 2026-11-23; 2 review nits fixed pre-merge. 👤 device check (Limited access): queue one in-selection + one removed-from-selection photo, delete → "1 deleted, 1 couldn't be found", second stays queued. Risk filed to 7.4/8.3: nil fetch-error in the zero-fetch short-circuit |
-| 7.7 | Month order and PhotoKit contract tests | queued | | |
+| 7.7 | Month order and PhotoKit contract tests | implementing | `fr-7-month-order` | Priority 3; fix `PhotoKitSourceFetches.kt` month path (drops sort options); contract suite vs fake + real PhotoKit; burst/partial-delete slots deferred to 8.3/8.7 |
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
 | 8.3 | Fix empty Bursts deck | queued | | Priority 7; after 7.6; also the Home Bursts count and a deck loading state. From 7.6 verify: also fix the nil-error `fetchAssetsWithLocalIdentifiers` short-circuit in `PhotoKitMediaLibrary.delete` (total transient fetch failure marks the batch DELETED) |
@@ -489,7 +489,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.9 | Favorite confirmation redesign | queued | | Priority 6; after 9.3; 👤 user test after merge |
 | 8.10 | Exclude albums from Shuffle | merged | `fr-37-shuffle-album-exclusions` | Priority 1; verified PASS 2026-11-23; merged after clean rebase onto 7.6 + combined `--full` pass. Verify nits filed: mid-session guarantee untested + duplicate homeViewModel test helper → 9.x cleanup; §5.8 Albums wireframe → 👤 may want one |
 | 8.11 | Hide button | queued | | After 9.1 and 9.2 |
-| 8.12 | Home count flicker and correctness | verifying | `fr-5-count-flicker` | Priority 5; impl done 2026-11-23 (SourceCountsUseCase, By-month subtraction bug fixed, LoadSourcesUseCase deleted); deferred: smartCounts removal + albumRows render → 9.x cleanup; 👤 simulator quick-switch check after merge |
+| 8.12 | Home count flicker and correctness | merged | `fr-5-count-flicker` | Priority 5; verified PASS 2026-11-23 (404 tests, every count path traced); merged at c727a6f with doc fixups. SourceCountsUseCase is the single count path, LoadSourcesUseCase deleted. Deferred: smartCounts removal + albumRows render → 9.9; 👤 simulator quick-switch check after merge |
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 9.1 | MediaDeleter split | queued | | Before 8.11 |
 | 9.2 | Slim SwipeViewModel, tidy sessions | queued | | After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off rewinds the deck and that swipe is silently dropped (`SwipeViewModel.kt` undo guard only covers in-flight writes) — consider ignoring Undo until the commit lands |
