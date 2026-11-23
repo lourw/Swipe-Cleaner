@@ -65,6 +65,12 @@ import kotlinx.coroutines.flow.Flow
  * [ToastHost] (§6.7, WP-9.3 — plain retry copy on screen, the raw PhotoKit
  * message stays diagnostic). Thumbnails request their tile-sized target
  * through [mediaLoader], never the full-screen LRU (NFR-3, §6.8).
+ *
+ * While the viewer is open the screen is **modal** (WP-9.5): the grid
+ * column rides `clearAndSetSemantics`, so the grid, the header, and the
+ * delete CTA reach neither touches (the viewer consumes them) nor
+ * VoiceOver. The CTA and the confirm title pluralize the count
+ * ("Delete 1 item" / "Delete N items", §5.8).
  */
 @Composable
 fun QueueScreen(

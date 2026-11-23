@@ -8,9 +8,12 @@
 package dev.swipe.ui.screens.queue
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.filter
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -35,6 +38,8 @@ import dev.swipe.presentation.queue.QueueTile
 import dev.swipe.presentation.queue.QueueUiState
 import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.ui.assertAllClickablesLabeled
+import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
+import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +63,12 @@ import kotlin.time.Instant
  * navigation, and the empty state. The NFR-5 tests wire the real
  * [QueueViewModel] to the screen over the fakes, so "does not delete" is
  * asserted on [FakeMediaLibrary.deleteCalls] and the store itself.
+ *
+ * The WP-9.5 cases keep the viewer safe to use: taps on its body are
+ * consumed (they can no longer open a different item through the grid),
+ * the grid and the delete CTA leave the semantics tree while it is open,
+ * video items play through the [dev.swipe.ui.components.media.VideoPlayerSlot]
+ * seam instead of a still, and the delete count pluralizes.
  */
 class QueueScreenTest {
     @AfterTest
@@ -134,6 +145,118 @@ class QueueScreenTest {
             onNodeWithContentDescription("Close").performClick()
             waitForIdle()
             assertEquals(listOf<QueueIntent>(QueueIntent.Close), intents)
+        }
+
+    @Test
+    fun `FR-24 viewer body tap is consumed and cannot change the open item`() =
+        runComposeUiTest {
+            val intents = mutableListOf<QueueIntent>()
+            setContent { TestScreen(queueState(3).copy(selected = "asset-2"), onIntent = { intents.add(it) }) }
+            waitForIdle()
+            // While the viewer is up its image is the only "Queued item"
+            // left in the semantics tree — the grid's own nodes are gone
+            // (WP-9.5), so there is exactly one body to tap.
+            assertEquals(1, onAllNodesWithContentDescription("Queued item").fetchSemanticsNodes().size)
+            // Tapping the photo (which sits over grid tiles that would open
+            // other items) goes nowhere: no Open, no Restore, nothing.
+            onAllNodesWithContentDescription("Queued item")[0].performClick()
+            waitForIdle()
+            assertEquals(emptyList(), intents)
+        }
+
+    @Test
+    fun `FR-24 grid and delete CTA are unreachable while the viewer is open`() =
+        runComposeUiTest {
+            setContent { TestScreen(queueState(3).copy(selected = "asset-2")) }
+            waitForIdle()
+            // The grid leaves the semantics tree: no clickable tile carries
+            // its "Queued item" description anymore.
+            assertEquals(
+                0,
+                onAllNodesWithContentDescription("Queued item")
+                    .filter(hasClickAction())
+                    .fetchSemanticsNodes()
+                    .size,
+            )
+            // The delete CTA and the header are behind the viewer, too.
+            onNodeWithContentDescription("Delete 3 items").assertDoesNotExist()
+            onNodeWithText("To delete (3)").assertDoesNotExist()
+            // Only the viewer's own controls remain reachable (NFR-8).
+            onNodeWithContentDescription("Close").assertExists()
+            onNodeWithContentDescription("Restore").assertExists()
+        }
+
+    @Test
+    fun `FR-24 viewer plays a video item instead of a still`() =
+        runComposeUiTest {
+            val slot = RecordingSlot()
+            val loader = FakeMediaLoader()
+            val tiles =
+                listOf(
+                    QueueTile("asset-1", MediaType.PHOTO, null, null),
+                    QueueTile("asset-2", MediaType.VIDEO, null, 32_000L),
+                )
+            setContent {
+                TestScreen(
+                    QueueUiState(items = listOf("asset-1", "asset-2"), tiles = tiles, selected = "asset-2"),
+                    mediaLoader = loader,
+                    videoSlot = slot.composable,
+                )
+            }
+            waitForIdle()
+            // The queued video plays muted, like FR-16, so it can be checked
+            // before the batch delete.
+            assertEquals("asset-2", slot.lastId)
+            assertEquals(true, slot.lastPlaying)
+            assertEquals(true, slot.lastMuted)
+            assertEquals(false, slot.lastLivePhoto)
+            assertEquals(listOf("asset-2:video"), slot.active)
+            // And it skips the full-screen still decode (NFR-3): no
+            // FULL_TARGET_PX request was ever made for it.
+            assertEquals(
+                emptyList(),
+                loader.imageRequests.filter {
+                    it.first == "asset-2" && it.second == MediaLoader.FULL_TARGET_PX
+                },
+            )
+        }
+
+    @Test
+    fun `FR-24 viewer keeps photos as stills and mounts no player`() =
+        runComposeUiTest {
+            val slot = RecordingSlot()
+            val tiles = listOf(QueueTile("asset-1", MediaType.PHOTO, null, null))
+            setContent {
+                TestScreen(
+                    QueueUiState(items = listOf("asset-1"), tiles = tiles, selected = "asset-1"),
+                    videoSlot = slot.composable,
+                )
+            }
+            waitForIdle()
+            assertEquals(0, slot.invocations)
+            // The still decodes at the full-screen target as before (NFR-3).
+            onNodeWithContentDescription("photo").assertExists()
+        }
+
+    @Test
+    fun `FR-25 delete CTA pluralizes the count`() =
+        runComposeUiTest {
+            setContent { TestScreen(queueState(1)) }
+            onNodeWithContentDescription("Delete 1 item").assertExists()
+            onNodeWithContentDescription("Delete 1 items").assertDoesNotExist()
+            onNodeWithText("Delete 1 items").assertDoesNotExist()
+        }
+
+    @Test
+    fun `FR-25 confirm dialog title pluralizes the count`() =
+        runComposeUiTest {
+            val f = ScreenFixture(1)
+            setContent { TestScreen(f.viewModel) }
+            waitForIdle()
+            onNodeWithContentDescription("Delete 1 item").performClick()
+            waitForIdle()
+            onNodeWithText("Delete 1 item?").assertExists()
+            onNodeWithText("Delete 1 items?").assertDoesNotExist()
         }
 
     @Test
@@ -325,6 +448,7 @@ class QueueScreenTest {
         onBack: () -> Unit = {},
         onBackHome: () -> Unit = {},
         onShowDeleteSuccess: (Int, Int) -> Unit = { _, _ -> },
+        videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
     ) {
         SwipeTheme {
             QueueScreen(
@@ -335,8 +459,39 @@ class QueueScreenTest {
                 onBack = onBack,
                 onBackHome = onBackHome,
                 onShowDeleteSuccess = onShowDeleteSuccess,
+                videoSlot = videoSlot,
             )
         }
+    }
+
+    /**
+     * Records every [VideoPlayerSlot] composition and mount/unmount cycle
+     * (the fake from `SwipeScreenVideoTest` — the real `actual` needs the
+     * Koin-resolved cache, so the slot is the seam).
+     */
+    private class RecordingSlot {
+        var invocations = 0
+        var lastId: String? = null
+        var lastMuted: Boolean? = null
+        var lastPlaying: Boolean? = null
+        var lastLivePhoto: Boolean? = null
+
+        /** Keys of the players currently in composition (`id:video` / `id:live`). */
+        val active = mutableListOf<String>()
+
+        val composable: VideoPlayerSlot =
+            { id, muted, playing, _, modifier, livePhoto, _ ->
+                invocations++
+                lastId = id
+                lastMuted = muted
+                lastPlaying = playing
+                lastLivePhoto = livePhoto
+                val key = "$id:${if (livePhoto) "live" else "video"}"
+                DisposableEffect(key) {
+                    active += key
+                    onDispose { active -= key }
+                }
+            }
     }
 
     /**
