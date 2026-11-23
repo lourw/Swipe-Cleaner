@@ -415,6 +415,76 @@ class SwipeScreenTest {
             assertEquals(2, loader.imageRequests.size)
         }
 
+    @Test
+    fun `FR-15 the card keeps its exact size when a toast appears`() =
+        runComposeUiTest {
+            val state = MutableStateFlow(deckState())
+            setContent {
+                SwipeTheme {
+                    SwipeScreen(
+                        state = state.collectAsState().value,
+                        events = flowOf(),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        haptics = FakeHaptics(),
+                        reduceMotion = false,
+                        onClose = {},
+                        onOpenQueue = {},
+                    )
+                }
+            }
+            waitForIdle()
+            val before = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().boundsInWindow
+            // WP-9.3: the toast overlays the card instead of taking a row of
+            // the deck column, so the "Undone" toast never shrinks the card
+            // mid-animation (the bug it used to cause was visible on device).
+            state.value = state.value.copy(toast = ToastMessage.Undone)
+            waitForIdle()
+            val after = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().boundsInWindow
+            assertEquals(before, after)
+        }
+
+    @Test
+    fun `FR-16 the card keeps its exact size across photo and video cards`() =
+        runComposeUiTest {
+            val state = MutableStateFlow(deckState())
+            setContent {
+                SwipeTheme {
+                    SwipeScreen(
+                        state = state.collectAsState().value,
+                        events = flowOf(),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        haptics = FakeHaptics(),
+                        reduceMotion = false,
+                        onClose = {},
+                        onOpenQueue = {},
+                        // The iOS VideoPlayer `actual` needs the Koin cache,
+                        // which no UI test runs (see VideoPlayerSlot.kt).
+                        videoSlot = { _, _, _, _, _, _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+            val photo = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().boundsInWindow
+            // WP-9.3: the scrubber row's height is reserved on every card, so
+            // a video card swapping in for a photo card never resizes it.
+            state.value =
+                state.value.copy(
+                    current =
+                        CardState(
+                            id = "current-id",
+                            type = MediaType.VIDEO,
+                            createdAt = null,
+                            durationMs = 8_000L,
+                            isFavorite = false,
+                        ),
+                )
+            waitForIdle()
+            val video = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().boundsInWindow
+            assertEquals(photo, video)
+        }
+
     /**
      * The assembled screen under the theme, with inert defaults for the
      * container-only wiring (the events flow, media loader, and callbacks):

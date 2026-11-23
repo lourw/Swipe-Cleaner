@@ -2,11 +2,11 @@ package dev.swipe.ui.screens.swipe
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -28,16 +28,16 @@ import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
-import dev.swipe.ui.components.DEFAULT_AUTO_DISMISS
-import dev.swipe.ui.components.NEVER_AUTO_DISMISS
 import dev.swipe.ui.components.SwipeIcons
-import dev.swipe.ui.components.Toast
+import dev.swipe.ui.components.ToastHost
+import dev.swipe.ui.components.ToastSpec
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.SeekTarget
 import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
 import dev.swipe.ui.components.swipe.rememberSwipeCardState
+import dev.swipe.ui.components.toastHostPlacement
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -57,7 +57,7 @@ internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
 
 /**
  * The Swipe screen (§5.8, WP-2.3): [TopBar] over the deck over the [ActionBar]
- * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the [Toast] slot
+ * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the [ToastHost]
  * above the bar (FR-15 "Undone", FR-22 favorite confirm, NFR-7 revert).
  *
  * Stateless by convention (AGENTS.md): one [SwipeUiState] plus the ViewModel's
@@ -107,8 +107,6 @@ fun SwipeScreen(
     autoplayVideos: Boolean = true,
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
-    val spacing = SwipeTheme.spacing
-
     Column(
         modifier =
             modifier
@@ -130,17 +128,16 @@ fun SwipeScreen(
                     )
                     // A start failure (or the counts-unavailable finish,
                     // WP-2.2) still surfaces here: the empty state carries no
-                    // action bar, so the §5.7 slot rides the bottom edge.
+                    // action bar, so the §5.7 host rides the bottom edge.
                     state.toast?.let { message ->
-                        ToastSlot(
-                            message = message,
-                            onIntent = onIntent,
+                        ToastHost(
+                            toast = ToastSpec(text = toastText(message)),
+                            onDismiss = { onIntent(SwipeIntent.DismissToast) },
                             modifier =
                                 Modifier
                                     .align(Alignment.BottomCenter)
                                     // Safe area (WP-6.4): clear the Home Indicator.
-                                    .navigationBarsPadding()
-                                    .padding(horizontal = spacing.gutter, vertical = spacing.s),
+                                    .toastHostPlacement(),
                         )
                     }
                 }
@@ -166,35 +163,25 @@ fun SwipeScreen(
 }
 
 /**
- * The §5.7 [Toast] for the current [ToastMessage]: the FR-22 favorite confirm
- * carries the warning-tinted heart and its "Delete" action — bound to the
- * pending card [favoriteId] (FR-13, FR-22) — every other message rides
- * alone; all of them dismiss through [SwipeIntent.DismissToast].
+ * The §5.7 [ToastSpec] for the current [ToastMessage]: the FR-22 favorite
+ * confirm carries the warning-tinted heart and its "Delete" action — bound
+ * to the pending card [favoriteId] (FR-13, FR-22) — every other message
+ * rides alone; all of them dismiss through [SwipeIntent.DismissToast].
  */
 @Composable
-private fun ToastSlot(
+private fun toastSpec(
     message: ToastMessage,
-    onIntent: (SwipeIntent) -> Unit,
-    modifier: Modifier = Modifier,
-    favoriteId: String? = null,
-) {
+    favoriteId: String?,
+): ToastSpec {
     val confirm = message == ToastMessage.FavoriteConfirm && favoriteId != null
-    Toast(
+    return ToastSpec(
         text = toastText(message),
         icon = if (confirm) SwipeIcons.FAVORITE else null,
-        iconTint = SwipeTheme.colors.warning,
+        iconTint = if (confirm) SwipeTheme.colors.warning else null,
         // §5.7: a confirm-style toast stays until the user acts or the deck
         // moves on; a 3 s fuse would silently cancel the confirmation window.
-        autoDismissDelay = if (confirm) NEVER_AUTO_DISMISS else DEFAULT_AUTO_DISMISS,
+        autoDismisses = !confirm,
         actionLabel = if (confirm) "Delete" else null,
-        onAction =
-            if (confirm) {
-                { onIntent(SwipeIntent.ConfirmFavoriteDelete(favoriteId)) }
-            } else {
-                null
-            },
-        onDismiss = { onIntent(SwipeIntent.DismissToast) },
-        modifier = modifier,
     )
 }
 
@@ -268,33 +255,54 @@ private fun DeckContent(
             visible = chromeVisible,
         )
         state.current?.let { current ->
-            DeckStage(
-                current = current,
-                state = state,
-                cardState = cardState,
-                mediaLoader = mediaLoader,
-                latency = latency,
-                haptics = haptics,
-                reduceMotion = reduceMotion,
-                chromeVisible = chromeVisible,
-                fillMode = fillMode,
-                autoplayVideos = autoplayVideos,
-                onIntent = onIntent,
-                onDismiss = commit,
-                onButtonCommit = buttonCommit,
-                onToggleChrome = { chromeVisible = !chromeVisible },
-                onToggleFill = { fillMode = !fillMode },
-                videoSlot = videoSlot,
-            )
-        }
-        // §5.7 Toast slot: above the action bar (FR-15, FR-22, NFR-7).
-        state.toast?.let { message ->
-            ToastSlot(
-                message = message,
-                onIntent = onIntent,
-                favoriteId = state.pendingFavoriteDelete,
-                modifier = Modifier.padding(horizontal = SwipeTheme.spacing.gutter),
-            )
+            // WP-9.3: the stage Box is the toast's anchor — its bottom edge
+            // is the action bar's top edge — so the §5.7 toast overlays the
+            // card instead of resizing it (the "Undone" toast used to shrink
+            // the card mid-undo-return-animation).
+            Box(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+            ) {
+                DeckStage(
+                    current = current,
+                    state = state,
+                    cardState = cardState,
+                    mediaLoader = mediaLoader,
+                    latency = latency,
+                    haptics = haptics,
+                    reduceMotion = reduceMotion,
+                    chromeVisible = chromeVisible,
+                    fillMode = fillMode,
+                    autoplayVideos = autoplayVideos,
+                    onIntent = onIntent,
+                    onDismiss = commit,
+                    onButtonCommit = buttonCommit,
+                    onToggleChrome = { chromeVisible = !chromeVisible },
+                    onToggleFill = { fillMode = !fillMode },
+                    videoSlot = videoSlot,
+                )
+                // §5.7 Toast host: overlaid above the action bar (FR-15,
+                // FR-22, NFR-7); the card's size never depends on it.
+                state.toast?.let { message ->
+                    ToastHost(
+                        toast = toastSpec(message, state.pendingFavoriteDelete),
+                        onDismiss = { onIntent(SwipeIntent.DismissToast) },
+                        onAction = {
+                            // FR-13: the confirm names the pending card.
+                            val pending = state.pendingFavoriteDelete
+                            if (pending != null) onIntent(SwipeIntent.ConfirmFavoriteDelete(pending))
+                        },
+                        modifier =
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                // The action bar below clears the Home
+                                // Indicator itself, so the toast doesn't.
+                                .toastHostPlacement(clearHomeIndicator = false),
+                    )
+                }
+            }
         }
         ActionBar(
             canUndo = state.canUndo,
@@ -353,10 +361,12 @@ private class DeckVideoState {
 /**
  * The current card and its scrubber: the [CardStack] plus the FR-16 scrubber
  * below it in the action-bar area — videos only, so §5.6 keeps card drags and
- * scrubber drags disjoint.
+ * scrubber drags disjoint. The scrubber **row's height is reserved on every
+ * card** (WP-9.3): a photo card owns the same slot as a video's scrubber, so
+ * switching card types never resizes the card.
  */
 @Composable
-private fun ColumnScope.DeckStage(
+private fun BoxScope.DeckStage(
     current: CardState,
     state: SwipeUiState,
     cardState: SwipeCardState,
@@ -376,41 +386,53 @@ private fun ColumnScope.DeckStage(
 ) {
     // All video state is per-card (kept fresh by the current id's key).
     val video = remember(current.id) { DeckVideoState() }
-    CardStack(
-        card = current,
-        next = state.next,
-        cardState = cardState,
-        mediaLoader = mediaLoader,
-        latency = latency,
-        reduceMotion = reduceMotion,
-        chromeVisible = chromeVisible,
-        fillMode = fillMode,
-        autoplayVideos = autoplayVideos,
-        videoStarted = video.started,
-        muted = state.muted,
-        livePress = video.livePress,
-        seekTarget = video.seekTarget,
-        onDismiss = onDismiss,
-        onButtonCommit = onButtonCommit,
-        canUndo = state.canUndo,
-        onUndo = { onIntent(SwipeIntent.Undo) },
-        onToggleChrome = onToggleChrome,
-        onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
-        onToggleFill = onToggleFill,
-        onThresholdCrossed = { haptics.selection() },
-        onVideoStart = { video.started = true },
-        onVideoProgress = video::onProgress,
-        onLivePressStart = { video.livePress = true },
-        onPressUp = { video.livePress = false },
-        videoSlot = videoSlot,
-    )
-    if (current.type == MediaType.VIDEO) {
-        VideoScrubber(
-            durationMs = current.durationMs ?: 0L,
-            fraction = video.visibleFraction,
-            onScrub = video::onScrub,
-            onScrubEnd = video::onScrubEnd,
+    Column(modifier = Modifier.fillMaxSize()) {
+        CardStack(
+            card = current,
+            next = state.next,
+            cardState = cardState,
+            mediaLoader = mediaLoader,
+            latency = latency,
+            reduceMotion = reduceMotion,
+            chromeVisible = chromeVisible,
+            fillMode = fillMode,
+            autoplayVideos = autoplayVideos,
+            videoStarted = video.started,
+            muted = state.muted,
+            livePress = video.livePress,
+            seekTarget = video.seekTarget,
+            onDismiss = onDismiss,
+            onButtonCommit = onButtonCommit,
+            canUndo = state.canUndo,
+            onUndo = { onIntent(SwipeIntent.Undo) },
+            onToggleChrome = onToggleChrome,
+            onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
+            onToggleFill = onToggleFill,
+            onThresholdCrossed = { haptics.selection() },
+            onVideoStart = { video.started = true },
+            onVideoProgress = video::onProgress,
+            onLivePressStart = { video.livePress = true },
+            onPressUp = { video.livePress = false },
+            videoSlot = videoSlot,
         )
+        // WP-9.3: the scrubber row's height is reserved on every card, so
+        // switching a photo card for a video card (or back) never resizes
+        // the card; only the scrubber itself appears for videos.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(SwipeTheme.componentSizes.videoScrubberTouchHeight),
+        ) {
+            if (current.type == MediaType.VIDEO) {
+                VideoScrubber(
+                    durationMs = current.durationMs ?: 0L,
+                    fraction = video.visibleFraction,
+                    onScrub = video::onScrub,
+                    onScrubEnd = video::onScrubEnd,
+                )
+            }
+        }
     }
 }
 
