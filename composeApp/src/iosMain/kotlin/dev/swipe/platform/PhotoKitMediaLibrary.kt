@@ -252,15 +252,20 @@ class PhotoKitMediaLibrary(
      * identifier, then run the PhotoKit change request behind the iOS system dialog
      * with `performChanges { deleteAssets }`, bridged by [suspendCancellableCoroutine]
      * — the completion handler answers on a PhotoKit queue. The `NSError` it carries
-     * decides the outcome through [photoKitDeleteResult]: success → `Deleted`,
+     * decides the outcome through [photoKitDeleteResult]: success → `Deleted(ids)`
+     * carrying the **resolved** ids — the ones this call could actually delete —
      * `PHPhotosErrorUserCancelled` (3072) → `Cancelled` (FR-27, silent), anything else
      * → `Failed(localizedDescription)`.
      *
-     * **Zero fetched assets answer [DeleteResult.Deleted] without a change request** —
-     * no iOS dialog for a batch with nothing to delete (§6.8). That is also the
-     * convergence path for a retried commit whose PhotoKit delete succeeded but whose
-     * `markDeleted` store write failed: the second run finds nothing left to delete,
-     * stays dialog-free, and lets `CommitDeletionsUseCase` mark the rows DELETED.
+     * **Ids PhotoKit cannot fetch are not deleted and not reported** (FR-26, WP-7.6):
+     * a burst frame, or an asset outside a Limited selection, stays queued while the
+     * resolvable part of the batch goes through. Only when the whole batch fetches
+     * zero assets does [DeleteResult.Deleted] answer without a change request,
+     * carrying **every requested id** as gone — no iOS dialog for nothing to delete,
+     * and the convergence path for a retried commit whose PhotoKit delete succeeded
+     * but whose `markDeleted` store write failed: the second run finds nothing left
+     * to delete, stays dialog-free, and lets [dev.swipe.domain.usecase.CommitDeletionsUseCase]
+     * mark the rows DELETED (§6.8).
      */
     override suspend fun delete(ids: List<String>): DeleteResult =
         withContext(fetchDispatcher) {
@@ -268,7 +273,13 @@ class PhotoKitMediaLibrary(
             PHAsset.fetchAssetsWithLocalIdentifiers(ids, null).enumerateObjectsUsingBlock { asset, _, _ ->
                 (asset as? PHAsset)?.let(assets::add)
             }
-            if (assets.isEmpty()) return@withContext DeleteResult.Deleted
+            // The ids this call can delete; the rest of the batch stays queued (FR-26).
+            val resolved = assets.mapTo(mutableSetOf()) { it.localIdentifier }
+            if (assets.isEmpty()) {
+                // Nothing to delete: no change request, and the whole batch is
+                // treated as already gone — §6.8's retry-convergence path.
+                return@withContext DeleteResult.Deleted(ids.toSet())
+            }
             val assetsToRemove = NSArray.create(array = assets)
             suspendCancellableCoroutine<DeleteResult> { continuation ->
                 PHPhotoLibrary.sharedPhotoLibrary().performChanges(
@@ -278,6 +289,7 @@ class PhotoKitMediaLibrary(
                     completionHandler = { success, error ->
                         continuation.resume(
                             photoKitDeleteResult(
+                                deletedIds = resolved,
                                 success = success,
                                 errorDomain = error?.domain,
                                 errorCode = error?.code,

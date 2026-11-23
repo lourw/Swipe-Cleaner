@@ -74,7 +74,8 @@ fun photoKitLibraryAccess(status: Int): LibraryAccess =
 /**
  * The PhotoKit change-request completion handler's outcome → [DeleteResult]
  * (FR-25–27, §6.7):
- * success → [DeleteResult.Deleted]; the error PhotoKit raises when the user dismisses
+ * success → [DeleteResult.Deleted] carrying [deletedIds] — the ids the change request
+ * could actually resolve (FR-26, WP-7.6); the error PhotoKit raises when the user dismisses
  * the iOS delete dialog — domain [PH_ERROR_DOMAIN] with code 3072,
  * `PHPhotosErrorUserCancelled` — → [DeleteResult.Cancelled], silent per FR-27; anything
  * else → [DeleteResult.Failed] carrying the error's `localizedDescription` so the toast
@@ -82,13 +83,14 @@ fun photoKitLibraryAccess(status: Int): LibraryAccess =
  * which keeps this mapping testable without PhotoKit (§8.2).
  */
 fun photoKitDeleteResult(
+    deletedIds: Set<String>,
     success: Boolean,
     errorDomain: String?,
     errorCode: Long?,
     errorMessage: String?,
 ): DeleteResult =
     when {
-        success -> DeleteResult.Deleted
+        success -> DeleteResult.Deleted(deletedIds)
         errorDomain == PH_ERROR_DOMAIN && errorCode == PH_ERROR_USER_CANCELLED -> DeleteResult.Cancelled
         else -> DeleteResult.Failed(errorMessage ?: DELETE_FAILED_FALLBACK)
     }

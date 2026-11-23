@@ -183,8 +183,10 @@ class QueueScreenTest {
     fun `FR-25 dialog Delete commits the whole queue in one call`() =
         runComposeUiTest {
             val f = ScreenFixture(3)
-            val successes = mutableListOf<Int>()
-            setContent { TestScreen(f.viewModel, onShowDeleteSuccess = { successes.add(it) }) }
+            val successes = mutableListOf<Pair<Int, Int>>()
+            setContent {
+                TestScreen(f.viewModel, onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) })
+            }
             waitForIdle()
 
             onNodeWithContentDescription("Delete 3 items").performClick()
@@ -199,25 +201,40 @@ class QueueScreenTest {
                     .single()
                     .toSet(),
             )
-            assertEquals(listOf(3), successes)
+            assertEquals(listOf(3 to 0), successes)
             assertEquals(listOf(FakeHaptics.Event.NOTIFICATION_SUCCESS), f.haptics.events)
             // The committed items left the queue: the screen is the empty state.
             onNodeWithText("Nothing left here 🎉").assertExists()
         }
 
     @Test
-    fun `FR-26 success event navigates with the deleted count`() =
+    fun `FR-26 success event navigates with the deleted and not-found counts`() =
         runComposeUiTest {
-            val successes = mutableListOf<Int>()
+            val successes = mutableListOf<Pair<Int, Int>>()
             setContent {
                 TestScreen(
                     queueState(4),
                     events = flowOf(QueueEvent.ShowDeleteSuccess(4)),
-                    onShowDeleteSuccess = { successes.add(it) },
+                    onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) },
                 )
             }
             waitForIdle()
-            assertEquals(listOf(4), successes)
+            assertEquals(listOf(4 to 0), successes)
+        }
+
+    @Test
+    fun `FR-26 partial batch event carries the not-found count through to navigation`() =
+        runComposeUiTest {
+            val successes = mutableListOf<Pair<Int, Int>>()
+            setContent {
+                TestScreen(
+                    queueState(4),
+                    events = flowOf(QueueEvent.ShowDeleteSuccess(2, notFound = 3)),
+                    onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) },
+                )
+            }
+            waitForIdle()
+            assertEquals(listOf(2 to 3), successes)
         }
 
     @Test
@@ -278,7 +295,7 @@ class QueueScreenTest {
         mediaLoader: MediaLoader = FakeMediaLoader(),
         onBack: () -> Unit = {},
         onBackHome: () -> Unit = {},
-        onShowDeleteSuccess: (Int) -> Unit = {},
+        onShowDeleteSuccess: (Int, Int) -> Unit = { _, _ -> },
     ) {
         SwipeTheme {
             QueueScreen(
@@ -349,7 +366,7 @@ class QueueScreenTest {
     @Composable
     private fun TestScreen(
         viewModel: QueueViewModel,
-        onShowDeleteSuccess: (Int) -> Unit = {},
+        onShowDeleteSuccess: (Int, Int) -> Unit = { _, _ -> },
     ) {
         SwipeTheme {
             QueueScreen(

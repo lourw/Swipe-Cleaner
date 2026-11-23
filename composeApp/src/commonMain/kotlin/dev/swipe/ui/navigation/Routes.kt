@@ -64,13 +64,16 @@ data object Queue
 
 /**
  * Success screen after the iOS delete dialog confirms (FR-26, WP-3.3),
- * carrying the committed count. §6.7: a zero-count commit stays quiet —
- * the ViewModel never navigates here with `0` — so the screen always
- * renders a positive number.
+ * carrying the committed counts. §6.7: a zero-count commit stays quiet —
+ * the ViewModel never navigates here unless [deleted] or [notFound] is
+ * positive. [notFound] ids could not be resolved (a burst frame, an asset
+ * outside a Limited selection); they stay queued and the screen says so
+ * ("N deleted, M couldn't be found", WP-7.6).
  */
 @Serializable
 data class DeleteSuccess(
     val deleted: Int,
+    val notFound: Int = 0,
 )
 
 /** Settings (FR-29–31, WP-6.1). */

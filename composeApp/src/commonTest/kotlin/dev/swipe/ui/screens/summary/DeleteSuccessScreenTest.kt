@@ -47,6 +47,32 @@ class DeleteSuccessScreenTest {
         }
 
     @Test
+    fun `FR-26 a partial batch adds the couldn't-be-found line`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    DeleteSuccessScreen(deleted = 2, notFound = 3, onBackHome = {})
+                }
+            }
+            onNodeWithText("2").assertExists()
+            onNodeWithText("Deleted").assertExists()
+            onNodeWithText("3 couldn't be found").assertExists()
+        }
+
+    @Test
+    fun `FR-26 a fully deleted batch shows no couldn't-be-found line`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    DeleteSuccessScreen(deleted = 4, onBackHome = {})
+                }
+            }
+            onNodeWithText("4").assertExists()
+            // The default notFound = 0 keeps the screen exactly as before.
+            onNodeWithText("0 couldn't be found").assertDoesNotExist()
+        }
+
+    @Test
     fun `NFR-8 every screen's clickable nodes have content descriptions`() =
         runComposeUiTest {
             setContent {

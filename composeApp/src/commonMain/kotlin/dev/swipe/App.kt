@@ -215,6 +215,7 @@ private fun NavGraphBuilder.resultDestinations(navController: NavHostController)
         val route = entry.toRoute<DeleteSuccess>()
         DeleteSuccessScreen(
             deleted = route.deleted,
+            notFound = route.notFound,
             onBackHome = { navController.backToHome() },
         )
     }
@@ -360,8 +361,8 @@ private fun QueueContainer(
         mediaLoader = mediaLoader,
         onBack = { navController.navigateUp() },
         onBackHome = { navController.backToHome() },
-        onShowDeleteSuccess = { deleted ->
-            navController.navigate(DeleteSuccess(deleted)) {
+        onShowDeleteSuccess = { deleted, notFound ->
+            navController.navigate(DeleteSuccess(deleted, notFound)) {
                 popUpTo(Queue::class) { inclusive = true }
             }
         },

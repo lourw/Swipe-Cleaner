@@ -9,13 +9,16 @@ package dev.swipe.presentation.queue
 sealed interface QueueEvent {
     /**
      * The batch was deleted (FR-26): navigate to the DeleteSuccess screen, which
-     * shows [count]. Fires together with the `notificationSuccess` haptic (§5.6,
-     * §6.4) and only when [count] is at least 1 — a zero-count commit (the queue
+     * shows [count] deleted and, when nonzero, [notFound] ids that could not be
+     * resolved and stay queued ("N deleted, M couldn't be found", WP-7.6). Fires
+     * together with the `notificationSuccess` haptic (§5.6, §6.4) and only when at
+     * least one of the two counts is at least 1 — a zero-count commit (the queue
      * emptied while the dialog was up) reports success through
      * [QueueUiState.result] alone, with the empty state as the feedback.
      */
     data class ShowDeleteSuccess(
         val count: Int,
+        val notFound: Int = 0,
     ) : QueueEvent
 
     /**

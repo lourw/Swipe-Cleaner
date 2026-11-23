@@ -43,6 +43,7 @@ class PhotoKitMappingTest {
         assertEquals(
             DeleteResult.Cancelled,
             photoKitDeleteResult(
+                deletedIds = setOf("asset-1"),
                 success = false,
                 errorDomain = "PHPhotosErrorDomain",
                 errorCode = 3072L,
@@ -53,6 +54,7 @@ class PhotoKitMappingTest {
         assertEquals(
             DeleteResult.Cancelled,
             photoKitDeleteResult(
+                deletedIds = setOf("asset-1"),
                 success = false,
                 errorDomain = "PHPhotosErrorDomain",
                 errorCode = 3072L,
@@ -62,8 +64,17 @@ class PhotoKitMappingTest {
     }
 
     @Test
-    fun `FR-26 a successful change request maps to Deleted`() {
-        assertEquals(DeleteResult.Deleted, photoKitDeleteResult(true, null, null, null))
+    fun `FR-26 a successful change request maps to Deleted with exactly the resolved ids`() {
+        // The ids are the ones the change request could resolve — success never
+        // widens them back to the full request (WP-7.6).
+        assertEquals(
+            DeleteResult.Deleted(setOf("asset-1", "asset-2")),
+            photoKitDeleteResult(setOf("asset-1", "asset-2"), true, null, null, null),
+        )
+        assertEquals(
+            DeleteResult.Deleted(emptySet()),
+            photoKitDeleteResult(emptySet(), true, null, null, null),
+        )
     }
 
     @Test
@@ -71,6 +82,7 @@ class PhotoKitMappingTest {
         assertEquals(
             DeleteResult.Failed("iCloud sync failed"),
             photoKitDeleteResult(
+                deletedIds = setOf("asset-1"),
                 success = false,
                 errorDomain = "PHPhotosErrorDomain",
                 errorCode = 2001L, // some other PHPhotosError code, not 3072
@@ -80,10 +92,10 @@ class PhotoKitMappingTest {
         // A same-code error from a different domain is a failure, not a cancel.
         assertEquals(
             DeleteResult.Failed("disk full"),
-            photoKitDeleteResult(false, "NSPOSIXErrorDomain", 3072L, "disk full"),
+            photoKitDeleteResult(setOf("asset-1"), false, "NSPOSIXErrorDomain", 3072L, "disk full"),
         )
         // No error at all besides the flag: the fallback message keeps the toast non-empty.
-        assertEquals(DeleteResult.Failed("Delete failed"), photoKitDeleteResult(false, null, null, null))
+        assertEquals(DeleteResult.Failed("Delete failed"), photoKitDeleteResult(emptySet(), false, null, null, null))
     }
 
     @Test

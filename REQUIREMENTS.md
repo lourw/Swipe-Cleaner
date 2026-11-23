@@ -89,7 +89,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-23** The Review Queue shows queued items in a 3-column grid, newest decision first.
 - **FR-24** Tapping a tile opens it full-screen. That view has a **Restore** action, which removes it from the queue and records `KEEP`.
 - **FR-25** "Delete N items" calls one `PHPhotoLibrary.performChanges { deleteAssets }` for the whole queue, which triggers the iOS system dialog.
-- **FR-26** If the user confirms in iOS, the items are marked `DELETED` in the database and removed from the queue, and a success screen appears.
+- **FR-26** If the user confirms in iOS, the items are marked `DELETED` in the database and removed from the queue, and a success screen appears. Only ids the library confirmed gone (deleted now, or already gone) count: an id PhotoKit could not resolve — a burst frame, or an asset outside a Limited selection — stays queued, and the success screen reports it ("N deleted, M couldn't be found").
 - **FR-27** If the user cancels the iOS dialog, the queue stays as it was and no error is shown.
 - **FR-28** Queued items whose assets no longer exist (deleted elsewhere) are pruned silently whenever the queue is loaded.
 
@@ -297,7 +297,7 @@ denied screen (Open-Settings); every other answer stays on Home.
 └──────────────────────────────┘
 ```
 
-**Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home").
+**Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — naming the ids that stayed queued.
 
 **Empty states**: "Nothing left here 🎉" (the one allowed emoji) plus "Try another source" leading back to Home. On the review queue the CTA reads "Back home" instead — there is no other source to try from there (WP-3.3).
 
@@ -569,7 +569,7 @@ The drag offset and animation state stay inside the `SwipeCard` composable, as l
 Swipe left ──► DecisionStore.record(DELETE)  (queued, item still in library)
 Review queue ──► "Delete N" ──► in-app confirm dialog ──► CommitDeletionsUseCase
      └─► MediaLibrary.delete(ids) ──► PHPhotoLibrary.performChanges { deleteAssets }
-              ├─ success   ─► DecisionStore.markDeleted(ids) ─► Success screen
+              ├─ success   ─► DecisionStore.markDeleted(resolved ids) ─► Success screen
               ├─ cancelled ─► no-op (queue unchanged)
               └─ error     ─► toast, queue unchanged
 ```
@@ -584,17 +584,26 @@ when Delete is tapped (FR-25). The use case intersects the token with the curren
 queue before calling PhotoKit once, so ids that left the queue while the dialog
 was up are never deleted.
 
+A commit whose batch is only partly resolvable (FR-26, WP-7.6) is a partial
+success: PhotoKit resolves ids by `localIdentifier`, and an id it cannot fetch —
+a burst frame hidden by the Photos app, or an asset outside a Limited selection —
+was **not** deleted. Only the ids the library reports gone flip to `DELETED`; the
+unresolved rows keep their `DELETE` decision and stay queued for a later retry,
+and the success screen says "N deleted, M couldn't be found" with both counts on
+the route.
+
 A commit that ends up deleting nothing — every id was already gone outside the
 app, pruned while the dialog was up (FR-28) — still succeeds, but quietly: the
-success screen is for a count, so with a zero count the queue simply re-renders
-into its own empty state (WP-3.3). The `DeleteSuccess` route therefore always
-carries a positive count.
+success screen is for a count, so with neither a deleted nor a not-found count
+the queue simply re-renders into its own empty state (WP-3.3). The
+`DeleteSuccess` route therefore always carries a positive deleted-or-not-found
+count.
 
 ### 6.8 iOS platform notes
 
 - `Info.plist`: `NSPhotoLibraryUsageDescription` = "Swipe Cleaner shows your photos one at a time so you can keep or delete them."
 - Register `PHPhotoLibraryChangeObserver`, and on a change refresh counts and prune deleted IDs. The observer lives inside `MediaLibrary.changes()` — a conflated cold Flow that registers an observer on each collect and unregisters it in `awaitClose`; consumers (the queue re-prune, the limited-count refresh) re-read what they need from each tick.
-- The `performChanges { deleteAssets }` completion handler maps to `DeleteResult` by plain values: success → `Deleted`; the error for a dismissed iOS dialog — domain `PHPhotosErrorDomain`, code 3072 (`PHPhotosErrorUserCancelled`) → `Cancelled` (FR-27); anything else → `Failed(localizedDescription)`. A batch whose ids fetch zero assets answers `Deleted` without a change request — no dialog for nothing to delete, which is also how a retried commit converges after a failed `markDeleted`.
+- The `performChanges { deleteAssets }` completion handler maps to `DeleteResult` by plain values: success → `Deleted(ids)` carrying exactly the ids the change request could resolve (FR-26, WP-7.6 — an id PhotoKit never fetched is not reported as deleted); the error for a dismissed iOS dialog — domain `PHPhotosErrorDomain`, code 3072 (`PHPhotosErrorUserCancelled`) → `Cancelled` (FR-27); anything else → `Failed(localizedDescription)`. A batch whose ids fetch zero assets answers `Deleted(all requested ids)` without a change request — no dialog for nothing to delete, which is also how a retried commit converges after a failed `markDeleted`.
 - Run PhotoKit fetches on `Dispatchers.Default`. Deliver image results onto a coroutine Flow, and cancel the `PHImageRequestID` when the collector is cancelled. Grid tiles rely on this: unmounting a scrolled-away tile cancels its thumbnail request (WP-3.3).
 - Keep the app portrait-only in v1.
 

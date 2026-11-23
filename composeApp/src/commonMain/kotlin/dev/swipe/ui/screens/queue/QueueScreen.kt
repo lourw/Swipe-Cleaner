@@ -68,7 +68,12 @@ fun QueueScreen(
     mediaLoader: MediaLoader,
     onBack: () -> Unit,
     onBackHome: () -> Unit,
-    onShowDeleteSuccess: (Int) -> Unit,
+    onShowDeleteSuccess: (
+        /** Items PhotoKit deleted (FR-26). */
+        deleted: Int,
+        /** Ids that could not be resolved and stay queued (FR-26, WP-7.6). */
+        notFound: Int,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var toast by remember { mutableStateOf<String?>(null) }
@@ -78,7 +83,7 @@ fun QueueScreen(
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
-                is QueueEvent.ShowDeleteSuccess -> navigate(event.count)
+                is QueueEvent.ShowDeleteSuccess -> navigate(event.count, event.notFound)
                 is QueueEvent.ShowDeleteError -> toast = event.message
                 QueueEvent.RestoreFailed -> toast = RESTORE_FAILED_COPY
             }

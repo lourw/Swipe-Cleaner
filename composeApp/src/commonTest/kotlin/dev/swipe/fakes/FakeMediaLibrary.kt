@@ -42,8 +42,9 @@ import kotlinx.datetime.TimeZone
  *   [smartCounts] counts the same membership each `assetIds` returns.
  *
  * Calls are recorded (`assetIdsCalls`, `deleteCalls`, …). Each `failNext…` switch throws
- * once. [nextDeleteResult] is returned by every `delete` until changed; on
- * [DeleteResult.Deleted] the assets leave the library, so a later FR-28 prune sees them gone.
+ * once. [delete] models the FR-26 resolve-then-delete behavior (ids in
+ * [unresolvableDeleteIds] stay queued); [nextDeleteResult] overrides it verbatim when set.
+ * Deleted assets leave the library, so a later FR-28 prune sees them gone.
  * [access] can be reassigned to simulate a permission change (FR-3 re-check), and
  * [nextRequestAuthorizationResult] lets the prompt answer differently from [access] (FR-1).
  */
@@ -92,8 +93,21 @@ class FakeMediaLibrary(
      */
     var nextAlbumsEstimate: Int? = null
 
-    /** Returned by every [delete] until changed; defaults to success. */
-    var nextDeleteResult: DeleteResult = DeleteResult.Deleted
+    /**
+     * When non-null, returned verbatim by every [delete] (error paths and canned
+     * batches) without touching the library; when null (the default) [delete]
+     * models the real resolve-then-delete behavior described below.
+     */
+    var nextDeleteResult: DeleteResult? = null
+
+    /**
+     * Ids [delete] cannot resolve to an actual asset (FR-26: burst frames hidden
+     * by the Photos app, Limited-mode assets outside the selection). A requested
+     * id that is unresolvable is left out of [DeleteResult.Deleted.ids] and stays
+     * in the library; a batch with no resolvable id answers the whole batch as
+     * gone, mirroring the zero-fetch short-circuit in the real library (§6.8).
+     */
+    val unresolvableDeleteIds: MutableSet<String> = mutableSetOf()
 
     /**
      * When non-null, [delete] records the call and then suspends until this
@@ -301,11 +315,19 @@ class FakeMediaLibrary(
     override suspend fun delete(ids: List<String>): DeleteResult {
         deleteCalls += ids
         deleteGate?.await()
-        val result = nextDeleteResult
-        if (result == DeleteResult.Deleted) {
-            items.removeAll { it.id in ids }
+        nextDeleteResult?.let { return it }
+        // Model the real library (FR-26, §6.8): only ids that resolve to an asset
+        // are handed to the change request, and only those come back as deleted.
+        val present = items.map { it.id }.toSet()
+        val resolvable = ids.filter { it in present && it !in unresolvableDeleteIds }
+        return if (resolvable.isEmpty()) {
+            // Zero-fetch short-circuit (§6.8): nothing to ask PhotoKit for, the
+            // whole batch is reported gone so retry-after-failure still converges.
+            DeleteResult.Deleted(ids.toSet())
+        } else {
+            items.removeAll { it.id in resolvable }
+            DeleteResult.Deleted(resolvable.toSet())
         }
-        return result
     }
 
     override fun changes(): Flow<Unit> = changesFlow

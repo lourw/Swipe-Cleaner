@@ -275,6 +275,49 @@ class QueueViewModelTest {
         }
 
     @Test
+    fun `FR-26 partial batch reports both counts and keeps the unresolved id queued`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3).start()
+            // asset-2 no longer resolves in the library (burst frame hidden by the
+            // Photos app, Limited-mode asset outside the selection): PhotoKit can
+            // only delete asset-3 and asset-1 (FR-26, WP-7.6).
+            f.library.unresolvableDeleteIds += "asset-2"
+
+            f.viewModel.events.test {
+                val eventTurbine = this
+                f.viewModel.uiState.test {
+                    awaitQueueReady()
+
+                    f.viewModel.onIntent(QueueIntent.RequestDelete)
+                    awaitItem()
+                    f.viewModel.onIntent(QueueIntent.ConfirmDelete)
+                    val done =
+                        awaitStateThat {
+                            !it.deleting && it.result is QueueDeleteResult.Deleted && it.items == listOf("asset-2")
+                        }
+
+                    // The whole batch was requested, but only the resolved ids were
+                    // marked DELETED: the unresolved row keeps its DELETE decision.
+                    assertEquals(listOf(listOf("asset-3", "asset-2", "asset-1")), f.library.deleteCalls)
+                    assertEquals(listOf(listOf("asset-3", "asset-1")), f.store.markDeletedCalls)
+                    assertEquals(QueueDeleteResult.Deleted(2, notFound = 1), done.result)
+                    // The not-found id is still on the queue for the next attempt,
+                    // and it keeps its DELETE decision (nothing was written for it).
+                    assertEquals(
+                        Decision.DELETE,
+                        f.store.entries
+                            .first { it.id == "asset-2" }
+                            .decision,
+                    )
+                    // The success event carries both counts (§6.7).
+                    assertEquals(QueueEvent.ShowDeleteSuccess(2, notFound = 1), eventTurbine.awaitItem())
+                    assertEquals(listOf(FakeHaptics.Event.NOTIFICATION_SUCCESS), f.haptics.events)
+                }
+            }
+        }
+
+    @Test
     fun `FR-27 cancelling the iOS dialog leaves the queue exactly as it was`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -544,7 +587,10 @@ class QueueViewModelTest {
             // change lands — without the guard this prune would fire and the
             // mid-flight removeCalls assertion below would fail.
             val gate = CompletableDeferred<Unit>()
-            f.library.nextDeleteResult = DeleteResult.Deleted
+            // Verbatim override (WP-7.6): answer the batch as fully resolved so
+            // the scenario isolates the mid-flight prune guard from FR-26's
+            // partial resolution.
+            f.library.nextDeleteResult = DeleteResult.Deleted(setOf("asset-2", "asset-1"))
             f.library.deleteGate = gate
             f.library.items.removeAll { it.id == "asset-1" } // vanished externally
             f.viewModel.onIntent(QueueIntent.RequestDelete)

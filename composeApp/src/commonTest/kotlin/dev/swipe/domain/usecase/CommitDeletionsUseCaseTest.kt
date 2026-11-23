@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -85,6 +86,70 @@ class CommitDeletionsUseCaseTest {
                     .toSet(),
             )
             // …and the queue runs empty.
+            assertTrue(store.deleteQueue().first().isEmpty())
+        }
+
+    @Test
+    fun `FR-26 partly resolved batch marks only the resolved ids and reports the rest not found`() =
+        runTest {
+            queue("a", "b", "c") // queue order (newest first): c, b, a
+            // b no longer resolves in the library (burst frame, Limited-mode asset
+            // outside the selection): PhotoKit deletes c and a and says so (WP-7.6).
+            library.unresolvableDeleteIds += "b"
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("c", "b", "a")))
+
+            assertEquals(CommitOutcome.Success(deleted = 2, notFound = 1), outcome)
+            // Only the ids the library confirmed gone flip to DELETED…
+            assertEquals(listOf(listOf("c", "a")), store.markDeletedCalls)
+            // …and the unresolved row stays queued with its DELETE decision,
+            // so it can be retried instead of silently disappearing (FR-26).
+            assertEquals(listOf("b"), store.deleteQueue().first())
+            assertEquals(
+                Decision.DELETE,
+                store.entries
+                    .first { it.id == "b" }
+                    .decision,
+            )
+        }
+
+    @Test
+    fun `FR-26 batch with no resolvable id converges and marks the whole batch deleted`() =
+        runTest {
+            queue("a", "b")
+            library.unresolvableDeleteIds += setOf("a", "b")
+
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "a")))
+
+            // The zero-fetch short-circuit (§6.8): PhotoKit is not asked for a batch
+            // of nothing, the whole request is reported gone, and the rows converge
+            // out of the queue rather than looping forever.
+            assertEquals(CommitOutcome.Success(deleted = 2), outcome)
+            assertEquals(listOf(listOf("b", "a")), store.markDeletedCalls)
+            assertTrue(store.deleteQueue().first().isEmpty())
+        }
+
+    @Test
+    fun `FR-26 retry after a failed markDeleted converges the unresolved ids`() =
+        runTest {
+            queue("a", "b", "c")
+            library.unresolvableDeleteIds += "b"
+            store.failNextMarkDeleted = IllegalStateException("disk full")
+
+            // First commit: PhotoKit deletes c and a, marking them fails, so the
+            // rows stay queued (NFR-7) while the library has moved on.
+            assertFailsWith<IllegalStateException> {
+                commit(InAppDeleteConfirmation(listOf("c", "b", "a")))
+            }
+            assertEquals(listOf("c", "b", "a"), store.deleteQueue().first())
+
+            // Second commit: c and a are no longer in the library and b still
+            // cannot be fetched — the zero-fetch short-circuit answers the whole
+            // retry as gone, and every row finally converges (§6.8).
+            val outcome = commit(InAppDeleteConfirmation(listOf("b", "c", "a")))
+
+            assertEquals(CommitOutcome.Success(deleted = 3), outcome)
+            assertEquals(listOf("b", "c", "a"), store.markDeletedCalls.last())
             assertTrue(store.deleteQueue().first().isEmpty())
         }
 

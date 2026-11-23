@@ -226,19 +226,21 @@ class QueueViewModel(
                     // up, so PhotoKit was never asked for anything — reports
                     // neither haptic nor success screen: there is nothing new to
                     // celebrate, and the queue's own empty state is the feedback.
-                    val deletedSomething = outcome.deleted > 0
-                    if (deletedSomething) {
+                    // A partial batch (WP-7.6) reports both counts: the not-found
+                    // ids stay queued and the success screen says so.
+                    val reported = outcome.deleted > 0 || outcome.notFound > 0
+                    if (reported) {
                         haptics.notificationSuccess()
                     }
                     _uiState.update {
                         it.copy(
                             deleting = false,
                             selected = null,
-                            result = QueueDeleteResult.Deleted(outcome.deleted),
+                            result = QueueDeleteResult.Deleted(outcome.deleted, outcome.notFound),
                         )
                     }
-                    if (deletedSomething) {
-                        eventChannel.trySend(QueueEvent.ShowDeleteSuccess(outcome.deleted))
+                    if (reported) {
+                        eventChannel.trySend(QueueEvent.ShowDeleteSuccess(outcome.deleted, outcome.notFound))
                     }
                 }
 

@@ -25,12 +25,16 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * [dev.swipe.presentation.queue.QueueEvent.ShowDeleteSuccess] with the
  * committed count on the route, and only for a positive count (§6.7: a
  * zero-count commit reports through the queue's own empty state instead).
+ * When the batch was only partly resolvable ([notFound] > 0, FR-26), a
+ * secondary line states how many items couldn't be found — they stayed on
+ * the queue rather than being counted as deleted.
  */
 @Composable
 fun DeleteSuccessScreen(
     deleted: Int,
     onBackHome: () -> Unit,
     modifier: Modifier = Modifier,
+    notFound: Int = 0,
 ) {
     val colors = SwipeTheme.colors
     Box(
@@ -64,6 +68,12 @@ fun DeleteSuccessScreen(
                 BasicText(
                     text = "Deleted",
                     style = SwipeTheme.typography.headline.copy(color = colors.delete),
+                )
+            }
+            if (notFound > 0) {
+                BasicText(
+                    text = "$notFound couldn't be found",
+                    style = SwipeTheme.typography.callout.copy(color = colors.textSecondary),
                 )
             }
             PrimaryButton(

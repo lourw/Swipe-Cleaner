@@ -44,9 +44,9 @@ data class QueueUiState(
     /**
      * Terminal outcome of the last commit attempt; null before the first one and
      * again after a cancelled iOS dialog (FR-27 shows nothing). The UI renders
-     * [QueueDeleteResult.Deleted] with a positive count as the DeleteSuccess
-     * navigation (via [QueueEvent.ShowDeleteSuccess]) and
-     * [QueueDeleteResult.Failed] as a toast. A `Deleted(0)` — the queue emptied
+     * [QueueDeleteResult.Deleted] with a positive count (deleted or not-found) as
+     * the DeleteSuccess navigation (via [QueueEvent.ShowDeleteSuccess]) and
+     * [QueueDeleteResult.Failed] as a toast. A `Deleted(0, 0)` — the queue emptied
      * while the dialog was up — is reported with no event and no haptic: the
      * empty state is the feedback (§6.7).
      */
@@ -72,9 +72,15 @@ data class QueueTile(
 
 /** The last commit attempt's outcome, kept in [QueueUiState.result]. */
 sealed interface QueueDeleteResult {
-    /** PhotoKit deleted [count] assets and their rows are now DELETED (FR-26). */
+    /**
+     * PhotoKit deleted assets and their rows are now DELETED (FR-26): [count] are
+     * gone, and [notFound] ids could not be resolved (a burst frame, an asset
+     * outside a Limited selection) and stay queued (WP-7.6). The success screen
+     * reports both — "N deleted, M couldn't be found".
+     */
     data class Deleted(
         val count: Int,
+        val notFound: Int = 0,
     ) : QueueDeleteResult
 
     /** PhotoKit failed with [message]; the queue is unchanged (§6.7). */

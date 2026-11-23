@@ -97,7 +97,7 @@ class SafeAreaBoundsTest {
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
                         onBackHome = {},
-                        onShowDeleteSuccess = {},
+                        onShowDeleteSuccess = { _, _ -> },
                     )
                 }
             }
@@ -132,7 +132,7 @@ class SafeAreaBoundsTest {
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
                         onBackHome = {},
-                        onShowDeleteSuccess = {},
+                        onShowDeleteSuccess = { _, _ -> },
                     )
                 }
             }

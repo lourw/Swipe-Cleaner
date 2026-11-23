@@ -39,8 +39,10 @@ class InAppDeleteConfirmation
  * 2. Call [MediaLibrary.delete] exactly **once** with that list (FR-25: one PhotoKit
  *    change request for the whole batch, one iOS system dialog).
  * 3. Map the outcome:
- *    - [DeleteResult.Deleted] → [DecisionStore.markDeleted] for exactly those ids,
- *      [CommitOutcome.Success] with the count (FR-26).
+ *    - [DeleteResult.Deleted] → [DecisionStore.markDeleted] for exactly the ids the
+ *      library confirmed gone, [CommitOutcome.Success] with the count and the count
+ *      of ids that could not be resolved — those stay queued and the success screen
+ *      says so ("N deleted, M couldn't be found", FR-26, WP-7.6).
  *    - [DeleteResult.Cancelled] → **no store call at all** → [CommitOutcome.Cancelled]
  *      (FR-27: the queue stays exactly as it was).
  *    - [DeleteResult.Failed] → **no store call at all** → [CommitOutcome.Error] (the
@@ -49,7 +51,7 @@ class InAppDeleteConfirmation
  * An empty intersection (everything the user confirmed vanished while the dialog was
  * up) deletes nothing without calling the library — no iOS dialog for an empty batch,
  * mirroring PhotoKit's zero-asset short-circuit — and reports
- * `Success(deleted = 0)`.
+ * `Success(deleted = 0, notFound = 0)`.
  */
 class CommitDeletionsUseCase(
     private val library: MediaLibrary,
@@ -62,9 +64,16 @@ class CommitDeletionsUseCase(
         val ids = confirmation.ids.filter { it in queued }
         if (ids.isEmpty()) return CommitOutcome.Success(deleted = 0)
         return when (val result = library.delete(ids)) {
-            DeleteResult.Deleted -> {
-                decisions.markDeleted(ids)
-                CommitOutcome.Success(deleted = ids.size)
+            is DeleteResult.Deleted -> {
+                // FR-26 (WP-7.6): PhotoKit resolves ids by `localIdentifier`, and an
+                // id it cannot fetch — a burst frame, or an asset outside a Limited
+                // selection — was **not** deleted and stays queued. Only the ids the
+                // library reports gone (deleted now, or already gone: the §6.8 retry
+                // convergence) flip to DELETED, so stats (FR-10) and decks (FR-9)
+                // never count an asset that is still in the library.
+                val deleted = ids.filter { it in result.ids }
+                decisions.markDeleted(deleted)
+                CommitOutcome.Success(deleted = deleted.size, notFound = ids.size - deleted.size)
             }
 
             DeleteResult.Cancelled -> {
@@ -80,9 +89,14 @@ class CommitDeletionsUseCase(
 
 /** Outcome of one [CommitDeletionsUseCase] run — the three §6.7 branches. */
 sealed interface CommitOutcome {
-    /** PhotoKit deleted the assets; [deleted] queue rows are now DELETED (FR-26). */
+    /**
+     * PhotoKit finished the batch: [deleted] queue rows are now DELETED (FR-26) and
+     * [notFound] ids could not be resolved — they stay queued, and the success screen
+     * reports both counts ("N deleted, M couldn't be found", WP-7.6).
+     */
     data class Success(
         val deleted: Int,
+        val notFound: Int = 0,
     ) : CommitOutcome
 
     /** The user dismissed the iOS dialog; nothing was stored (FR-27). */
