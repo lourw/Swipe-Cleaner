@@ -69,6 +69,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-8** **Albums** lists user albums and the main smart albums, with cover thumbnails and counts.
 - **FR-9** Every source excludes items that already have a **Keep** or a pending **Delete** decision.
 - **FR-10** Home shows lifetime stats (reviewed, kept, deleted) and the size of the current To Delete queue, with a button to review it.
+- **FR-37** Every row on the Albums screen carries an **Exclude from Shuffle** switch, off by default. Items in any excluded album leave the **Shuffle everything** deck — even items that are also in a non-excluded album. Nothing else is affected: opening an excluded album, By month, and the smart filters still include its items, and the album's own row keeps its full count. Exclusions persist locally as album ids only; an album the user has since deleted is ignored. The Shuffle count on Home always equals the deck its row opens (FR-9) and refreshes when an exclusion changes. Toggling mid-session affects the next deck or rebuild only — never the card on screen. Exclusion never removes anything from the deletion path: a Shuffle item deleted still leaves the library and every album.
 
 ### Swiping
 - **FR-11** The deck shows one item full-bleed, with the next item rendered underneath it.
@@ -209,7 +210,7 @@ Other gestures on the card:
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
-| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. |
+| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **Exclude from Shuffle** switch (FR-37) before the chevron: the iOS-shape `SwipeSwitch` in a ≥ 44 dp target owning `Role.Switch` semantics; its tap toggles the exclusion and never opens the row. |
 | `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in `textPrimary`; unselected labels `textSecondary`. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
@@ -260,6 +261,13 @@ denied screen (Open-Settings); every other answer stays on Home.
 │ ▣ Selfies                540 ›│
 └──────────────────────────────┘
 ```
+
+**Albums**
+
+One `SourceRow` per album (FR-8), user albums first. Each row also carries the
+**Exclude from Shuffle** switch described in §5.7 (FR-37): toggling it takes the
+album's items out of the Shuffle deck and refreshes Home's Shuffle count, but
+never changes the album's own row count or what tapping the row opens.
 
 **Swipe**
 
@@ -447,8 +455,14 @@ interface SessionStore {                                    // session + session
     suspend fun create(source: DeckSource, typeFilter: MediaTypeFilter, seed: Long): String
     suspend fun updatePosition(id: String, position: Int)   // resume position (FR-20)
     suspend fun end(id: String)                                 // stamp ended_at: deck ran out (FR-21), or opened empty with nothing reviewed (WP-7.3)
-    suspend fun openSession(): SessionRecord?
+    suspend fun openSession(): SessionRecord?               // an undecodable row is ended on the spot and reported as none (WP-8.10)
     suspend fun skippedIds(sessionId: String): Set<String>  // skips of this session (FR-14)
+}
+
+interface ShuffleExclusionStore {                           // shuffle_exclusion table (§7); FR-37 — album ids only, never asset ids
+    suspend fun excludedAlbumIds(): Set<String>             // excluded album ids; empty = nothing excluded
+    fun excludedAlbumIdsFlow(): Flow<Set<String>>           // live view: the Albums switches and the Home refresh trigger
+    suspend fun setExcluded(albumId: String, excluded: Boolean)  // switch write; a failed write leaves the switch where it was (NFR-7)
 }
 
 interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true
@@ -487,8 +501,9 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 
 ### 6.5 Deck pipeline
 
-1. `BuildDeckUseCase(source, typeFilter, seed)` fetches **asset IDs only** for the source (`PHFetchResult`, which is fast even with 50k items), orders them, then subtracts `decidedIds()` (for duplicates: subtracted before grouping):
-   - Shuffle: a seeded shuffle (`Random(seed)`) applied to the **full id list before** decided ids are subtracted, with the seed stored on the session so the order survives process death. Subtracting after the shuffle keeps the order stable as rows accumulate, so a rebuild with the same seed reopens a resumed session on the same card (FR-20). Resume recomputes everything from that rebuild — `SessionRecord.position` stores cards disposed in the session, a progress hint whose value is never read back (FR-20).
+1. `BuildDeckUseCase(source, typeFilter, seed)` takes the source's membership from one shared `DeckMembership` function (FR-9, FR-37, WP-8.10) — **asset IDs only** (`PHFetchResult`, which is fast even with 50k items) minus `decidedIds()`, and for `DeckSource.All` minus every item of any album excluded from Shuffle (FR-37; see below) — then orders them per source. The Home and Albums counts run through the same function, so a displayed count and the deck its row opens are the same query by construction (FR-9):
+   - Shuffle: ordered by a **stable per-id key** — the splitmix64 hash of `(seed, id)` sorted ascending, with the id string itself breaking ties so the order is total and never depends on fetch order (PhotoKit's All fetch is unordered). The seed is stored on the session row, so the order survives process death. Because the key is a property of `(seed, id)` alone, filtering commutes with ordering: subtracting decided ids (FR-9), subtracting FR-37 excluded-album ids, and items entering or leaving the library between sessions never move the survivors — a rebuild with the same seed reopens a resumed session on the same card (FR-20), where a positional `shuffled(Random(seed))` permutation would move every card after the first library edit. Resume recomputes everything from that rebuild — `SessionRecord.position` stores cards disposed in the session, a progress hint whose value is never read back (FR-20).
+   - Shuffle exclusions (FR-37): PhotoKit has no "not in album" predicate, so the deck subtracts the ids of every excluded album (each one ids-only fetch, NFR-4) after the ordering. An id whose album the user has since deleted matches nothing and is ignored. The subtraction applies only to `DeckSource.All`: opening an excluded album, By month, and the smart filters keep its items.
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
    - Everything else: creation date descending (the library returns that order).
@@ -497,11 +512,11 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top. `SwipeViewModel` calls `VideoPreloader.preload(id)` for video ids entering the same current + next 3 window (metadata `type == VIDEO` only) and `cancel(id)` for ids leaving it — alongside the image prefetch of step 3 (WP-4.1).
 5. On swipe, the ViewModel saves to `DecisionStore` first, then advances `index`. If the save fails, it emits an error and reverts the card (NFR-7).
 
-**Session lifecycle (FR-20, FR-21, WP-7.3).** A session row is open from `create` until something stamps `ended_at`. Running the deck out ends it, after the FR-21 summary. A resume that rebuilds an empty deck ends it too: with cards already reviewed it retries the undelivered summary (FR-21), and with nothing reviewed it shows the §5.8 empty state and stamps `ended_at` right away (a zero-review session), so `openSession()` never holds a session that has nothing to resume (FR-20). A failed start leaves the row's state alone — the deck build may succeed on the next open; a failed end leaves the row open, and the next open retries.
+**Session lifecycle (FR-20, FR-21, WP-7.3).** A session row is open from `create` until something stamps `ended_at`. Running the deck out ends it, after the FR-21 summary. A resume that rebuilds an empty deck ends it too: with cards already reviewed it retries the undelivered summary (FR-21), and with nothing reviewed it shows the §5.8 empty state and stamps `ended_at` right away (a zero-review session), so `openSession()` never holds a session that has nothing to resume (FR-20). A failed start leaves the row's state alone — the deck build may succeed on the next open; a failed end leaves the row open, and the next open retries. A row this build cannot decode (an unreadable `source` JSON or `type_filter`) is ended on the spot by `openSession()` and reported as no open session, so one corrupt row never blocks every future deck (WP-8.10).
 
 **iCloud-only exclusion (FR-29, WP-6.1).** The "Include iCloud-only items" toggle blocks *loading*, not deck membership. `PHAsset.isCloudOnly` is cheap on an already-fetched asset, but the deck build is identifiers-only by design (WP-1.4), so a deck-time filter would need a per-asset metadata pass over the source (NFR-4) — ids therefore stay in the deck either way. The setting drives `isNetworkAccessAllowed` on every image request and `networkAccessAllowed` on video-item preloads (steps 3–4): with it off, an iCloud-only item never downloads and its card shows the degraded thumbnail (or the load-error placeholder when no local version exists) instead of fetching over the network; with it on, the original downloads behind the cloud badge as before.
 
-**Home counts (WP-5.2).** `LoadSourcesUseCase(type)` emits the Home row counts progressively into one `HomeUiState` merge, so the screen is interactive before any number lands (NFR-4). Cheap fetches stream first: `albums()` (PhotoKit `estimatedAssetCount` + cover, no enumeration), then the ids-only `assetIds(All, type).size` for Shuffle, then `smartCounts(type)` — whose Bursts and Likely Duplicates entries each cost a full-library pass (§6.4), which is exactly why they arrive last. Exact FR-9 counts are bought **lazily per row, after** the placeholder is on screen: `decidedIds()` is read once, then each row is counted with the deck's own path minus the decided set — one emission per refinement wave whose numbers actually move (smart rows individually, album rows batched). Likely Duplicates subtracts the decided set **before** grouping (`duplicateCandidates(type)` + `DuplicateGrouper`, exactly like `BuildDeckUseCase`), because a twin whose partner is decided leaves the deck and plain membership-minus-decided would over-report it. A raw **smart** count of 0 is already exact and is never refined; album estimates always are, because `estimatedAssetCount` can lag reality — even to 0 for a non-empty album. That makes every displayed count equal to the deck size the row opens, at the cost of one second pass only for non-empty Bursts / Likely Duplicates and for albums. The album rows therefore *converge*: the estimate is replaced by the exact count for the current filter (FR-5). A refresh never flickers a converged row back: emissions carry exactness flags and `HomeViewModel` keeps a refined number on screen until the re-run's own refinement replaces it, so a refresh updates the screen once per real change, never estimate → exact twice. A failed fetch keeps the row's current number and is retried by the next refresh; `HomeViewModel` re-runs the whole use case — and re-reads the authorization for the FR-2 banner — exactly once per `MediaLibrary.changes()` emission (§6.8), and on every `SetTypeFilter`, discarding late arrivals from a superseded filter. Switching the filter drops every count to its placeholder at once — never stale numbers under a new label (FR-5). Home never calls `months(type)`: the By-month screen is FR-7 and pays for it only when opened (WP-5.3).
+**Home counts (WP-5.2).** `LoadSourcesUseCase(type)` emits the Home row counts progressively into one `HomeUiState` merge, so the screen is interactive before any number lands (NFR-4). Cheap fetches stream first: `albums()` (PhotoKit `estimatedAssetCount` + cover, no enumeration), then the ids-only `assetIds(All, type).size` for Shuffle, then `smartCounts(type)` — whose Bursts and Likely Duplicates entries each cost a full-library pass (§6.4), which is exactly why they arrive last. Exact FR-9 counts are bought **lazily per row, after** the placeholder is on screen: `decidedIds()` is read once, then each row is counted with `DeckMembership` — the deck's own path minus the decided set, and for Shuffle minus the FR-37 excluded-album items — one emission per refinement wave whose numbers actually move (smart rows individually, album rows batched). The Shuffle refinement additionally announces its exactness **once per run even when the number stands still**: exclusions change the deck without changing the raw count, and `HomeViewModel` only retires a held number when the re-run's own refinement lands. Likely Duplicates subtracts the decided set **before** grouping (`duplicateCandidates(type)` + `DuplicateGrouper`, exactly like `BuildDeckUseCase`), because a twin whose partner is decided leaves the deck and plain membership-minus-decided would over-report it. A raw **smart** count of 0 is already exact and is never refined; album estimates always are, because `estimatedAssetCount` can lag reality — even to 0 for a non-empty album. That makes every displayed count equal to the deck size the row opens, at the cost of one second pass only for non-empty Bursts / Likely Duplicates and for albums. The album rows therefore *converge*: the estimate is replaced by the exact count for the current filter (FR-5). A refresh never flickers a converged row back: emissions carry exactness flags and `HomeViewModel` keeps a refined number on screen until the re-run's own refinement replaces it, so a refresh updates the screen once per real change, never estimate → exact twice. A failed fetch keeps the row's current number and is retried by the next refresh; `HomeViewModel` re-runs the whole use case — and re-reads the authorization for the FR-2 banner — exactly once per `MediaLibrary.changes()` emission (§6.8), once per FR-37 exclusion-store change (an Albums toggle keeps the Shuffle row matching the deck its row opens, FR-9), and on every `SetTypeFilter`, discarding late arrivals from a superseded filter. Switching the filter drops every count to its placeholder at once — never stale numbers under a new label (FR-5). Home never calls `months(type)`: the By-month screen is FR-7 and pays for it only when opened (WP-5.3).
 
 ### 6.6 State shape (Swipe screen)
 
@@ -628,7 +643,7 @@ enum class Decision { KEEP, DELETE, SKIP, DELETED }
 sealed interface DeckSource { All; Album(id, title); Month(year, month); Smart(kind) }
 ```
 
-**SQLDelight schema** (`Decision.sq`, `Session.sq`)
+**SQLDelight schema** (`Decision.sq`, `Session.sq`, `ShuffleExclusion.sq`)
 
 ```sql
 CREATE TABLE decision (
@@ -653,6 +668,10 @@ CREATE TABLE session_skip (
   session_id  TEXT NOT NULL,
   asset_id    TEXT NOT NULL,
   PRIMARY KEY (session_id, asset_id)
+);
+
+CREATE TABLE shuffle_exclusion (                          -- FR-37; one row per album excluded from Shuffle
+  album_id    TEXT NOT NULL PRIMARY KEY                   -- album id only; a deleted album's stale id is ignored
 );
 ```
 
