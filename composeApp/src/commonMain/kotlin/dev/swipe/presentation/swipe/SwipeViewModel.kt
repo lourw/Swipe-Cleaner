@@ -303,8 +303,9 @@ class SwipeViewModel(
      * double tap can never skip an undecided card (NFR-7).
      *
      * A Delete on a favorite records nothing (FR-22): the card goes back through the
-     * [SwipeEvent.ReturnCard] event, and the confirm toast names the id in
-     * [SwipeUiState.pendingFavoriteDelete] until it is confirmed or dismissed.
+     * [SwipeEvent.ReturnCard] event, and the favorite confirm card names the id in
+     * [SwipeUiState.pendingFavoriteDelete] until it is confirmed, dismissed, or a
+     * drag starts on the card (U3, WP-8.9).
      */
     private fun decide(
         id: String,

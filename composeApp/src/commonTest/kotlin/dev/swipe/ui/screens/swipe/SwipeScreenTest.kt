@@ -9,14 +9,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.filter
-import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onChildren
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -224,55 +218,6 @@ class SwipeScreenTest {
             mainClock.advanceTimeBy(3100L) // the §5.7 3 s auto-dismiss
             waitForIdle()
             assertEquals(listOf<SwipeIntent>(SwipeIntent.DismissToast), intents)
-        }
-
-    @Test
-    fun `FR-22 favorite confirm toast offers a Delete action`() =
-        runComposeUiTest {
-            val intents = mutableListOf<SwipeIntent>()
-            setContent {
-                TestScreen(
-                    deckState().copy(
-                        toast = ToastMessage.FavoriteConfirm,
-                        pendingFavoriteDelete = "current-id",
-                    ),
-                    onIntent = { intents.add(it) },
-                )
-            }
-            onNodeWithContentDescription("This is a favorite — delete anyway?").assertExists()
-            // The action bar's Delete and the toast's Delete share the label
-            // (the spec fixes both strings): the toast action is the row's
-            // child, so the count and the click both go through the row.
-            onAllNodesWithContentDescription("Delete").assertCountEquals(2)
-            onNodeWithContentDescription("This is a favorite — delete anyway?")
-                .onChildren()
-                .filter(hasContentDescription("Delete"))
-                .onFirst()
-                .performClick()
-            waitForIdle()
-            // FR-13: the confirm names the pending card it was raised for.
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.ConfirmFavoriteDelete("current-id")), intents)
-        }
-
-    @Test
-    fun `WP-9-3 the deck confirm toast survives the host's three-second fuse`() =
-        runComposeUiTest {
-            val intents = mutableListOf<SwipeIntent>()
-            setContent {
-                TestScreen(
-                    deckState().copy(
-                        toast = ToastMessage.FavoriteConfirm,
-                        pendingFavoriteDelete = "current-id",
-                    ),
-                    onIntent = { intents.add(it) },
-                )
-            }
-            mainClock.advanceTimeBy(3100L)
-            waitForIdle()
-            // §5.7: the confirm stays until the user acts or the deck moves
-            // on; the host must not send DismissToast on its own fuse.
-            onNodeWithContentDescription("This is a favorite — delete anyway?").assertExists()
-            assertEquals(emptyList<SwipeIntent>(), intents)
         }
 
     @Test

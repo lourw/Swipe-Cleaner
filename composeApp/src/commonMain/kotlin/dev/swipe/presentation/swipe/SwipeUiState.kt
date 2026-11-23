@@ -57,8 +57,10 @@ sealed interface ToastMessage {
     data object Undone : ToastMessage
 
     /**
-     * FR-22: "This is a favorite — delete anyway?" with a Delete action; while it is
-     * up, [SwipeUiState.pendingFavoriteDelete] holds the id. Warning style (WP-2.3).
+     * FR-22: the favorite-delete confirmation, raised whenever a DELETE is
+     * committed on a favorite; while it is up, [SwipeUiState.pendingFavoriteDelete]
+     * holds the id. The deck renders it as the [dev.swipe.ui.components.FavoriteConfirmCard]
+     * (WP-8.9) rather than a toast; the string here rides the fallback toast.
      */
     data object FavoriteConfirm : ToastMessage
 

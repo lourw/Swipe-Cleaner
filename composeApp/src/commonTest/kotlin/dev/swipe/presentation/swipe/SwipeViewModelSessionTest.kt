@@ -104,6 +104,35 @@ class SwipeViewModelSessionTest {
         }
 
     @Test
+    fun `FR-22 undo while the confirm is up closes it`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3, favoriteIds = setOf("asset-2"))
+            advanceUntilIdle()
+
+            f.viewModel.onIntent(f.viewModel.keep()) // asset-1 is kept.
+            advanceUntilIdle()
+            f.viewModel.onIntent(f.viewModel.delete()) // asset-2 is a favorite: confirm.
+            advanceUntilIdle()
+            val asked = f.viewModel.uiState.value
+            assertEquals(ToastMessage.FavoriteConfirm, asked.toast)
+            assertEquals("asset-2", asked.pendingFavoriteDelete)
+
+            // WP-8.9 lifetime: the confirm rides the card it was raised for,
+            // so any deck move closes it — an Undo while it is up clears the
+            // pending favorite and returns the kept card.
+            f.viewModel.onIntent(SwipeIntent.Undo)
+            advanceUntilIdle()
+
+            val s = f.viewModel.uiState.value
+            assertEquals("asset-1", s.current?.id)
+            assertNull(s.pendingFavoriteDelete)
+            assertEquals(ToastMessage.Undone, s.toast)
+            // The favorite was never recorded or queued.
+            assertEquals(emptyList(), f.store.recordCalls.filter { it.second == Decision.DELETE })
+        }
+
+    @Test
     fun `FR-22 a second confirm during the in-flight write queues nothing extra`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

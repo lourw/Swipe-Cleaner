@@ -107,13 +107,8 @@ private fun GalleryToastSection() {
         // `Toast` is pure presentation (WP-9.3): it stays while the gallery
         // renders it — the 3 s fuse lives in `ToastHost`, not here.
         Toast(text = "Undone — card returned", icon = SwipeIcons.UNDO)
-        Toast(
-            text = "This is a favorite — delete anyway?",
-            icon = SwipeIcons.FAVORITE,
-            iconTint = SwipeTheme.colors.warning,
-            actionLabel = "Delete",
-            onAction = {},
-        )
+        // WP-8.9: the FR-22 favorite confirm is the compact card, not a toast.
+        FavoriteConfirmCard(onCancel = {}, onDelete = {})
     }
 }
 

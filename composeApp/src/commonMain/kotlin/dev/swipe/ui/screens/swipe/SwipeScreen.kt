@@ -28,7 +28,7 @@ import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
-import dev.swipe.ui.components.SwipeIcons
+import dev.swipe.ui.components.FavoriteConfirmCard
 import dev.swipe.ui.components.ToastHost
 import dev.swipe.ui.components.ToastSpec
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
@@ -57,8 +57,9 @@ internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
 
 /**
  * The Swipe screen (§5.8, WP-2.3): [TopBar] over the deck over the [ActionBar]
- * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the [ToastHost]
- * above the bar (FR-15 "Undone", FR-22 favorite confirm, NFR-7 revert).
+ * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the §5.7 overlay
+ * above the bar (FR-15 "Undone", NFR-7 revert toasts, and the FR-22 favorite
+ * confirm card — WP-8.9).
  *
  * Stateless by convention (AGENTS.md): one [SwipeUiState] plus the ViewModel's
  * one-shot [events] flow in, committed [SwipeIntent]s out. Transient drag and
@@ -163,29 +164,6 @@ fun SwipeScreen(
 }
 
 /**
- * The §5.7 [ToastSpec] for the current [ToastMessage]: the FR-22 favorite
- * confirm carries the warning-tinted heart and its "Delete" action — bound
- * to the pending card [favoriteId] (FR-13, FR-22) — every other message
- * rides alone; all of them dismiss through [SwipeIntent.DismissToast].
- */
-@Composable
-private fun toastSpec(
-    message: ToastMessage,
-    favoriteId: String?,
-): ToastSpec {
-    val confirm = message == ToastMessage.FavoriteConfirm && favoriteId != null
-    return ToastSpec(
-        text = toastText(message),
-        icon = if (confirm) SwipeIcons.FAVORITE else null,
-        iconTint = if (confirm) SwipeTheme.colors.warning else null,
-        // §5.7: a confirm-style toast stays until the user acts or the deck
-        // moves on; a 3 s fuse would silently cancel the confirmation window.
-        autoDismisses = !confirm,
-        actionLabel = if (confirm) "Delete" else null,
-    )
-}
-
-/**
  * The deck's NFR-1 span tracker plus the shared commit lambda both the
  * gesture and the ActionBar paths take: open both next-card spans, fire the
  * §5.6 haptic, then the intent — the ViewModel persists before the deck
@@ -283,7 +261,7 @@ private fun DeckContent(
                     onToggleFill = { fillMode = !fillMode },
                     videoSlot = videoSlot,
                 )
-                DeckToastOverlay(state = state, onIntent = onIntent)
+                DeckToastOverlay(state = state, reduceMotion = reduceMotion, onIntent = onIntent)
             }
         }
         ActionBar(
@@ -300,31 +278,46 @@ private fun DeckContent(
 }
 
 /**
- * The §5.7 Toast host of the deck (WP-9.3): overlaid above the action bar
- * (FR-15, FR-22, NFR-7), so the card's size never depends on it. The FR-22
- * confirm names the pending card on its Delete (FR-13).
+ * The §5.7 overlay of the deck: the FR-22 favorite confirm renders as the
+ * [FavoriteConfirmCard] (WP-8.9) and every other message as a plain [ToastSpec]
+ * through [ToastHost] — both anchored above the action bar (FR-15, NFR-7) so
+ * the card's size never depends on them. The confirm's Delete names the
+ * pending card (FR-13); its Cancel and any toast dismissal are the same
+ * [SwipeIntent.DismissToast], which records nothing.
  */
 @Composable
 private fun BoxScope.DeckToastOverlay(
     state: SwipeUiState,
+    reduceMotion: Boolean,
     onIntent: (SwipeIntent) -> Unit,
 ) {
     state.toast?.let { message ->
-        ToastHost(
-            toast = toastSpec(message, state.pendingFavoriteDelete),
-            onDismiss = { onIntent(SwipeIntent.DismissToast) },
-            onAction = {
+        val pending = state.pendingFavoriteDelete
+        if (message == ToastMessage.FavoriteConfirm && pending != null) {
+            FavoriteConfirmCard(
+                onCancel = { onIntent(SwipeIntent.DismissToast) },
                 // FR-13: the confirm names the pending card.
-                val pending = state.pendingFavoriteDelete
-                if (pending != null) onIntent(SwipeIntent.ConfirmFavoriteDelete(pending))
-            },
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    // The action bar below clears the Home
-                    // Indicator itself, so the toast doesn't.
-                    .toastHostPlacement(clearHomeIndicator = false),
-        )
+                onDelete = { onIntent(SwipeIntent.ConfirmFavoriteDelete(pending)) },
+                reduceMotion = reduceMotion,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        // The action bar below clears the Home
+                        // Indicator itself, so the card doesn't.
+                        .toastHostPlacement(clearHomeIndicator = false),
+            )
+        } else {
+            ToastHost(
+                toast = ToastSpec(text = toastText(message)),
+                onDismiss = { onIntent(SwipeIntent.DismissToast) },
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        // The action bar below clears the Home
+                        // Indicator itself, so the toast doesn't.
+                        .toastHostPlacement(clearHomeIndicator = false),
+            )
+        }
     }
 }
 
@@ -420,6 +413,13 @@ private fun BoxScope.DeckStage(
             onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
             onToggleFill = onToggleFill,
             onThresholdCrossed = { haptics.selection() },
+            // U3 (WP-8.9): the finger moving over the card while the FR-22
+            // confirm is up cancels it — Cancel and drag-out are the same
+            // dismissal, and nothing records a verdict on the pending
+            // favorite without the confirm.
+            onDragStart = {
+                if (state.pendingFavoriteDelete != null) onIntent(SwipeIntent.DismissToast)
+            },
             onVideoStart = { video.started = true },
             onVideoProgress = video::onProgress,
             onLivePressStart = { video.livePress = true },
@@ -447,7 +447,12 @@ private fun BoxScope.DeckStage(
     }
 }
 
-/** Copy for each [ToastMessage]; only FR-22 and FR-15 strings are spec-fixed. */
+/**
+ * Copy for each [ToastMessage]; only FR-22 and FR-15 strings are spec-fixed.
+ * The FR-22 string rides the fallback toast only — the deck renders the
+ * favorite confirm as the [FavoriteConfirmCard] (WP-8.9), which carries its
+ * own title and message.
+ */
 private fun toastText(message: ToastMessage): String =
     when (message) {
         ToastMessage.SaveFailed -> "Couldn't save — try again"

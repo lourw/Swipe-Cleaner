@@ -22,12 +22,12 @@ import dev.swipe.ui.theme.SwipeTheme
 
 /**
  * The §5.7 `Toast` pill — pure presentation (WP-9.3): a `surfaceRaised`,
- * radius-12 row for short confirmations ("Undone", the favorite
- * confirmation). It owns no visibility and no timer: it renders while its
- * owner renders it, and screens compose it through [ToastHost], which owns
- * the 3 s auto-dismiss and the one placement. An optional trailing action
- * (the favorite confirm's "Delete") sits in `accent`, and [iconTint] carries
- * the §5.3 `warning` tone for favorite confirms.
+ * radius-12 row for short confirmations ("Undone"). It owns no visibility
+ * and no timer: it renders while its owner renders it, and screens compose
+ * it through [ToastHost], which owns the 3 s auto-dismiss and the one
+ * placement. An optional trailing action sits in `accent`, and [iconTint]
+ * carries a §5.3 tone (the FR-22 favorite confirm is now
+ * [FavoriteConfirmCard], WP-8.9, not a toast).
  */
 @Composable
 fun Toast(

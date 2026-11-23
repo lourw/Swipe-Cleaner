@@ -20,11 +20,12 @@ val DEFAULT_AUTO_DISMISS: Duration = 3000.milliseconds
 /**
  * Everything one screen shows in its §5.7 toast, as one immutable value
  * (WP-9.3 — one toast pattern for every screen). The text is the only
- * required part; [icon]/[iconTint] carry the §5.3 tone of a special toast
- * (the FR-22 favorite confirm's warning heart), [actionLabel] adds the
- * confirm's trailing "Delete", and [autoDismisses] marks the confirm style:
- * §5.7 keeps a confirm toast on screen until the user acts or the deck moves
- * on, where every other toast fades after 3 s.
+ * required part; [icon]/[iconTint] carry the §5.3 tone of a special toast,
+ * [actionLabel] adds a trailing action, and [autoDismisses] marks the
+ * confirm style: a non-auto-dismissing toast stays on screen until its owner
+ * removes it, where every other toast fades after 3 s. (The FR-22 favorite
+ * confirm outgrew the toast pattern and is now [FavoriteConfirmCard],
+ * WP-8.9; the confirm-style fields ride on for any screen that needs one.)
  */
 @Immutable
 data class ToastSpec(

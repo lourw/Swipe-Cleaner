@@ -31,7 +31,7 @@ sealed interface SwipeIntent {
     data object ToggleMute : SwipeIntent
 
     /**
-     * "Delete anyway" in the favorite confirm toast: confirms the delete queued for
+     * "Delete" on the favorite confirm card: confirms the delete queued for
      * [id] (FR-22). Ignored when [id] is not the pending favorite or the card on screen.
      */
     data class ConfirmFavoriteDelete(

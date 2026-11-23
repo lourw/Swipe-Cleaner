@@ -87,6 +87,10 @@ class CardAccessibilityAction(
  * [accessibilityActions] (Keep / Delete / Skip / Undo) ride the card node,
  * so a VoiceOver user decides without ever performing a swipe — the same
  * decisions the buttons run, wired by the caller to behave identically.
+ *
+ * [onDragStart] fires when a live drag begins (a drag that grabs nothing
+ * because a flight owns the card stays silent) — the deck uses it to cancel
+ * an open FR-22 favorite confirm the moment the finger moves (U3).
  */
 @Composable
 fun SwipeCard(
@@ -101,6 +105,7 @@ fun SwipeCard(
     onLongPress: () -> Unit = {},
     onPressUp: () -> Unit = {},
     onThresholdCrossed: () -> Unit = {},
+    onDragStart: () -> Unit = {},
     content: @Composable BoxScope.() -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -110,6 +115,11 @@ fun SwipeCard(
     // lifted, never one a recomposition bound mid-flight (FR-13).
     val currentOnDismiss = rememberUpdatedState(onDismiss)
     val currentOnThresholdCrossed by rememberUpdatedState(onThresholdCrossed)
+    // State, not value, for the same reason as onDismiss: the pointerInput
+    // coroutine captures its arguments once, and the caller's lambda closes
+    // over state that changes every recomposition (U3 gating reads whether a
+    // favorite confirm is up *now*, at finger-down time).
+    val currentOnDragStart = rememberUpdatedState(onDragStart)
     var cardSize by remember { mutableStateOf(Size.Zero) }
     // Observing the combinedClickable press: the up-edge the long-press pair
     // needs (FR-17); combinedClickable gives no release callback of its own.
@@ -162,6 +172,7 @@ fun SwipeCard(
                         reduceMotion = reduceMotion,
                         scope = scope,
                         onThresholdCrossed = currentOnThresholdCrossed,
+                        onDragStart = currentOnDragStart,
                         onDismiss = currentOnDismiss,
                     ),
         ) {
@@ -231,6 +242,7 @@ private fun Modifier.swipeDragPointerInput(
     reduceMotion: Boolean,
     scope: CoroutineScope,
     onThresholdCrossed: () -> Unit,
+    onDragStart: State<() -> Unit>,
     onDismiss: State<(SwipeVerdict) -> Unit>,
 ): Modifier =
     pointerInput(reduceMotion) {
@@ -241,6 +253,7 @@ private fun Modifier.swipeDragPointerInput(
             reduceMotion = reduceMotion,
             scope = scope,
             onThresholdCrossed = onThresholdCrossed,
+            onDragStart = onDragStart,
             onDismiss = onDismiss,
         )
     }
@@ -328,7 +341,8 @@ private fun BoxScope.VerdictStampOverlay(
  * direction threshold or a fling over [FLING_VELOCITY_DP_S] — and either
  * flies off and reports the [onDismiss] callback bound at release time
  * (FR-13) or springs back. A drag started while a verdict is already in
- * flight is inert: it never steals the flying card.
+ * flight is inert: it never steals the flying card, and [onDragStart] stays
+ * silent for it — only a drag that grabs the card reports itself (U3).
  */
 private suspend fun PointerInputScope.swipeDragGestures(
     state: SwipeCardState,
@@ -337,6 +351,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
     reduceMotion: Boolean,
     scope: CoroutineScope,
     onThresholdCrossed: () -> Unit,
+    onDragStart: State<() -> Unit>,
     onDismiss: State<(SwipeVerdict) -> Unit>,
 ) {
     val tracker = VelocityTracker()
@@ -353,6 +368,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
                 dragTotal = Offset.Zero
                 crossed = null
                 tracker.resetTracking()
+                onDragStart.value()
             }
         },
         onDrag = { change: PointerInputChange, dragAmount: Offset ->

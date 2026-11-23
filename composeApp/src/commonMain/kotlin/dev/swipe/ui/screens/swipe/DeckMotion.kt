@@ -138,6 +138,9 @@ internal fun ColumnScope.CardStack(
     onVideoProgress: (Float) -> Unit,
     onLivePressStart: () -> Unit,
     onPressUp: () -> Unit,
+    // U3 (WP-8.9): fires when a live drag begins; the deck cancels an open
+    // FR-22 favorite confirm on it. Default keeps every other caller inert.
+    onDragStart: () -> Unit = {},
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var deckSize by remember { mutableStateOf(Size.Zero) }
@@ -171,6 +174,7 @@ internal fun ColumnScope.CardStack(
             },
             onPressUp = onPressUp,
             onThresholdCrossed = onThresholdCrossed,
+            onDragStart = onDragStart,
             modifier = Modifier.matchParentSize().testTag(SWIPE_CARD_TEST_TAG),
         ) {
             val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = fillMode, latency = latency)
