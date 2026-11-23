@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.3 | verify | `fr-6-burst-deck` | ses_df575443cffepcNRHi7VBLmc5o | 2026-11-24 03:40 | Impl done: 6 commits post-rebase onto a5e5077, --full PASS, 485 tests (+17). Verifier: 6-site lookup completeness, R1 guards + hard rule 1, drop/undo/page-retry logic, loading paths, FR-9 same-query claim, contract skip behavior, spec-vs-code, own --full rerun. Report → T/opencode/wp-reports/wp-8.3-verify.md |
-| 2 | 8.14 | implement | `fr-37-albums-switch-polish` | ses_df5ab8521ffePRydhNVOdjBT1x | 2026-11-24 02:30 | Switch touch box fits track + s gaps, explainer line, "Not in Shuffle" subtitle, §5.7/§5.8 + Albums wireframe, FR-37 layout tests. Guarded away from 8.3's files (SwipeScreen/SwipeViewModel/Home/iosMain/ToastHost). Report → docs/reports/2026-11-wp-8.14-albums-switch-polish.md |
+| 2 | 8.14 | verify | `fr-37-albums-switch-polish` | ses_df55b17b4ffeatbgaeJ5SgV8N3 | 2026-11-24 04:40 | Impl done: 8 commits, validate.sh PASS, 469 tests (+4). Deviation: brief's `footnote` token doesn't exist in §5.4 → used `caption textSecondary`, spec matches code. Verifier: spacing math, Home rows unchanged, wireframe-vs-code, discriminating tests, own validate rerun. Report → T/opencode/wp-reports/wp-8.14-verify.md |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
