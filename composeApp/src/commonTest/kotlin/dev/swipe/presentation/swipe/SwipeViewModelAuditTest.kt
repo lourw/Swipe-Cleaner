@@ -5,12 +5,12 @@ package dev.swipe.presentation.swipe
 import app.cash.turbine.test
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaTypeFilter
-import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeVideoPreloader
+import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -43,7 +43,7 @@ class SwipeViewModelAuditTest {
         SwipeViewModel(
             source = SOURCE,
             typeFilter = MediaTypeFilter.ALL,
-            buildDeck = BuildDeckUseCase(f.library, f.store),
+            buildDeck = buildDeckUseCase(f.library, f.store),
             recordDecision = RecordDecisionUseCase(f.store),
             undoDecision = UndoDecisionUseCase(f.store),
             mediaLibrary = f.library,

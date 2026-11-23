@@ -94,8 +94,9 @@ At the ViewModel level undo is remove-then-rewind, and a KEEP undo provably cann
   in-memory and correctly empty after resume (FR-20); the old session's rows are untouched.
 
 **Fly-off nit (U4), verified not fixed:** during the 220 ms fly-off (`SwipeSpec.FLY_OUT_MS`)
-the card is already committed. The action-bar buttons are gated (`SwipeScreen.kt` `isClickable
-= !isCardDismissing`, existing test `FR-13 a button tap during a card's fly-off decides nothing`),
+the card is already committed. The action-bar buttons are gated (`SwipeScreen.kt` `buttonCommit`
+commits only when `SwipeCardState.flyOff` reports it started, which it refuses unless the card is
+idle; existing test `FR-13 a button tap during a card's fly-off decides nothing`),
 but the card itself is still draggable, and an Undo tap pops the *previous* entry while the
 committed swipe's `Decide` intent is in flight — the VM then drops that Decide by the id guard.
 Net effect: that one swipe is silently discarded, the card returns to the top, **no DELETE row
