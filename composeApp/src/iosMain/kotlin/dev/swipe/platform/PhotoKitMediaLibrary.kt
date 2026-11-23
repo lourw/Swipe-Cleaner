@@ -212,7 +212,7 @@ class PhotoKitMediaLibrary(
         withContext(fetchDispatcher) {
             when (source) {
                 DeckSource.All -> {
-                    idsFrom(assetsWithOptions(typePredicate(type)))
+                    allAssetIds(type)
                 }
 
                 is DeckSource.Album -> {

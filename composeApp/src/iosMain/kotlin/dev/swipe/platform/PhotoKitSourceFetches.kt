@@ -18,6 +18,8 @@ import platform.Photos.PHAsset
 import platform.Photos.PHAssetCollection
 import platform.Photos.PHAssetCollectionSubtypeSmartAlbumSelfPortraits
 import platform.Photos.PHAssetCollectionTypeSmartAlbum
+import platform.Photos.PHFetchOptions
+import platform.Photos.PHFetchResult
 
 /*
  * The per-source fetches behind the WP-5.1 source queries (FR-4–7), extracted from
@@ -45,16 +47,43 @@ internal fun albumAssetIds(
 }
 
 /**
- * FR-7: the deck ids created in one month — the half-open `[start, end)` range from
- * [monthRange] (device zone, matching the month buckets by construction) as a
- * `creationDate >= start AND creationDate < end` predicate, type-filtered (FR-5),
- * creation-date descending.
+ * FR-4 / §6.5: the library-wide (Shuffle) deck ids — every asset passing [type],
+ * creation-date descending like every other date-sorted deck (§6.5, and the order
+ * the [dev.swipe.data.MediaLibrary.assetIds] contract promises). The Shuffle deck
+ * re-orders these with its own seeded key (FR-20), but every other consumer of
+ * this fetch sees them newest-first. [fetch] is the options-capture seam the
+ * WP-7.7 contract tests use; production callers never pass it.
+ */
+internal fun allAssetIds(
+    type: MediaTypeFilter,
+    fetch: (PHFetchOptions) -> PHFetchResult = { PHAsset.fetchAssetsWithOptions(it) },
+): List<String> = idsFrom(fetch(sortedOptionsWithPredicate(typePredicate(type), "creationDate")))
+
+/**
+ * FR-7: the deck ids created in one month — the [monthFetchOptions] fetch of
+ * [year]/[month], creation-date descending (§6.5). [fetch] is the options-capture
+ * seam the WP-7.7 contract tests use; production callers never pass it.
  */
 internal fun monthAssetIds(
     year: Int,
     month: Int,
     type: MediaTypeFilter,
-): List<String> {
+    fetch: (PHFetchOptions) -> PHFetchResult = { PHAsset.fetchAssetsWithOptions(it) },
+): List<String> = idsFrom(fetch(monthFetchOptions(year, month, type)))
+
+/**
+ * The full fetch options for a month deck (FR-7, §6.5): the half-open `[start, end)`
+ * range from [monthRange] (device zone, matching the month buckets by construction) as a
+ * `creationDate >= start AND creationDate < end` predicate, type-filtered (FR-5), and the
+ * creation-date-descending sort descriptor. The WP-7.7 bug was building exactly these
+ * options and handing only `options.predicate` to the fetch — the descriptor was dropped
+ * and the deck came back in PhotoKit's natural order (oldest first).
+ */
+internal fun monthFetchOptions(
+    year: Int,
+    month: Int,
+    type: MediaTypeFilter,
+): PHFetchOptions {
     val (start, end) = monthRange(year, month, TimeZone.currentSystemDefault())
     val range =
         andPredicates(
@@ -64,8 +93,7 @@ internal fun monthAssetIds(
             NSPredicate.predicateWithFormat("creationDate >= %@", start.toNSDate()),
             NSPredicate.predicateWithFormat("creationDate < %@", end.toNSDate()),
         )
-    val options = sortedOptionsWithPredicate(andPredicates(range, typePredicate(type)), "creationDate")
-    return idsFrom(assetsWithOptions(options.predicate))
+    return sortedOptionsWithPredicate(andPredicates(range, typePredicate(type)), "creationDate")
 }
 
 /**
