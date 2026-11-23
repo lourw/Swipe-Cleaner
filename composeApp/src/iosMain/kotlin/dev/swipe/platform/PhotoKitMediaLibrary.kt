@@ -231,16 +231,19 @@ class PhotoKitMediaLibrary(
 
     /**
      * Metadata for [ids] in pages of [METADATA_PAGE_SIZE] (§6.5 step 2), input order
-     * preserved — `fetchAssetsWithLocalIdentifiers` returns assets in an arbitrary
-     * order, so each page is re-sequenced against the ids it was asked for. Assets
-     * PhotoKit no longer knows (deleted elsewhere) drop out (FR-28).
+     * preserved — the id lookup returns assets in an arbitrary order, so each page is
+     * re-sequenced against the ids it was asked for. Assets PhotoKit no longer knows
+     * (deleted elsewhere) drop out (FR-28), and so do burst frames (FR-6): the shared
+     * [fetchAssetsByIds] passes `includeAllBurstAssets` so every id a source query
+     * enumerated resolves. A page whose fetch itself fails resolves to nothing —
+     * honest "unresolvable right now": the deck drops those ids without a decision
+     * (WP-8.3) and the next deck build sees them again.
      */
     override suspend fun items(ids: List<String>): List<MediaItem> =
         withContext(fetchDispatcher) {
             ids.chunked(METADATA_PAGE_SIZE).flatMap { page ->
-                val fetched = PHAsset.fetchAssetsWithLocalIdentifiers(page, null)
                 val byId = HashMap<String, PHAsset>(page.size)
-                fetched.enumerateObjectsUsingBlock { asset, _, _ ->
+                fetchAssetsByIds(page)?.enumerateObjectsUsingBlock { asset, _, _ ->
                     (asset as? PHAsset)?.let { byId[it.localIdentifier] = it }
                 }
                 page.mapNotNull { id -> byId[id]?.let(::toMediaItem) }
@@ -249,8 +252,9 @@ class PhotoKitMediaLibrary(
 
     /**
      * One confirmed batch, one change request (FR-25): fetch the assets by local
-     * identifier, then run the PhotoKit change request behind the iOS system dialog
-     * with `performChanges { deleteAssets }`, bridged by [suspendCancellableCoroutine]
+     * identifier through the shared burst-inclusive [fetchAssetsByIds] lookup, then
+     * run the PhotoKit change request behind the iOS system dialog with
+     * `performChanges { deleteAssets }`, bridged by [suspendCancellableCoroutine]
      * — the completion handler answers on a PhotoKit queue. The `NSError` it carries
      * decides the outcome through [photoKitDeleteResult]: success → `Deleted(ids)`
      * carrying the **resolved** ids — the ones this call could actually delete —
@@ -258,27 +262,55 @@ class PhotoKitMediaLibrary(
      * → `Failed(localizedDescription)`.
      *
      * **Ids PhotoKit cannot fetch are not deleted and not reported** (FR-26, WP-7.6):
-     * a burst frame, or an asset outside a Limited selection, stays queued while the
-     * resolvable part of the batch goes through. Only when the whole batch fetches
-     * zero assets does [DeleteResult.Deleted] answer without a change request,
-     * carrying **every requested id** as gone — no iOS dialog for nothing to delete,
-     * and the convergence path for a retried commit whose PhotoKit delete succeeded
-     * but whose `markDeleted` store write failed: the second run finds nothing left
-     * to delete, stays dialog-free, and lets [dev.swipe.domain.usecase.CommitDeletionsUseCase]
+     * an asset outside a Limited selection stays queued while the resolvable part of
+     * the batch goes through. Only when the whole batch fetches zero assets does
+     * [DeleteResult.Deleted] answer without a change request, carrying **every
+     * requested id** as gone — no iOS dialog for nothing to delete, and the
+     * convergence path for a retried commit whose PhotoKit delete succeeded but whose
+     * `markDeleted` store write failed: the second run finds nothing left to delete,
+     * stays dialog-free, and lets [dev.swipe.domain.usecase.CommitDeletionsUseCase]
      * mark the rows DELETED (§6.8).
+     *
+     * **A zero-fetch answer is only trusted when PhotoKit actually answered** (audit
+     * R1, WP-8.3): without read-write authorization every id fetches empty, and a
+     * failed fetch is indistinguishable from an empty one at the binding, so either
+     * could have reported still-present photos as `Deleted`. [delete] therefore
+     * refuses with `Failed` unless the access level is Authorized or Limited and the
+     * fetch itself succeeds, and re-probes each id individually before the
+     * zero-short-circuit — every probe answering cleanly is what licenses reporting
+     * the batch as already gone.
      */
     override suspend fun delete(ids: List<String>): DeleteResult =
         withContext(fetchDispatcher) {
+            // R1: with no read-write access PhotoKit answers every id fetch empty;
+            // fail instead of mistaking that for "already gone".
+            val access =
+                photoKitLibraryAccess(PHPhotoLibrary.authorizationStatusForAccessLevel(PHAccessLevelReadWrite).toInt())
+            if (access != LibraryAccess.FULL && access != LibraryAccess.LIMITED) {
+                return@withContext DeleteResult.Failed("Photo library access is not granted")
+            }
+            val fetch = fetchAssetsByIds(ids)
+            if (fetch == null) {
+                // The fetch errored (R1): "could not answer" is not "no such assets".
+                return@withContext DeleteResult.Failed("Could not fetch the assets to delete")
+            }
             val assets = mutableListOf<PHAsset>()
-            PHAsset.fetchAssetsWithLocalIdentifiers(ids, null).enumerateObjectsUsingBlock { asset, _, _ ->
+            fetch.enumerateObjectsUsingBlock { asset, _, _ ->
                 (asset as? PHAsset)?.let(assets::add)
             }
             // The ids this call can delete; the rest of the batch stays queued (FR-26).
             val resolved = assets.mapTo(mutableSetOf()) { it.localIdentifier }
             if (assets.isEmpty()) {
-                // Nothing to delete: no change request, and the whole batch is
-                // treated as already gone — §6.8's retry-convergence path.
-                return@withContext DeleteResult.Deleted(ids.toSet())
+                // Zero resolved. Re-probe each id on its own: only when every probe
+                // answers cleanly (non-null) is "all requested ids are gone" verified
+                // — the retry-convergence path of §6.8. A failing probe means the
+                // batch fetch was simply unreliable; retry rather than report gone.
+                val verifiedGone = ids.all { id -> fetchAssetsByIds(listOf(id)) != null }
+                return@withContext if (verifiedGone) {
+                    DeleteResult.Deleted(ids.toSet())
+                } else {
+                    DeleteResult.Failed("Could not fetch the assets to delete")
+                }
             }
             val assetsToRemove = NSArray.create(array = assets)
             suspendCancellableCoroutine<DeleteResult> { continuation ->

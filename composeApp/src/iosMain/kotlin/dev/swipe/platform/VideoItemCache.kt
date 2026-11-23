@@ -184,10 +184,7 @@ class VideoItemCache(
         }
     }
 
-    private suspend fun fetchAsset(id: String): PHAsset? =
-        withContext(ioDispatcher) {
-            PHAsset.fetchAssetsWithLocalIdentifiers(listOf(id), null).firstObject as? PHAsset
-        }
+    private suspend fun fetchAsset(id: String): PHAsset? = withContext(ioDispatcher) { assetById(id) }
 
     /** The paired-video resource of a Live Photo asset (FR-17); null for other assets. */
     private fun pairedVideoResource(asset: PHAsset): PHAssetResource? =

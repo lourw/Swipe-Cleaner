@@ -103,7 +103,7 @@ class PhotoKitMediaSharer(
 
     /** [id]'s resources to share, in order; empty when the asset or its resources are gone. */
     private fun shareResources(id: String): List<PHAssetResource> {
-        val asset = PHAsset.fetchAssetsWithLocalIdentifiers(listOf(id), null).firstObject as? PHAsset ?: return emptyList()
+        val asset = assetById(id) ?: return emptyList()
         val resources = PHAssetResource.assetResourcesForAsset(asset).filterIsInstance<PHAssetResource>()
         return photoKitShareResourceTypes(
             mediaTypeId = asset.mediaType.toInt(),
