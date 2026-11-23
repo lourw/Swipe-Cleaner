@@ -132,8 +132,12 @@ abstract class MediaLibraryContract {
                 fixture.map { it.order },
                 "month deck must be newest first (§6.5), never oldest first",
             )
-            // The same fact straight off the metadata: dates strictly descending.
-            val dates = library.items(deck).mapNotNull { it.createdAt }
+            // The same fact straight off the metadata: dates strictly
+            // descending. Filtered to the fixture ids: a real granted library
+            // may hold user assets in the fixture month, and the contract
+            // compares only against its own fixtures (class KDoc).
+            val seeded = fixtureIds().toSet()
+            val dates = library.items(deck.filter { it in seeded }).mapNotNull { it.createdAt }
             assertEquals(3, dates.size)
             assertTrue(
                 dates.zipWithNext().all { (a, b) -> a > b },
@@ -278,11 +282,18 @@ abstract class MediaLibraryContract {
          * days strictly increase with [FixtureAsset.order] within a month
          * (3 < 20 < 24) and never tie across types.
          */
-        fun dayOf(asset: FixtureAsset): Int =
-            when (asset.type) {
-                MediaType.PHOTO, MediaType.LIVE_PHOTO -> intArrayOf(3, 17, 24)[asset.order]
-                MediaType.VIDEO -> intArrayOf(10, 20)[asset.order]
+        fun dayOf(asset: FixtureAsset): Int {
+            val days =
+                when (asset.type) {
+                    MediaType.PHOTO, MediaType.LIVE_PHOTO -> intArrayOf(3, 17, 24)
+                    MediaType.VIDEO -> intArrayOf(10, 20)
+                }
+            require(asset.order in days.indices) {
+                "FixtureAsset(${asset.type}, order=${asset.order}) has no day in $days; " +
+                    "extend dayOf and the fixture dates together"
             }
+            return days[asset.order]
+        }
 
         /** [Instant] for fixture asset [asset]'s creation date (12:00 UTC). */
         fun createdAt(asset: FixtureAsset): Instant = Instant.fromEpochSeconds(epochSeconds(fixtureMonths[asset.month], dayOf(asset)))

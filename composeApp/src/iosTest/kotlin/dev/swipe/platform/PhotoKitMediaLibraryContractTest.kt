@@ -75,6 +75,14 @@ import kotlin.test.AfterTest
  * rule 1 holds in app code: `CommitDeletionsUseCase` remains the only delete
  * path there; this is test code removing test-owned assets, guarded to the
  * fixture ids).
+ *
+ * Two caveats for a granted developer host (both unreachable on the Gradle
+ * host, where auth is denied and every test skips): `PHAssetChangeRequest`
+ * deletions can raise the system confirmation prompt, which blocks the
+ * completion handler until dismissed; and because kotlin.test constructs a
+ * fresh instance per `@Test`, the lazy fixture seeds once per test rather than
+ * once for the class. Neither affects correctness — only a granted run's speed
+ * and the need to dismiss any prompt.
  */
 @OptIn(
     ExperimentalForeignApi::class,
@@ -142,7 +150,9 @@ class PhotoKitMediaLibraryContractTest : MediaLibraryContract() {
         created: MutableList<String>,
     ): Boolean {
         val perAsset = fixtureAssets.map { asset -> createFixtureAsset(asset, videoFiles) }
-        created += perAsset.takeWhile { it != null }.filterNotNull()
+        // filterNotNull, not takeWhile: a null mid-list still records every
+        // asset that did get written, so the failure-path delete misses none.
+        created += perAsset.filterNotNull()
         return perAsset.size == created.size
     }
 

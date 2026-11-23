@@ -54,8 +54,8 @@ class BuildDeckUseCase(
 /**
  * The FR-20 Shuffle order: ids sorted by [shuffleKey], the seed-mixed hash of
  * each id, with the id string itself breaking the rare key tie so the result is
- * total and never depends on fetch order (PhotoKit's All fetch is unordered,
- * §6.5). Because the key is a property of (seed, id) alone, filtering the list
+ * total and never depends on fetch order (§6.5; WP-7.7 made the fetches
+ * sorted, but Shuffle must not rely on that). Because the key is a property of (seed, id) alone, filtering the list
  * — decided items (FR-9), FR-37 exclusions, a library that grew or shrank
  * between sessions — commutes with the sort: surviving ids keep their relative
  * order, where a positional `shuffled(Random(seed))` permutation would move
