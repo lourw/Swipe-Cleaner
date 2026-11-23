@@ -8,6 +8,7 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.toNSDate
 import platform.AVFoundation.AVAssetWriter
 import platform.AVFoundation.AVAssetWriterInput
 import platform.AVFoundation.AVAssetWriterInputPixelBufferAdaptor
@@ -17,26 +18,25 @@ import platform.AVFoundation.AVFileTypeMPEG4
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVVideoCodecKey
 import platform.AVFoundation.AVVideoCodecTypeH264
-import platform.CoreMedia.CMTimeMake
 import platform.CoreGraphics.CGContextFillRect
 import platform.CoreGraphics.CGContextSetFillColorWithColor
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
+import platform.CoreMedia.CMTimeMake
 import platform.CoreVideo.CVPixelBufferCreate
-import platform.CoreVideo.kCVPixelBufferHeightKey
-import platform.CoreVideo.kCVPixelBufferPixelFormatTypeKey
 import platform.CoreVideo.CVPixelBufferRef
 import platform.CoreVideo.CVPixelBufferRefVar
 import platform.CoreVideo.CVPixelBufferRelease
+import platform.CoreVideo.kCVPixelBufferHeightKey
+import platform.CoreVideo.kCVPixelBufferPixelFormatTypeKey
 import platform.CoreVideo.kCVPixelBufferWidthKey
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
-import kotlinx.datetime.toNSDate
 import platform.Foundation.NSArray
-import platform.Foundation.create
+import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
-import platform.Foundation.NSError
 import platform.Foundation.NSURL
+import platform.Foundation.create
 import platform.Photos.PHAccessLevelReadWrite
 import platform.Photos.PHAsset
 import platform.Photos.PHAssetChangeRequest
@@ -99,43 +99,81 @@ class PhotoKitMediaLibraryContractTest : MediaLibraryContract() {
             println("SKIPPED (WP-7.7): host photo library is not read-write authorized (status=$status)")
             return Seeded(null)
         }
+        return seedFixture()
+    }
+
+    /** Writes the fixture once authorization is granted; skips with a reason on any failure. */
+    private suspend fun seedFixture(): Seeded {
         val videoFiles = writeFixtureVideos()
-        if (videoFiles.size != fixtureAssets.count { it.type == MediaType.VIDEO }) {
-            println("SKIPPED (WP-7.7): could not encode the fixture videos on this host")
-            return Seeded(null)
-        }
         val created = mutableListOf<String>()
-        val ok =
-            performFixtureChanges {
-                fixtureAssets.forEach { asset ->
-                    val request =
-                        when (asset.type) {
-                            MediaType.PHOTO ->
-                                PHAssetChangeRequest.creationRequestForAssetFromImage(fixtureImage(asset))
-
-                            MediaType.VIDEO ->
-                                PHAssetChangeRequest.creationRequestForAssetFromVideoAtFileURL(
-                                    videoFiles.getValue(asset.name),
-                                )
-
-                            MediaType.LIVE_PHOTO ->
-                                error("the fixture has no live photos")
-                        } ?: return@performFixtureChanges false
-                    request.creationDate =
-                        kotlin.time.Instant.fromEpochSeconds(epochSeconds(fixtureMonths[asset.month], dayOf(asset))).toNSDate()
-                    val placeholder =
-                        request.placeholderForCreatedAsset() ?: return@performFixtureChanges false
-                    created += placeholder.localIdentifier
+        val failure =
+            when {
+                videoFiles.size != fixtureAssets.count { it.type == MediaType.VIDEO } -> {
+                    "could not encode the fixture videos on this host"
                 }
-                true
+
+                !performFixtureChanges {
+                    writeFixtureAssets(videoFiles, created)
+                } ||
+                    created.size != fixtureAssets.size -> {
+                    "fixture writes into the real photo library failed"
+                }
+
+                else -> {
+                    null
+                }
             }
-        if (!ok || created.size != fixtureAssets.size) {
-            println("SKIPPED (WP-7.7): fixture writes into the real photo library failed")
+        if (failure != null) {
+            println("SKIPPED (WP-7.7): $failure")
+            if (created.isNotEmpty()) {
+                // A partial write must not leak into the shared library.
+                deleteFixtureAssets(created.toList())
+            }
             return Seeded(null)
         }
         // Placeholders are captured in fixture order, so `created` already
         // matches the fixture's ascending creation order.
         return Seeded(created.toList())
+    }
+
+    /** One `performChanges` block: create all six fixtures with their dates. */
+    private fun writeFixtureAssets(
+        videoFiles: Map<String, NSURL>,
+        created: MutableList<String>,
+    ): Boolean {
+        val perAsset = fixtureAssets.map { asset -> createFixtureAsset(asset, videoFiles) }
+        created += perAsset.takeWhile { it != null }.filterNotNull()
+        return perAsset.size == created.size
+    }
+
+    /** Creates one fixture asset and returns its local id, or null when PhotoKit refuses. */
+    private fun createFixtureAsset(
+        asset: FixtureAsset,
+        videoFiles: Map<String, NSURL>,
+    ): String? {
+        val request =
+            when (asset.type) {
+                MediaType.PHOTO -> {
+                    PHAssetChangeRequest.creationRequestForAssetFromImage(fixtureImage(asset))
+                }
+
+                MediaType.VIDEO -> {
+                    PHAssetChangeRequest.creationRequestForAssetFromVideoAtFileURL(
+                        videoFiles.getValue(asset.name),
+                    )
+                }
+
+                MediaType.LIVE_PHOTO -> {
+                    error("the fixture has no live photos")
+                }
+            }
+        if (request != null) {
+            request.creationDate =
+                kotlin.time.Instant
+                    .fromEpochSeconds(epochSeconds(fixtureMonths[asset.month], dayOf(asset)))
+                    .toNSDate()
+        }
+        return request?.placeholderForCreatedAsset()?.localIdentifier
     }
 
     override suspend fun cleanUp(seeded: Seeded) {
@@ -232,8 +270,7 @@ class PhotoKitMediaLibraryContractTest : MediaLibraryContract() {
         return out
     }
 
-    private fun fixtureVideoUrl(name: String): NSURL =
-        NSURL.fileURLWithPath("${NSTemporaryDirectory()}/$name.mp4")
+    private fun fixtureVideoUrl(name: String): NSURL = NSURL.fileURLWithPath("${NSTemporaryDirectory()}/$name.mp4")
 
     /** Encodes a two-second solid-color video at [url]. */
     private fun writeVideoFile(url: NSURL): Boolean =
