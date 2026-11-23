@@ -89,23 +89,14 @@ fun SourceRow(
                 .padding(horizontal = SwipeTheme.spacing.gutter),
     ) {
         SourceRowLeading(coverAssetId, mediaLoader, icon)
-        Column(
+        SourceRowTitle(
+            title = title,
+            subtitle = subtitle,
             modifier =
                 Modifier
                     .weight(1f)
                     .padding(start = SwipeTheme.spacing.s),
-        ) {
-            BasicText(
-                text = title,
-                style = SwipeTheme.typography.headline.copy(color = colors.textPrimary),
-            )
-            if (subtitle != null) {
-                BasicText(
-                    text = subtitle,
-                    style = SwipeTheme.typography.caption.copy(color = colors.textSecondary),
-                )
-            }
-        }
+        )
         if (count != null) {
             BasicText(
                 text = count,
@@ -136,14 +127,34 @@ fun SourceRow(
                 Modifier
                     .size(SwipeTheme.sizes.icon)
                     .padding(
-                        start =
-                            if (hasSwitch) {
-                                SwipeTheme.spacing.s
-                            } else {
-                                SwipeTheme.spacing.xs
-                            },
+                        start = if (hasSwitch) SwipeTheme.spacing.s else SwipeTheme.spacing.xs,
                     ),
         )
+    }
+}
+
+/**
+ * The text column of a [SourceRow]: the title in `headline` and, when given,
+ * the FR-37 [subtitle] under it in `caption textSecondary` (§5.7).
+ */
+@Composable
+private fun SourceRowTitle(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+) {
+    val colors = SwipeTheme.colors
+    Column(modifier = modifier) {
+        BasicText(
+            text = title,
+            style = SwipeTheme.typography.headline.copy(color = colors.textPrimary),
+        )
+        if (subtitle != null) {
+            BasicText(
+                text = subtitle,
+                style = SwipeTheme.typography.caption.copy(color = colors.textSecondary),
+            )
+        }
     }
 }
 
