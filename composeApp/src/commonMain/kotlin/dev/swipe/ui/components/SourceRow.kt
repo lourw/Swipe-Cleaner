@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -40,6 +41,13 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * chevron — the FR-37 **Exclude from Shuffle** control, the same iOS-shape
  * switch and `Role.Switch` semantics the Settings rows use. The switch is its
  * own touch target and consumes its taps, so the row tap still navigates.
+ * Its touch box is as wide as the track (WP-8.14), and `s` gaps separate
+ * count → switch → chevron; rows without the switch keep their original
+ * spacing, so Home and By month render exactly as before.
+ *
+ * [subtitle] (FR-37: "Not in Shuffle") sits under the title in `caption
+ * textSecondary`; the row keeps its fixed height. When present it joins the
+ * row's VoiceOver description (NFR-8).
  *
  * The cover is a *small-target* request (the 40 dp slot's pixels, never the
  * full-screen target), so row lists can't evict card bitmaps from the
@@ -52,6 +60,7 @@ fun SourceRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     count: String? = null,
+    subtitle: String? = null,
     coverAssetId: String? = null,
     mediaLoader: MediaLoader? = null,
     icon: String? = null,
@@ -61,7 +70,12 @@ fun SourceRow(
 ) {
     val colors = SwipeTheme.colors
     val tokens = SwipeTheme.componentSizes
-    val description = if (count != null) "$title, $count" else title
+    // NFR-8: the description carries the subtitle too, so an excluded album
+    // reads "…, Not in Shuffle" (WP-8.14).
+    val description = listOfNotNull(title, count, subtitle).joinToString(separator = ", ")
+    val checked = switchChecked
+    val toggle = onSwitchToggle
+    val hasSwitch = checked != null && toggle != null
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
@@ -73,14 +87,23 @@ fun SourceRow(
                 .padding(horizontal = SwipeTheme.spacing.gutter),
     ) {
         SourceRowLeading(coverAssetId, mediaLoader, icon)
-        BasicText(
-            text = title,
-            style = SwipeTheme.typography.headline.copy(color = colors.textPrimary),
+        Column(
             modifier =
                 Modifier
                     .weight(1f)
                     .padding(start = SwipeTheme.spacing.s),
-        )
+        ) {
+            BasicText(
+                text = title,
+                style = SwipeTheme.typography.headline.copy(color = colors.textPrimary),
+            )
+            if (subtitle != null) {
+                BasicText(
+                    text = subtitle,
+                    style = SwipeTheme.typography.caption.copy(color = colors.textSecondary),
+                )
+            }
+        }
         if (count != null) {
             BasicText(
                 text = count,
@@ -89,10 +112,14 @@ fun SourceRow(
                         color = colors.textSecondary,
                         fontFeatureSettings = TABULAR_FIGURES,
                     ),
+                modifier =
+                    if (hasSwitch) {
+                        Modifier.padding(end = SwipeTheme.spacing.s)
+                    } else {
+                        Modifier
+                    },
             )
         }
-        val checked = switchChecked
-        val toggle = onSwitchToggle
         if (checked != null && toggle != null) {
             SourceRowSwitch(
                 checked = checked,
@@ -103,7 +130,17 @@ fun SourceRow(
         SwipeIcon(
             symbol = SwipeIcons.CHEVRON_RIGHT,
             tint = colors.textSecondary,
-            modifier = Modifier.size(SwipeTheme.sizes.icon).padding(start = SwipeTheme.spacing.xs),
+            modifier =
+                Modifier
+                    .size(SwipeTheme.sizes.icon)
+                    .padding(
+                        start =
+                            if (hasSwitch) {
+                                SwipeTheme.spacing.s
+                            } else {
+                                SwipeTheme.spacing.xs
+                            },
+                    ),
         )
     }
 }
@@ -171,9 +208,13 @@ private fun SourceRowCover(
 
 /**
  * The FR-37 trailing switch of a [SourceRow]: the visual [SwipeSwitch] inside a
- * `minTouchTarget` box that owns the `Role.Switch` semantics, mirroring the
- * Settings `ToggleRow` (WP-6.1). Its clickable consumes the tap, so toggling
- * never opens the row.
+ * touch box that owns the `Role.Switch` semantics, mirroring the Settings
+ * `ToggleRow` (WP-6.1). Its clickable consumes the tap, so toggling never
+ * opens the row.
+ *
+ * The box is `max(minTouchTarget, switchTrackWidth)` wide and at least 44 dp
+ * tall (§5.5, WP-8.14): the 51 dp track fits it exactly instead of spilling
+ * ~3.5 dp past a 44 dp square and touching the count.
  */
 @Composable
 private fun SourceRowSwitch(
@@ -181,11 +222,15 @@ private fun SourceRowSwitch(
     contentDescription: String,
     onToggle: () -> Unit,
 ) {
+    val trackWidth = SwipeTheme.componentSizes.switchTrackWidth
     Box(
         contentAlignment = Alignment.Center,
         modifier =
             Modifier
-                .size(SwipeTheme.sizes.minTouchTarget)
+                .size(
+                    width = trackWidth.coerceAtLeast(SwipeTheme.sizes.minTouchTarget),
+                    height = SwipeTheme.sizes.minTouchTarget,
+                )
                 .clickable(role = Role.Switch, onClick = onToggle)
                 .semantics {
                     this.contentDescription = contentDescription
