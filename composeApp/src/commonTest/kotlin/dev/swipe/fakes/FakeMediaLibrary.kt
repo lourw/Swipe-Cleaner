@@ -335,17 +335,30 @@ class FakeMediaLibrary(
     override suspend fun delete(ids: List<String>): DeleteResult {
         deleteCalls += ids
         deleteGate?.await()
-        nextDeleteResult?.let { return it }
+        return nextDeleteResult ?: runDelete(ids)
+    }
+
+    /** [delete]'s modeled PhotoKit path, the verbatim override already screened out. */
+    private fun runDelete(ids: List<String>): DeleteResult {
         // Audit R1 (WP-8.3), mirroring the real library: without read-write access,
         // or when the id fetch cannot answer, delete fails — it never reports ids as
         // gone on the strength of a fetch that was never really performed.
-        if (access != LibraryAccess.FULL && access != LibraryAccess.LIMITED) {
-            return DeleteResult.Failed("Photo library access is not granted")
-        }
-        if (failNextDeleteFetch) {
-            failNextDeleteFetch = false
-            return DeleteResult.Failed("Could not fetch the assets to delete")
-        }
+        val refused: DeleteResult? =
+            when {
+                access != LibraryAccess.FULL && access != LibraryAccess.LIMITED -> {
+                    DeleteResult.Failed("Photo library access is not granted")
+                }
+
+                failNextDeleteFetch -> {
+                    failNextDeleteFetch = false
+                    DeleteResult.Failed("Could not fetch the assets to delete")
+                }
+
+                else -> {
+                    null
+                }
+            }
+        if (refused != null) return refused
         // Model the real library (FR-26, §6.8): only ids that resolve to an asset
         // are handed to the change request, and only those come back as deleted.
         val present = items.map { it.id }.toSet()

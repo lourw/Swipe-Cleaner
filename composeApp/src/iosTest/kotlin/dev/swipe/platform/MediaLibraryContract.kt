@@ -133,12 +133,11 @@ abstract class MediaLibraryContract {
 
     /** True when the burst fixture is in the library; prints an explicit skip otherwise. */
     protected fun assumeBurstsSeeded(): Boolean {
-        if (!assumeSeeded()) return false
-        if (burstFrameIds.isEmpty()) {
+        val ready = assumeSeeded() && burstFrameIds.isNotEmpty()
+        if (!ready && seeded.isSeeded) {
             println("SKIPPED (WP-8.3): this runner cannot seed burst assets (PhotoKit has no burst write API)")
-            return false
         }
-        return true
+        return ready
     }
 
     protected suspend fun idsFor(

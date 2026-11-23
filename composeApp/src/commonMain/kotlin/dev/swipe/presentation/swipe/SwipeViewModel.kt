@@ -371,16 +371,8 @@ class SwipeViewModel(
                     savePosition()
                     // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
                     // testing exhaustion, so a deck whose tail ids never resolve
-                    // carries on to reviewable cards instead of finishing early. A
-                    // failed page fetch leaves the ids in the deck for the next
-                    // trigger; the durable decision still advances (NFR-7).
-                    try {
-                        ensureMetadataLoaded()
-                    } catch (cancellation: CancellationException) {
-                        throw cancellation // ViewModel teardown, not a failed page
-                    } catch (_: Exception) {
-                        // Ignored on purpose; see above.
-                    }
+                    // carries on to reviewable cards instead of finishing early.
+                    pageMetadataQuietly { ensureMetadataLoaded() }
                     if (index >= deck.size) finish() else publish()
                     refreshPrefetch()
                 }
@@ -627,5 +619,20 @@ class SwipeViewModel(
 
         /** FR-15: the undo stack holds up to 50 steps per session. */
         const val UNDO_STACK_LIMIT = 50
+    }
+}
+
+/**
+ * Runs a deck metadata [pass] with a failed page fetch swallowed (FR-6, WP-8.3):
+ * the ids stay in the deck for the next trigger, and the durable decision that
+ * triggered the pass still advances (NFR-7). Cancellation always propagates.
+ */
+private suspend fun pageMetadataQuietly(pass: suspend () -> Unit) {
+    try {
+        pass()
+    } catch (cancellation: CancellationException) {
+        throw cancellation // ViewModel teardown, not a failed page
+    } catch (_: Exception) {
+        // Ignored on purpose; see above.
     }
 }
