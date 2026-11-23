@@ -13,18 +13,23 @@ import kotlinx.coroutines.flow.first
  *
  * The check is an existence probe, not a metadata load: the queue is asked in pages
  * of [EXISTENCE_PAGE_SIZE] ids (§6.5 step 2's paging, NFR-4 / AGENTS.md rule 6) and
- * ids missing from [MediaLibrary.items]' answers are removed from the store with
- * [DecisionStore.remove].
+ * ids missing from [MediaLibrary.items]' answers are dropped from the store with one
+ * [DecisionStore.dropFromQueue] call.
  *
- * **Silently** (FR-28): no result surfaces to the user, and a failed removal is
- * swallowed — the row just stays queued for the next load. Cancellation still
+ * **Silently** (FR-28): no result surfaces to the user, and a failed drop is
+ * swallowed — the rows just stay queued for the next load. Cancellation still
  * propagates. The return value exists for tests, not for the UI.
+ *
+ * WP-7.6: the drop goes through [DecisionStore.dropFromQueue], whose SQL deletes only
+ * **pending-DELETE** rows, instead of the undo-shaped [DecisionStore.remove] with a
+ * synthetic session id — so a prune can never erase a KEEP row, whatever an id's row
+ * holds by the time the write lands.
  */
 class PruneQueueUseCase(
     private val library: MediaLibrary,
     private val decisions: DecisionStore,
 ) {
-    /** Prunes the current queue; returns the ids removed from the store. */
+    /** Prunes the current queue; returns the ids dropped from the store. */
     suspend operator fun invoke(): List<String> {
         val queue = decisions.deleteQueue().first()
         if (queue.isEmpty()) return emptyList()
@@ -34,17 +39,13 @@ class PruneQueueUseCase(
                 .flatMap { page -> library.items(page).map { it.id } }
                 .toSet()
         val missing = queue.filterNot { it in present }
-        for (id in missing) {
+        if (missing.isNotEmpty()) {
             try {
-                // The queue only ever holds `decision` rows, so remove's session
-                // argument — a synthetic id no real session ever carries (§7) — can
-                // only ever match the decision row being pruned. §7 has no foreign
-                // key on session_id, so no schema change is needed.
-                decisions.remove(id, PRUNE_SESSION_ID)
+                decisions.dropFromQueue(missing)
             } catch (cancellation: CancellationException) {
                 throw cancellation // teardown, not a failed prune
             } catch (_: Exception) {
-                // FR-28 keeps pruning silent: a row this load could not drop is
+                // FR-28 keeps pruning silent: rows this load could not drop are
                 // retried by the next one.
             }
         }
@@ -54,8 +55,5 @@ class PruneQueueUseCase(
     companion object {
         /** Existence probe page size; §6.5 step 2 caps `items` at 20 ids per call. */
         const val EXISTENCE_PAGE_SIZE = 20
-
-        /** Session argument for [DecisionStore.remove]; see the loop comment. */
-        const val PRUNE_SESSION_ID = "prune"
     }
 }

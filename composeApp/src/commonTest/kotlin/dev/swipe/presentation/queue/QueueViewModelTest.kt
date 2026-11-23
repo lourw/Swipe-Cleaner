@@ -74,8 +74,8 @@ class QueueViewModelTest {
                 // The vanished id is gone from the list the screen first sees…
                 assertEquals(listOf("asset-3", "asset-1"), ready.items)
             }
-            // …and silently out of the store (FR-28): a remove, no toast, no error.
-            assertEquals(listOf("asset-2"), f.store.removeCalls)
+            // …and silently out of the store (FR-28): a dropFromQueue, no toast, no error.
+            assertEquals(listOf(listOf("asset-2")), f.store.dropFromQueueCalls)
             assertEquals(listOf("asset-3", "asset-1"), f.store.deleteQueue().first())
         }
 
@@ -218,9 +218,10 @@ class QueueViewModelTest {
                 assertEquals(3, cancelled.items.size)
             }
             // No store call of any kind beyond the seeded queue: nothing marked
-            // deleted, nothing restored.
+            // deleted, nothing restored, nothing pruned.
             assertTrue(f.store.markDeletedCalls.isEmpty())
             assertTrue(f.store.removeCalls.isEmpty())
+            assertTrue(f.store.dropFromQueueCalls.isEmpty())
         }
 
     @Test
@@ -347,6 +348,7 @@ class QueueViewModelTest {
             // No store calls at all: the rows are byte-identical to before.
             assertTrue(f.store.markDeletedCalls.isEmpty())
             assertTrue(f.store.removeCalls.isEmpty())
+            assertTrue(f.store.dropFromQueueCalls.isEmpty())
             assertEquals(queueBefore, f.store.deleteQueue().first())
             assertEquals(entriesBefore, f.store.entries)
             assertTrue(f.haptics.events.isEmpty())
@@ -534,7 +536,7 @@ class QueueViewModelTest {
                 assertEquals(listOf("asset-3", "asset-1"), after.items)
             }
             // Silently out of the store too, exactly like the load prune (FR-28).
-            assertEquals(listOf("asset-2"), f.store.removeCalls)
+            assertEquals(listOf(listOf("asset-2")), f.store.dropFromQueueCalls)
             assertEquals(listOf("asset-3", "asset-1"), f.store.deleteQueue().first())
             assertTrue(f.library.deleteCalls.isEmpty())
         }
@@ -560,7 +562,7 @@ class QueueViewModelTest {
 
                     expectNoEvents() // FR-28 keeps pruning silent…
                     assertEquals(2, f.viewModel.uiState.value.items.size) // …and the row stays
-                    assertTrue(f.store.removeCalls.isEmpty()) // a failed probe writes nothing
+                    assertTrue(f.store.dropFromQueueCalls.isEmpty()) // a failed probe writes nothing
 
                     // The next change retries and succeeds.
                     f.library.notifyChange()
@@ -570,7 +572,7 @@ class QueueViewModelTest {
                 }
                 eventTurbine.expectNoEvents()
             }
-            assertEquals(listOf("asset-1"), f.store.removeCalls)
+            assertEquals(listOf(listOf("asset-1")), f.store.dropFromQueueCalls)
         }
 
     @Test
@@ -585,7 +587,7 @@ class QueueViewModelTest {
             // rows away before they can be marked DELETED. The gate suspends
             // the fake INSIDE delete, so `deleting` is genuinely held when the
             // change lands — without the guard this prune would fire and the
-            // mid-flight removeCalls assertion below would fail.
+            // mid-flight dropFromQueueCalls assertion below would fail.
             val gate = CompletableDeferred<Unit>()
             // Verbatim override (WP-7.6): answer the batch as fully resolved so
             // the scenario isolates the mid-flight prune guard from FR-26's
@@ -600,7 +602,7 @@ class QueueViewModelTest {
 
             f.library.notifyChange()
             advanceUntilIdle() // the collector wakes, sees deleting=true, skips
-            assertTrue(f.store.removeCalls.isEmpty())
+            assertTrue(f.store.dropFromQueueCalls.isEmpty())
 
             gate.complete(Unit)
             f.library.deleteGate = null
@@ -609,7 +611,7 @@ class QueueViewModelTest {
             val state = f.viewModel.uiState.value
             assertEquals(QueueDeleteResult.Deleted(2), state.result)
             assertEquals(listOf(listOf("asset-2", "asset-1")), f.store.markDeletedCalls)
-            assertTrue(f.store.removeCalls.isEmpty())
+            assertTrue(f.store.dropFromQueueCalls.isEmpty())
         }
 
     @Test

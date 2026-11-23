@@ -93,6 +93,15 @@ class SqlDecisionStore(
         }
     }
 
+    override suspend fun dropFromQueue(ids: List<String>) {
+        if (ids.isEmpty()) return
+        withContext(dispatcher) {
+            // WHERE decision = 'DELETE' (Decision.sq): only queued rows drop, a
+            // KEEP or DELETED row for the same id survives (FR-28, WP-7.6).
+            decisions.dropFromQueue(ids)
+        }
+    }
+
     override suspend fun clearKeeps() {
         withContext(dispatcher) {
             decisions.clearKeeps()

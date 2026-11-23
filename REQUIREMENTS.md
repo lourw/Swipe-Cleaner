@@ -91,7 +91,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-25** "Delete N items" calls one `PHPhotoLibrary.performChanges { deleteAssets }` for the whole queue, which triggers the iOS system dialog.
 - **FR-26** If the user confirms in iOS, the items are marked `DELETED` in the database and removed from the queue, and a success screen appears. Only ids the library confirmed gone (deleted now, or already gone) count: an id PhotoKit could not resolve — a burst frame, or an asset outside a Limited selection — stays queued, and the success screen reports it ("N deleted, M couldn't be found").
 - **FR-27** If the user cancels the iOS dialog, the queue stays as it was and no error is shown.
-- **FR-28** Queued items whose assets no longer exist (deleted elsewhere) are pruned silently whenever the queue is loaded.
+- **FR-28** Queued items whose assets no longer exist (deleted elsewhere) are pruned silently whenever the queue is loaded. The prune only ever removes pending-`DELETE` rows — a `KEEP` decision is never erased (WP-7.6).
 
 ### Settings
 - **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos.
@@ -438,6 +438,7 @@ interface DecisionStore {
     suspend fun sessionCounts(sessionId: String): SessionCounts  // this session's KEEP / pending-DELETE COUNTs + reviewed (every row, DELETED included; WP-6.4) — FR-21 summary; resume index correction, §6.5 step 1
     fun deleteQueue(): Flow<List<String>>
     suspend fun markDeleted(ids: List<String>)
+    suspend fun dropFromQueue(ids: List<String>)                        // FR-28 prune; deletes only pending-DELETE rows — a KEEP or DELETED row is never touched (WP-7.6)
     suspend fun clearKeeps()
     fun stats(): Flow<Stats>                                // reviewed, kept, deleted, queued; COUNT queries, nothing stored (FR-10, §7)
 }
@@ -656,7 +657,7 @@ CREATE TABLE session_skip (
 ```
 
 - Stats (reviewed, kept, deleted) are computed with `COUNT` queries; nothing is stored separately.
-- Two synthetic `session_id` values mark store writes that belong to no swipe session: `"restore"` (FR-24, queue restore recorded as KEEP) and `"prune"` (FR-28, silent removal of vanished ids).
+- Two synthetic `session_id` values mark store writes that belong to no swipe session: `"restore"` (FR-24, queue restore recorded as KEEP) and, until WP-7.6, `"prune"` (FR-28). The prune no longer needs one: it goes through `DecisionStore.dropFromQueue`, whose `WHERE decision = 'DELETE'` guard retires the synthetic `"prune"` id — no session argument exists to fake, and a KEEP row cannot be erased by a prune whatever the row holds when the write lands.
 - The database file lives in the app's Application Support directory and is excluded from iCloud backup.
 - Schema changes use SQLDelight migrations (`1.sqm`, ...).
 

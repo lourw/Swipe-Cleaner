@@ -55,6 +55,13 @@ interface DecisionStore {
     /** Mark [ids] DELETED after the user confirmed in the iOS dialog (FR-26). */
     suspend fun markDeleted(ids: List<String>)
 
+    /**
+     * FR-28 prune: delete the **pending-DELETE** rows for [ids] — rows whose asset
+     * no longer exists drop out of the queue. A KEEP or DELETED row for the same
+     * id is never touched (WP-7.6), which is why this is not [remove].
+     */
+    suspend fun dropFromQueue(ids: List<String>)
+
     /** Drop KEEP rows only — the delete queue stays untouched (FR-30). */
     suspend fun clearKeeps()
 

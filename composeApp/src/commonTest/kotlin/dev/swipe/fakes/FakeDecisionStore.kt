@@ -40,6 +40,9 @@ class FakeDecisionStore(
     /** Every [markDeleted] call, oldest first. */
     val markDeletedCalls = mutableListOf<List<String>>()
 
+    /** Every [dropFromQueue] call, oldest first. */
+    val dropFromQueueCalls = mutableListOf<List<String>>()
+
     /** How many times [clearKeeps] was called. */
     var clearKeepsCalls = 0
         private set
@@ -52,6 +55,7 @@ class FakeDecisionStore(
     var failNextRemove: Throwable? = null
     var failNextDecidedIds: Throwable? = null
     var failNextMarkDeleted: Throwable? = null
+    var failNextDropFromQueue: Throwable? = null
     var failNextClearKeeps: Throwable? = null
 
     /**
@@ -144,6 +148,18 @@ class FakeDecisionStore(
             current.map {
                 if (it.id in ids && it.decision == Decision.DELETE) it.copy(decision = Decision.DELETED) else it
             }
+        }
+    }
+
+    override suspend fun dropFromQueue(ids: List<String>) {
+        dropFromQueueCalls += ids
+        failNextDropFromQueue?.let {
+            failNextDropFromQueue = null
+            throw it
+        }
+        // Mirrors the SQL guard: only pending-DELETE rows drop (FR-28, WP-7.6).
+        rows.update { current ->
+            current.filterNot { it.id in ids && it.decision == Decision.DELETE }
         }
     }
 

@@ -174,6 +174,53 @@ class SqlStoresTest {
             assertEquals(listOf("queued-1"), store.deleteQueue().first())
         }
 
+    // ——— FR-26 / FR-28 (WP-7.6): the queued-row guards ———
+
+    @Test
+    fun `FR-26 markDeleted leaves KEEP rows and unqueued ids alone`() =
+        runTest {
+            val store = SqlDecisionStore(database, clock)
+            store.record("kept-1", Decision.KEEP, "session-1")
+            store.record("queued-1", Decision.DELETE, "session-1")
+            store.record("gone-1", Decision.DELETE, "session-1")
+
+            // A partly-resolved batch (FR-26): only the queued id flips, the KEEP
+            // row for an id in the same call is untouched, and an unknown id is a
+            // no-op.
+            store.markDeleted(listOf("gone-1", "kept-1", "never-seen"))
+
+            assertEquals(listOf("queued-1"), store.deleteQueue().first())
+            // gone-1 left the decided set (it is DELETED now); kept-1 stayed KEEP.
+            assertEquals(setOf("kept-1", "queued-1"), store.decidedIds())
+            assertEquals(
+                Stats(reviewed = 3, kept = 1, deleted = 1, queued = 1),
+                store.stats().first(),
+            )
+        }
+
+    @Test
+    fun `FR-28 dropFromQueue never removes a KEEP`() =
+        runTest {
+            val store = SqlDecisionStore(database, clock)
+            store.record("kept-1", Decision.KEEP, "session-1")
+            store.record("queued-1", Decision.DELETE, "session-1")
+            store.record("queued-2", Decision.DELETE, "session-1")
+            store.record("gone-1", Decision.DELETE, "session-1")
+            store.markDeleted(listOf("gone-1"))
+
+            // A prune naming a KEEP id, a queued id, a committed DELETED id, and an
+            // unknown id (FR-28, WP-7.6): only the pending DELETE row drops.
+            store.dropFromQueue(listOf("kept-1", "queued-1", "gone-1", "never-seen"))
+
+            assertEquals(listOf("queued-2"), store.deleteQueue().first())
+            // The KEEP row and the DELETED row both survive.
+            assertEquals(setOf("kept-1", "queued-2"), store.decidedIds())
+            assertEquals(
+                Stats(reviewed = 3, kept = 1, deleted = 1, queued = 1),
+                store.stats().first(),
+            )
+        }
+
     // ——— FR-15: undo clears whichever table holds the row ———
 
     @Test

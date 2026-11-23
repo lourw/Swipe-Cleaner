@@ -41,6 +41,12 @@ UPDATE decision
 SET decision = 'DELETED'
 WHERE decision = 'DELETE' AND asset_id IN ?;
 
+-- Prune (FR-28, WP-7.6): drop the queued rows whose asset no longer exists. The
+-- decision guard mirrors markDeleted so a prune can never erase a KEEP or a
+-- committed DELETED row that shares an id.
+dropFromQueue:
+DELETE FROM decision WHERE decision = 'DELETE' AND asset_id IN ?;
+
 -- Clear kept (FR-30): KEEP rows only; the delete queue stays untouched.
 clearKeeps:
 DELETE FROM decision WHERE decision = 'KEEP';

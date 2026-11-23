@@ -19,7 +19,9 @@ import kotlin.time.Instant
 /**
  * FR-28 pruning (WP-3.1): queued ids PhotoKit no longer returns are dropped from the
  * store on every queue load, silently, and the existence probe stays paged at 20 ids
- * per `items` call (§6.5 step 2, NFR-4 / AGENTS.md rule 6).
+ * per `items` call (§6.5 step 2, NFR-4 / AGENTS.md rule 6). WP-7.6: the drop goes
+ * through [dev.swipe.data.DecisionStore.dropFromQueue] — never the undo-shaped
+ * `remove` — so a KEEP row can never be erased by a prune.
  */
 class PruneQueueUseCaseTest {
     private val clock = FakeClock()
@@ -47,7 +49,9 @@ class PruneQueueUseCaseTest {
             val pruned = prune()
 
             assertEquals(listOf("gone-2", "gone-1"), pruned)
-            assertEquals(listOf("gone-2", "gone-1"), store.removeCalls)
+            // One batched dropFromQueue (WP-7.6), never the undo-shaped remove.
+            assertEquals(listOf(listOf("gone-2", "gone-1")), store.dropFromQueueCalls)
+            assertTrue(store.removeCalls.isEmpty())
             // The survivors keep their FR-23 order; the vanished rows are gone.
             assertEquals(listOf("asset-2", "asset-1"), store.deleteQueue().first())
             assertTrue(store.entries.none { it.id in setOf("gone-1", "gone-2") })
@@ -83,7 +87,7 @@ class PruneQueueUseCaseTest {
         runTest {
             queue("asset-1", "gone-1")
             library.delete(listOf("gone-1"))
-            store.failNextRemove = IllegalStateException("disk full")
+            store.failNextDropFromQueue = IllegalStateException("disk full")
 
             // No throw escapes, and the id is still reported as missing (FR-28:
             // pruning is silent; the row survives to the next load).
