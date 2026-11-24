@@ -179,6 +179,74 @@ class SwipeScreenTest {
         }
 
     @Test
+    fun `FR-15 an Undo tapped mid-fly-off is forwarded right after the commit`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            // Drive frames by hand so the Undo tap lands mid-flight, before the
+            // gesture's own commit (WP-9.10: the tap belongs to that swipe).
+            mainClock.autoAdvance = false
+            setContent {
+                TestScreen(
+                    deckState().copy(canUndo = true),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            waitForIdle()
+            val size = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            // Drag past the KEEP threshold and release: the card flies off.
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() / 2L)
+            // Mid-flight the Undo is held — the Decide has not even gone out yet,
+            // so firing now would rewind an older step instead.
+            onNodeWithContentDescription("Undo").performClick()
+            assertEquals(emptyList(), intents)
+            // When the flight ends the commit goes out, and the held Undo rides
+            // right behind it (order pinned: the ViewModel queues it from there).
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                ),
+                intents,
+            )
+        }
+
+    @Test
+    fun `FR-15 an Undo tapped during a button fly-off is forwarded right after the commit`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            mainClock.autoAdvance = false
+            setContent {
+                TestScreen(
+                    deckState().copy(canUndo = true),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            waitForIdle()
+            onNodeWithContentDescription("Delete").performClick()
+            mainClock.advanceTimeBy(NUDGE_MS.toLong() + FLY_OFF_MS.toLong() / 2L)
+            // Mid nudge + fly-off: held.
+            onNodeWithContentDescription("Undo").performClick()
+            assertEquals(emptyList(), intents)
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.DELETE),
+                    SwipeIntent.Undo,
+                ),
+                intents,
+            )
+        }
+
+    @Test
     fun `FR-19 top bar shows reviewed over total with thousands grouping`() =
         runComposeUiTest {
             setContent {
