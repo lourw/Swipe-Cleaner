@@ -45,7 +45,7 @@ All three were settled during the WP-6.4 release sweep (2026-11-05) against what
 
 - [x] Long-press on a Live Photo plays its motion? **[Yes]** — Resolved: implemented, FR-17 (hold plays the paired video until release, `DeckMotion`).
 - [x] Include iCloud-only originals that aren't on the device? **[Yes. Allow network access, and show a cloud badge while the item loads.]** — Resolved: implemented, the Settings "Include iCloud-only items" toggle (FR-29) with the cloud badge while an item downloads.
-- [x] Show an estimate of storage freed? **[Only if the file size can be read reliably. See Risk R3.]** — Resolved as deferred: no reliable API covers what R3 demands (PHAsset size doesn't track Recently Deleted), so v1 ships no estimate. Revisit post-v1.
+- [x] Show an estimate of storage freed? **[Only if the file size can be read reliably. See Risk R3.]** — Resolved (WP-8.4, FR-34): shipped as a best-effort line on the delete confirmation only. `PHAssetResource` "fileSize" (undocumented KVC) is summed off the main thread when the dialog opens; an unreadable size marks the line partial ("At least …") or omits it, and the delete never waits on sizing. PHAsset size still does not track Recently Deleted, so the copy says space frees only after Recently Deleted clears.
 
 ## 3. Functional requirements
 
@@ -95,6 +95,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-26** If the user confirms in iOS, the items are marked `DELETED` in the database and removed from the queue, and a success screen appears. Only ids the library confirmed gone (deleted now, or already gone) count: an id PhotoKit could not resolve — a burst frame, or an asset outside a Limited selection — stays queued, and the success screen reports it ("N deleted, M couldn't be found").
 - **FR-27** If the user cancels the iOS dialog, the queue stays as it was and no error is shown.
 - **FR-28** Queued items whose assets no longer exist (deleted elsewhere) are pruned silently whenever the queue is loaded. The prune only ever removes pending-`DELETE` rows — a `KEEP` decision is never erased (WP-7.6).
+- **FR-34** While the in-app delete confirmation is up (§6.7), it shows an estimate of the disk size of the items being deleted — "About 1.2 GB. Space is freed after Recently Deleted clears." Sizing reads the `PHAssetResource` file sizes (undocumented KVC, Risk R3) for the current queue only, off the main thread (`Dispatchers.Default`), when the dialog opens. It never blocks or delays the delete: the confirmation behaves exactly the same with the line absent or still loading, and the delete path (FR-25, NFR-5) is untouched. The wording stays honest: **At least** when some sizes could not be read, the line omitted entirely when none could; the estimate is the queue as it stood when the dialog opened (an "About" number, not a receipt); space frees only once Recently Deleted clears (30 days), and iCloud-only originals may free no device space at all — the "About" hedge covers that.
 
 ### Settings
 - **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos.
@@ -371,6 +372,8 @@ cancels the confirmation (§5.7).
 
 The CTA and the §6.7 confirm title pluralize the count — "Delete 1 item" / "Delete 1 item?" for a single queued item, "Delete 18 items" / "Delete 18 items?" above it (WP-9.5).
 
+The §6.7 confirm dialog carries the FR-34 size line under its Recently-Deleted message, in the same `callout` `textSecondary` style: "About 1.2 GB. Space is freed after Recently Deleted clears." ("At least …" when some sizes could not be read.) It appears when the estimate lands and is simply absent while it loads or when sizing fails entirely — the dialog is fully usable without it (R3).
+
 **Queue item viewer** (FR-24, WP-9.5): a tile tap opens the item full-screen on `bg`. Videos **play** through the deck's `VideoPlayer` (muted, like FR-16) so an item can be checked before it is deleted; photos and Live Photos show the still. Top-left a back affordance (`arrow_back`, not ×, per §5.5) closes it; bottom-center the **Restore** pill (`check`, `keep @ 16%`) records KEEP. The viewer is modal while it is up: it consumes every tap, and the grid and the delete CTA behind it receive neither touches nor VoiceOver focus. The grid keeps its scroll position across open and close.
 
 **Session summary / Delete success**: a centered `display` number with a verdict-colored label (`Kept 92`, `Queued 18`, `Skipped 4`), then a primary CTA ("Review 18 to delete" or "Back home"). On the delete-success screen, a partial batch (FR-26) adds one `callout` line in `textSecondary` below the count — "M couldn't be found" — where M is the number of ids that stayed queued.
@@ -553,6 +556,10 @@ interface MediaHider {                                      // FR-38; iosMain im
     suspend fun setHidden(id: String, hidden: Boolean): HideResult  // APPLIED once the change request completes, FAILED when the asset cannot be fetched or the change fails; never queues, never confirms, never reaches deleteAssets
 }
 
+interface MediaSizing {                                     // FR-34; iosMain impl PhotoKitMediaSizing — read-only sizing (undocumented PHAssetResource "fileSize" KVC, R3), the estimate line on the delete confirmation and nothing else. Sums on Dispatchers.Default; never downloads originals; a throw or a null is just Unavailable — sizing gates no delete (NFR-5)
+    suspend fun estimateBytes(ids: List<String>): StorageEstimate  // COMPLETE(totalBytes) all read, PARTIAL(totalBytes) some unreadable (totalBytes is a lower bound), UNAVAILABLE none read or the read failed; empty ids → COMPLETE(0)
+}
+
 interface Haptics {                                         // §5.6; silent while SettingsStore.haptics is off
     fun selection()                                         // threshold crossed
     fun impactLight()                                       // keep / skip committed
@@ -729,6 +736,16 @@ Delete tap — is the only code that builds one, from the whole queue as it stan
 when Delete is tapped (FR-25). The use case intersects the token with the current
 queue before calling PhotoKit once, so ids that left the queue while the dialog
 was up are never deleted.
+
+While the dialog is up it also shows the FR-34 size estimate. `QueueViewModel`
+fires `MediaSizing.estimateBytes(queue)` when `RequestDelete` opens the dialog —
+a read-only `data/` interface whose iOS implementation sums `PHAssetResource`
+file sizes (undocumented KVC, R3) on `Dispatchers.Default` — and publishes the
+result into `QueueUiState.deleteSize` when it lands: `Complete` renders "About …",
+`Partial` (some sizes unreadable) renders "At least …", `Unavailable` (or still
+loading) renders nothing. Sizing is a side channel: it gates nothing, the delete
+token is built without consulting it, and a sizing throw is swallowed as
+`Unavailable` (NFR-5's delete path is byte-for-byte what it was before FR-34).
 
 A commit whose batch is only partly resolvable (FR-26, WP-7.6) is a partial
 success: PhotoKit resolves ids by `localIdentifier`, and an id it cannot fetch —
@@ -942,7 +959,7 @@ Use `scripts/validate.sh --full` before merging to `main`, and after any change 
 | --- | --- | --- |
 | R1 | Compose MP on iOS janks during a drag while images decode | Decode off the main thread, cap the bitmap size to the screen, profile with Instruments in M1. **Programmatic check passed (M1, WP-1.9):** on the iPhone 17 simulator with a 119-asset library, 60 concurrent full-size decodes all ran off the main thread (0 on main), and the asset list for 119 assets took 50 ms — well under the 500 ms NFR-1 full-quality bound. Visual confirmation pending 👤: drag smoothness on a real device with Instruments (NFR-1). |
 | R2 | Video interop (`UIKitView`) clips badly or ignores card rotation and gestures | **Confirmed (M1 spike, branch `spike-video-interop`):** rounded clipping works, but `graphicsLayer` rotation/translation are ignored — the player view stays axis-aligned at its layout rect. The fallback is needed: show the poster frame while dragging and the live player only when the card is at rest. **WP-4.1 outcome:** `VideoPlayer` documents the at-rest-only contract in its KDoc; the poster-while-dragging wiring (mount gating, autoplay-off tap affordance) lands in WP-4.2. |
-| R3 | No public API for asset file size (`PHAssetResource` "fileSize" is undocumented KVC) | Storage estimate is optional (open question). Never block a feature on it. |
+| R3 | No public API for asset file size (`PHAssetResource` "fileSize" is undocumented KVC) | Storage estimate is optional (open question). Never block a feature on it. **Outcome (WP-8.4, FR-34):** shipped behind that rule — the KVC read is the only consumer, runs on `Dispatchers.Default` when the confirm dialog opens, and an unreadable size degrades the line to "At least …" or drops it; the delete path never touches sizing. 👤 device check pending: KVC `fileSize` returns plausible values for real assets (photos, videos, Live Photos, iCloud-only items). |
 | R4 | The 7-day free signing expiry interrupts use | Documented re-sign step. Switch to a paid account if this gets annoying. |
 | R5 | Accidental mass deletion | Batch confirm in the app plus the iOS dialog, Recently Deleted for 30 days, and a single delete code path (NFR-5). |
 | R6 | iCloud-only items load slowly | Show the degraded image and a cloud badge, prefetch further ahead, and offer a setting to exclude them. |
