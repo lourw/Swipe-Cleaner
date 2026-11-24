@@ -20,6 +20,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.domain.model.Decision
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
@@ -602,6 +603,28 @@ class SwipeScreenTest {
             }
             waitForIdle()
             assertAllClickablesLabeled()
+        }
+
+    @Test
+    fun `FR-35 a duplicate card shows its place in the set`() =
+        runComposeUiTest {
+            val membership = DuplicateSetMembership(memberIds = listOf("d", "c", "b", "a"), position = 1)
+            val state =
+                SwipeUiState(
+                    current = card("current-id").copy(duplicateSet = membership),
+                    next = card("next-id"),
+                )
+            setContent { TestScreen(state) }
+            waitForIdle()
+            onNodeWithText("2 of 4 in this set").assertExists()
+        }
+
+    @Test
+    fun `FR-35 an ordinary card shows no set label`() =
+        runComposeUiTest {
+            setContent { TestScreen(deckState()) }
+            waitForIdle()
+            onNodeWithText("2 of 4 in this set").assertDoesNotExist()
         }
 
     @Test

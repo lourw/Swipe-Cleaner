@@ -1,5 +1,6 @@
 package dev.swipe.ui.screens.swipe
 
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
 import kotlin.test.Test
@@ -38,15 +39,33 @@ class CardMetadataTest {
         )
     }
 
+    @Test
+    fun `FR-35 label is position of set size in this set`() {
+        // 1-based on screen, 0-based in the membership (§5.7).
+        val membership = DuplicateSetMembership(memberIds = listOf("d", "c", "b", "a"), position = 1)
+        assertEquals("2 of 4 in this set", duplicateSetLabel(membership))
+    }
+
+    @Test
+    fun `FR-35 NFR-8 card description ends with the place in the set`() {
+        val membership = DuplicateSetMembership(memberIds = listOf("d", "c", "b", "a"), position = 3)
+        assertEquals(
+            "${formatCardDate(date)}, photo, 4 of 4 in this set",
+            cardAccessibilityDescription(state(MediaType.PHOTO, duplicateSet = membership)),
+        )
+    }
+
     private fun state(
         type: MediaType,
         durationMs: Long? = null,
         isFavorite: Boolean = false,
+        duplicateSet: DuplicateSetMembership? = null,
     ) = CardState(
         id = "asset-1",
         type = type,
         createdAt = date,
         durationMs = durationMs,
         isFavorite = isFavorite,
+        duplicateSet = duplicateSet,
     )
 }

@@ -10,6 +10,7 @@ import dev.swipe.data.MediaSharer
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.HideResult
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
@@ -120,6 +121,13 @@ class SwipeViewModel(
      * `total = cursor.deck.size + reviewedBase`.
      */
     private var reviewedBase = 0
+
+    /**
+     * FR-35: place-in-set info for the Likely Duplicates deck, from the same
+     * build as the deck (§6.5); empty for every other source. Set once per
+     * [start], read by [cardAt].
+     */
+    private var duplicateSets: Map<String, DuplicateSetMembership> = emptyMap()
 
     /** §6.5 step 2: the deck, its head, and the metadata paged around the head. */
     private val cursor = DeckCursor(mediaLibrary)
@@ -244,6 +252,7 @@ class SwipeViewModel(
             val started = startSession(source, typeFilter, seedProvider)
             sessionId = started.sessionId
             reviewedBase = started.reviewedBase
+            duplicateSets = started.duplicateSets
             cursor.reset(started.deck)
             cursor.ensureMetadataLoaded()
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
@@ -580,7 +589,12 @@ class SwipeViewModel(
     }
 
     /** The card at [i], or null past the deck's end or before its metadata arrives. */
-    private fun cardAt(i: Int): CardState? = cursor.itemAt(i)?.let(CardState::from)
+    private fun cardAt(i: Int): CardState? =
+        cursor.itemAt(i)?.let { item ->
+            // FR-35: the label rides the card it belongs to; other decks have
+            // an empty map, so their cards carry no label.
+            CardState.from(item).copy(duplicateSet = duplicateSets[item.id])
+        }
 
     /** §6.5 steps 3–4: leaving the deck cancels the still-warm image and video windows. */
     public override fun onCleared() {

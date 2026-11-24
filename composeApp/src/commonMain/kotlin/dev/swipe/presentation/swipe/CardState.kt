@@ -1,5 +1,6 @@
 package dev.swipe.presentation.swipe
 
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import kotlin.time.Instant
@@ -27,6 +28,12 @@ data class CardState(
      * from the cloud ([dev.swipe.data.LoadedImage.isCloud]); either signal counts.
      */
     val isCloudOnly: Boolean = false,
+    /**
+     * FR-35: for Likely Duplicates cards, the card's place in its set — the
+     * metadata row renders "2 of 4 in this set" from it (§5.7). Null for every
+     * other card, which shows no label.
+     */
+    val duplicateSet: DuplicateSetMembership? = null,
 ) {
     companion object {
         /** Projects one loaded [MediaItem] onto a card (§6.5 step 2). */

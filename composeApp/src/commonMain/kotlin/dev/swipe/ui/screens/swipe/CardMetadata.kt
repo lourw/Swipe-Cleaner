@@ -3,6 +3,7 @@ package dev.swipe.ui.screens.swipe
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaType
 import dev.swipe.presentation.swipe.CardState
 import dev.swipe.ui.components.SwipeIcon
@@ -27,10 +29,15 @@ internal const val BADGE_LIVE_TEST_TAG = "badge-live"
 internal const val BADGE_CLOUD_TEST_TAG = "badge-cloud"
 internal const val BADGE_FAVORITE_TEST_TAG = "badge-favorite"
 
+/** Test tag for the FR-35 place-in-set label. */
+internal const val DUPLICATE_SET_LABEL_TEST_TAG = "duplicate-set-label"
+
 /**
- * The §5.7 card scrim: the bottom 96 dp of the card fades to `scrim` under
+ * The §5.7 card scrim: the bottom 96 dp of the card fades to `scrim` above
  * the FR-18 metadata row — date (`caption`, `textPrimary`), the duration for
  * videos, and the Live Photo / iCloud / favorite badges at the end (WP-4.2).
+ * Above the row, an FR-35 Likely Duplicates card adds the place-in-set label
+ * ("2 of 4 in this set", `caption`, `textSecondary`); other cards show none.
  *
  * The badges are decorative (NFR-8 puts VoiceOver labels on the decision
  * controls). [isCloudOnly] lights the cloud badge on either R6 signal — the
@@ -60,43 +67,63 @@ fun CardMetadata(
                 ).padding(horizontal = SwipeTheme.spacing.m, vertical = SwipeTheme.spacing.s),
         contentAlignment = Alignment.BottomStart,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.xs),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            BasicText(
-                text = metadataLine(card),
-                style = SwipeTheme.typography.caption.copy(color = colors.textPrimary),
-                modifier = Modifier.weight(1f),
+        Column {
+            val duplicateSet = card.duplicateSet
+            if (duplicateSet != null) {
+                BasicText(
+                    text = duplicateSetLabel(duplicateSet),
+                    style = SwipeTheme.typography.caption.copy(color = colors.textSecondary),
+                    modifier = Modifier.testTag(DUPLICATE_SET_LABEL_TEST_TAG),
+                )
+            }
+            MetadataRow(card = card, isCloudOnly = isCloudOnly)
+        }
+    }
+}
+
+/** The FR-18 metadata line: date and duration, then the badges at the end. */
+@Composable
+private fun MetadataRow(
+    card: CardState,
+    isCloudOnly: Boolean,
+) {
+    val colors = SwipeTheme.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SwipeTheme.spacing.xs),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        BasicText(
+            text = metadataLine(card),
+            style = SwipeTheme.typography.caption.copy(color = colors.textPrimary),
+            modifier = Modifier.weight(1f),
+        )
+        if (card.type == MediaType.LIVE_PHOTO) {
+            SwipeIcon(
+                SwipeIcons.LIVE,
+                contentDescription = null,
+                size = SwipeTheme.sizes.icon,
+                tint = colors.textPrimary,
+                modifier = Modifier.testTag(BADGE_LIVE_TEST_TAG),
             )
-            if (card.type == MediaType.LIVE_PHOTO) {
-                SwipeIcon(
-                    SwipeIcons.LIVE,
-                    contentDescription = null,
-                    size = SwipeTheme.sizes.icon,
-                    tint = colors.textPrimary,
-                    modifier = Modifier.testTag(BADGE_LIVE_TEST_TAG),
-                )
-            }
-            if (isCloudOnly) {
-                SwipeIcon(
-                    SwipeIcons.CLOUD,
-                    contentDescription = null,
-                    size = SwipeTheme.sizes.icon,
-                    tint = colors.textPrimary,
-                    modifier = Modifier.testTag(BADGE_CLOUD_TEST_TAG),
-                )
-            }
-            if (card.isFavorite) {
-                SwipeIcon(
-                    SwipeIcons.FAVORITE,
-                    contentDescription = null,
-                    size = SwipeTheme.sizes.icon,
-                    tint = colors.textPrimary,
-                    modifier = Modifier.testTag(BADGE_FAVORITE_TEST_TAG),
-                )
-            }
+        }
+        if (isCloudOnly) {
+            SwipeIcon(
+                SwipeIcons.CLOUD,
+                contentDescription = null,
+                size = SwipeTheme.sizes.icon,
+                tint = colors.textPrimary,
+                modifier = Modifier.testTag(BADGE_CLOUD_TEST_TAG),
+            )
+        }
+        if (card.isFavorite) {
+            SwipeIcon(
+                SwipeIcons.FAVORITE,
+                contentDescription = null,
+                size = SwipeTheme.sizes.icon,
+                tint = colors.textPrimary,
+                modifier = Modifier.testTag(BADGE_FAVORITE_TEST_TAG),
+            )
         }
     }
 }
@@ -112,11 +139,18 @@ fun metadataLine(card: CardState): String {
 }
 
 /**
+ * FR-35 place-in-set label: `2 of 4 in this set` — 1-based for reading,
+ * 0-based [DuplicateSetMembership.position] for computing (§5.7).
+ */
+fun duplicateSetLabel(membership: DuplicateSetMembership): String = "${membership.position + 1} of ${membership.memberIds.size} in this set"
+
+/**
  * NFR-8 VoiceOver line for the deck card: date, then type, then duration,
  * then "favorite" — the date-then-type shape of
  * [dev.swipe.ui.components.tileDescription], so the FR-18 badges' meaning
- * rides the line instead of separate labels. A card always knows its type,
- * so this is never empty.
+ * rides the line instead of separate labels. An FR-35 duplicate card ends
+ * with its place in the set. A card always knows its type, so this is never
+ * empty.
  */
 fun cardAccessibilityDescription(card: CardState): String {
     val parts =
@@ -125,6 +159,7 @@ fun cardAccessibilityDescription(card: CardState): String {
             card.type.voiceOverLabel(),
             card.durationMs?.let(::formatDuration),
             "favorite".takeIf { card.isFavorite },
+            card.duplicateSet?.let(::duplicateSetLabel),
         )
     return parts.joinToString(", ")
 }
