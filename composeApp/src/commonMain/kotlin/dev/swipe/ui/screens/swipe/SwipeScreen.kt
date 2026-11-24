@@ -230,6 +230,43 @@ internal fun rememberCommit(
 }
 
 /**
+ * FR-15 (WP-9.10): the animation half of the queued-Undo window. The Decide
+ * intent only goes out when the fly-off ends, so an Undo tapped mid-flight
+ * belongs to the swipe in flight, not to any older step: hold it here (one
+ * slot; extra taps are ignored) and forward it right after the Decide, where
+ * the ViewModel's queue fires it once the commit lands — or drops it if the
+ * write fails and the failure path returns the card anyway (NFR-7).
+ *
+ * Returns the deck's two affordances: `commit` wraps [sendCommit] so a held
+ * Undo follows its Decide immediately, and `undo` is the single Undo affordance
+ * for the bar and the card's custom action — sent straight when the card is at
+ * rest, held while one is committed and flying.
+ */
+@Composable
+private fun rememberUndoFlyOffHold(
+    cardState: SwipeCardState,
+    sendCommit: (SwipeVerdict) -> Unit,
+    onIntent: (SwipeIntent) -> Unit,
+): Pair<(SwipeVerdict) -> Unit, () -> Unit> {
+    var undoHeldForFlight by remember { mutableStateOf(false) }
+    val commit: (SwipeVerdict) -> Unit = { verdict ->
+        sendCommit(verdict)
+        if (undoHeldForFlight) {
+            undoHeldForFlight = false
+            onIntent(SwipeIntent.Undo)
+        }
+    }
+    val undo: () -> Unit = {
+        if (cardState.committedVerdict != null) {
+            undoHeldForFlight = true
+        } else {
+            onIntent(SwipeIntent.Undo)
+        }
+    }
+    return commit to undo
+}
+
+/**
  * The deck column: TopBar, the card stack, and the ActionBar, with the
  * hoisted `SwipeCardState` driving every card animation.
  */
@@ -252,32 +289,11 @@ private fun DeckContent(
     var chromeVisible by remember(state.current?.id) { mutableStateOf(true) }
     var fillMode by remember(state.current?.id) { mutableStateOf(false) }
 
-    // FR-15 (WP-9.10): the animation half of the queued-Undo window. The Decide
-    // intent only goes out when the fly-off ends, so an Undo tapped mid-flight
-    // belongs to the swipe in flight, not to any older step: hold it here (one
-    // slot; extra taps are ignored) and forward it right after the Decide, where
-    // the ViewModel's queue fires it once the commit lands — or drops it if the
-    // write fails and the failure path returns the card anyway (NFR-7).
-    var undoHeldForFlight by remember { mutableStateOf(false) }
-
     // NFR-1 spans and the shared commit: see [rememberCommit].
     val (latency, sendCommit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
-    val commit: (SwipeVerdict) -> Unit = { verdict ->
-        sendCommit(verdict)
-        if (undoHeldForFlight) {
-            undoHeldForFlight = false
-            onIntent(SwipeIntent.Undo)
-        }
-    }
-    // The single Undo affordance for the bar and the card's custom action: sent
-    // straight when the card is at rest, held while one is committed and flying.
-    val undo: () -> Unit = {
-        if (cardState.committedVerdict != null) {
-            undoHeldForFlight = true
-        } else {
-            onIntent(SwipeIntent.Undo)
-        }
-    }
+    // FR-15 (WP-9.10): the animation half of the queued-Undo window; see
+    // [rememberUndoFlyOffHold].
+    val (commit, undo) = rememberUndoFlyOffHold(cardState, sendCommit, onIntent)
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
     // same commit a gesture makes. A card that is not at rest (a flight, a
     // snap-back, a finger on it) refuses the fly-off, and nothing is

@@ -338,71 +338,82 @@ class SwipeViewModel(
             // itself — the deck never hides a card whose verdict is being stored.
             decideInFlight += id
             _uiState.update { if (it.deciding) it else it.copy(deciding = true) }
-            viewModelScope.launch {
-                val saved =
-                    try {
-                        recordDecision(id, decision, sessionId)
-                        true
-                    } catch (cancellation: CancellationException) {
-                        throw cancellation // ViewModel teardown, not a failed save
-                    } catch (_: Exception) {
-                        // Any store failure reverts the card (NFR-7); it surfaces as the
-                        // SaveFailed toast, and there is no logging (NFR-6).
-                        false
-                    } finally {
-                        // Cleared the moment the write returns. Everything below runs to
-                        // the next suspension point on the ViewModel's single dispatcher,
-                        // so an Undo tap can never slip in between the write and the
-                        // index advance. The `deciding` flag itself rides the *terminal*
-                        // state (the failure toast, publish, or finish), so one decision
-                        // is two emissions: the toggle-up here and the settled state —
-                        // the same shape as the FR-32 share loading states.
-                        decideInFlight -= id
-                    }
-                if (!saved) {
-                    // FR-15 (WP-9.10): the queued Undo dies with the failed write —
-                    // this revert is bringing the card back, and the decision was
-                    // never stored, so there is nothing left to undo.
-                    pendingUndo = false
-                    _uiState.update {
-                        it.copy(
-                            toast = ToastMessage.SaveFailed,
-                            revertToken = it.revertToken + 1,
-                            deciding = false,
-                        )
-                    }
-                } else if (cursor.currentId == id) {
-                    // Stale-advance guard: only advance while the deck head is still the
-                    // card this write recorded; a race loser discards its advance (the
-                    // decision itself stays durable).
-                    // FR-15: the decision is durable, so it becomes an undo step now; the
-                    // oldest step falls off past the 50-cap.
-                    undoStack.push(UndoEntry(id, decision, cursor.index))
-                    cursor.advance()
-                    // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
-                    // testing exhaustion, so a deck whose tail ids never resolve
-                    // carries on to reviewable cards instead of finishing early.
-                    pageMetadataQuietly { cursor.ensureMetadataLoaded() }
-                    if (cursor.isExhausted) finish() else publish()
-                    prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
-                    // FR-15 (WP-9.10): the tap queued during this write fires now —
-                    // after the advance, so it rewinds exactly this decision and the
-                    // card comes back. On an exhausted deck it is a no-op: finish()
-                    // cleared the stack with the run.
-                    if (pendingUndo) {
-                        pendingUndo = false
-                        undo()
-                    }
-                } else {
-                    // Race loser: the write is durable but the deck already moved, so
-                    // no deck state follows — clear the FR-38 `deciding` flag here so
-                    // the Hide button does not stay disabled. The queued Undo goes
-                    // too (WP-9.10): the deck moved under the tap, and rewinding now
-                    // would rewind whatever card the race put up, not this one.
-                    pendingUndo = false
-                    _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
-                }
+            viewModelScope.launch { commitDecision(id, decision, sessionId) }
+        }
+    }
+
+    /**
+     * The write-and-advance half of [decide], run on [viewModelScope]: persist,
+     * then on success advance the deck and fire any Undo the fly-off window
+     * queued (WP-9.10); on failure revert the card instead (NFR-7).
+     */
+    private suspend fun commitDecision(
+        id: String,
+        decision: Decision,
+        sessionId: String,
+    ) {
+        val saved =
+            try {
+                recordDecision(id, decision, sessionId)
+                true
+            } catch (cancellation: CancellationException) {
+                throw cancellation // ViewModel teardown, not a failed save
+            } catch (_: Exception) {
+                // Any store failure reverts the card (NFR-7); it surfaces as the
+                // SaveFailed toast, and there is no logging (NFR-6).
+                false
+            } finally {
+                // Cleared the moment the write returns. Everything below runs to
+                // the next suspension point on the ViewModel's single dispatcher,
+                // so an Undo tap can never slip in between the write and the
+                // index advance. The `deciding` flag itself rides the *terminal*
+                // state (the failure toast, publish, or finish), so one decision
+                // is two emissions: the toggle-up here and the settled state —
+                // the same shape as the FR-32 share loading states.
+                decideInFlight -= id
             }
+        if (!saved) {
+            // FR-15 (WP-9.10): the queued Undo dies with the failed write —
+            // this revert is bringing the card back, and the decision was
+            // never stored, so there is nothing left to undo.
+            pendingUndo = false
+            _uiState.update {
+                it.copy(
+                    toast = ToastMessage.SaveFailed,
+                    revertToken = it.revertToken + 1,
+                    deciding = false,
+                )
+            }
+        } else if (cursor.currentId == id) {
+            // Stale-advance guard: only advance while the deck head is still the
+            // card this write recorded; a race loser discards its advance (the
+            // decision itself stays durable).
+            // FR-15: the decision is durable, so it becomes an undo step now; the
+            // oldest step falls off past the 50-cap.
+            undoStack.push(UndoEntry(id, decision, cursor.index))
+            cursor.advance()
+            // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
+            // testing exhaustion, so a deck whose tail ids never resolve
+            // carries on to reviewable cards instead of finishing early.
+            pageMetadataQuietly { cursor.ensureMetadataLoaded() }
+            if (cursor.isExhausted) finish() else publish()
+            prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+            // FR-15 (WP-9.10): the tap queued during this write fires now —
+            // after the advance, so it rewinds exactly this decision and the
+            // card comes back. On an exhausted deck it is a no-op: finish()
+            // cleared the stack with the run.
+            if (pendingUndo) {
+                pendingUndo = false
+                undo()
+            }
+        } else {
+            // Race loser: the write is durable but the deck already moved, so
+            // no deck state follows — clear the FR-38 `deciding` flag here so
+            // the Hide button does not stay disabled. The queued Undo goes
+            // too (WP-9.10): the deck moved under the tap, and rewinding now
+            // would rewind whatever card the race put up, not this one.
+            pendingUndo = false
+            _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
         }
     }
 
@@ -496,19 +507,7 @@ class SwipeViewModel(
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
-        if (pendingUndo) return // single slot (WP-9.10): a queued Undo waits alone
-        if (decideInFlight.isNotEmpty()) {
-            // FR-15 (WP-9.10): the tap lands during the fly-off's write window.
-            // Remember it — the completing decide fires it after the advance (or
-            // drops it if the write failed); rewinding under the write is still
-            // off-limits, but the tap is no longer dropped.
-            pendingUndo = true
-            return
-        }
-        // FR-15 single-flight (no-op on empty, §6.6 canUndo); still held outright
-        // during a hide write (FR-38): a hide has no fly-off window to queue for.
-        if (hideInFlight) return
-        val entry = undoStack.popForRemoval() ?: return
+        val entry = takeUndoStep() ?: return
         viewModelScope.launch {
             val verdict = entry.verdict
             val undone =
@@ -564,6 +563,37 @@ class SwipeViewModel(
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
         }
     }
+
+    /**
+     * The Undo tap's guard pass (FR-15, WP-9.10): returns the step to remove, or
+     * null when the tap must not proceed. A tap during a decision write is
+     * **queued** ([pendingUndo]) — the completing [decide] fires it after the
+     * advance (or drops it if the write failed); rewinding under the write is
+     * still off-limits, but the tap is no longer dropped. The queue holds one
+     * Undo: a second tap while one is queued is ignored. A tap during a hide
+     * write stays dropped (FR-38: a hide has no fly-off window to queue for),
+     * and an empty stack or the single-flight removal in progress is a no-op
+     * (§6.6 canUndo).
+     */
+    private fun takeUndoStep(): UndoEntry? =
+        when {
+            pendingUndo -> {
+                null
+            }
+
+            decideInFlight.isNotEmpty() -> {
+                pendingUndo = true
+                null
+            }
+
+            hideInFlight -> {
+                null
+            }
+
+            else -> {
+                undoStack.popForRemoval()
+            }
+        }
 
     /**
      * FR-21: the deck ran out. [FinishSessionUseCase] builds the summary from the

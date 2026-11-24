@@ -76,7 +76,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-12** Right swipe or the Keep button records `KEEP` and advances to the next item.
 - **FR-13** Left swipe or the Delete button records `DELETE` (queued, not yet deleted) and advances.
 - **FR-14** Up swipe or the Skip button records `SKIP` for this session only. The item can appear in later sessions.
-- **FR-15** **Undo** reverts the last decision and brings the card back. The undo stack holds up to 50 steps per session. The stack is in-memory only: after process death the resumed session starts with an empty undo stack. While a decision write is in flight, an Undo tap is ignored rather than queued: the deck never rewinds under a completing write, so a card whose verdict is being stored is never re-shown.
+- **FR-15** **Undo** reverts the last decision and brings the card back. The undo stack holds up to 50 steps per session. The stack is in-memory only: after process death the resumed session starts with an empty undo stack. An Undo tapped while the card is flying off — including while its decision write is in flight — is **queued**, not dropped: it fires once the commit has landed and the card comes back, as if the tap had arrived after the animation (WP-9.10). The deck still never rewinds under a completing write. If the write fails the card is already back (NFR-7), so the queued Undo is discarded — there is nothing to revert. Only one Undo is queued at a time; extra taps are ignored, like extra taps during a removal.
 - **FR-16** Videos autoplay muted and loop. Tapping the video toggles sound, and the mute state is remembered for the session. A scrubber shows progress.
 - **FR-17** Long-press on a Live Photo plays its motion.
 - **FR-18** The card shows metadata: date, and the duration for videos. A badge marks Live Photos, iCloud items, and favorites.
@@ -193,6 +193,7 @@ The swipe card is the heart of the app. These numbers are the spec, not suggesti
 | Snap back (below threshold) | Spring, `dampingRatio = 0.7`, `stiffness = Spring.StiffnessMediumLow` |
 | Card underneath | Scale 0.94 → 1.0 and alpha 0.6 → 1.0, tied to the top card's drag progress |
 | Undo return | The card flies back in from the side it left, 260 ms, `FastOutSlowInEasing` |
+| Undo during fly-off (FR-15) | An Undo tapped while the card is committed and flying is held by the UI until the commit intent goes out, then queued by the ViewModel until the write settles: it fires after the advance (the card comes back), or is discarded if the write failed — the failure path already returns the card (WP-9.10) |
 | Hide advance (FR-38) | No fly-off: the asset is already hidden in the library when the deck moves, so the card leaves with the plain card swap |
 | Hide undo return (FR-38) | The card returns **in place** where it stands — fade in with scale 0.92 → 1.0, 260 ms, `FastOutSlowInEasing` — not flying in from a side |
 | Button-triggered action | Same fly-off, with a synthetic 30 dp nudge first (80 ms) so the motion reads |
