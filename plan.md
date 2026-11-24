@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 9.2 | implement | `arch-swipe-session` | ses_df531c123ffeKCy0uZgDBkEksr | 2026-11-24 08:30 | Continued after crash-at-1-commit (3761fea UndoStack+PrefetchWindow). Remaining: Start/FinishSession, DeckCursor, param holders, session-row tidy + migration, fly-off-undo fix |
-| 2 | 9.6 | implement | `fr-8-list-states` | (set at launch) | 2026-11-24 | Launched on main `b1f0080` after 9.1 merged; clean vs 9.2 (Albums/Months ViewModels + HomeDestinations only). 8.2 held until 9.2 merges (prefetch/deck overlap) |
+| 2 | 9.6 | implement | `fr-8-list-states` | ses_df46cb139ffeOaLqlivukI8udI | 2026-11-24 | Launched on main `b1f0080` after 9.1 merged; clean vs 9.2 (Albums/Months ViewModels + HomeDestinations only). 8.2 held until 9.2 merges (prefetch/deck overlap) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -516,7 +516,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocked 8.9 (merged) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
 | 9.5 | Queue viewer safety | merged | `fr-24-queue-viewer` | Verified PASS (no blockers) 2026-11-24: verifier re-ran the suite fresh (465 tests) and confirmed the tap test fails against old code. Nits folded pre-merge (slot-convention comment, report SHA). Merged at adf3f75. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber + `autoplayVideos` setting (product call; 8.13 territory); scroll-block claim untested (behavior verified by hit-testing) |
-| 9.6 | Albums/Months states, double navigation | queued | | After 8.10 |
+| 9.6 | Albums/Months states, double navigation | implementing | `fr-8-list-states` | Launched on `b1f0080` after 8.10 merged. Loading/empty/error + retry for Albums/Months, §5.8 update, resumed-entry-only navigation + double-tap test |
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
 | 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
