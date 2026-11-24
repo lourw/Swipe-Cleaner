@@ -80,3 +80,37 @@ Navigation (`PermissionFlowContentTest`):
   `OpenAlbum`/`OpenMonth` intents with no idle between them) because the UI
   test harness syncs between clicks and by then the row is behind the deck.
 - The branch will be rebased onto `main` by the orchestrator at merge.
+
+## Fix-up pass (verification blockers)
+
+- **B2 — bottom safe area.** The state block now fills the height the host
+  gives it and centers its message (`Arrangement.Center`), and both screens
+  pass `Modifier.weight(1f).navigationBarsPadding()` at the call site — the
+  same way the Ready-state `LazyColumn` takes the inset — so the message
+  never sits under the Home Indicator and the `bg` stays full-bleed. Pinned
+  by two new bounds tests, `FR-8`/`FR-7 the state block fills the remaining
+  space and centers its message, via the `list-state` test tag.
+- **Stale-event test miscount (the one real defect).**
+  `FR-8 events from a backgrounded screen do not stack onto the deck` failed
+  with "Expected <0>, actual <3>" — but the guard was never the problem:
+  instrumented runs showed no `navigateIfResumed(Albums…)` call at all, and
+  all three back-stack entries (start placeholder, Home, Swipe) decoded
+  successfully as `Albums(ALL)` because every `Albums` field has a default.
+  The helper now counts entries by destination route (`cd105c3`).
+- **`SafeAreaBoundsTest`** passes `status = ListStatus.Ready` explicitly —
+  both UiStates open in `Loading` since this WP, so the two WP-6.4 row
+  bounds tests were asserting against the loading message (`e8c7c2a`).
+- **Nit decisions (no code change, premises verified stale):**
+  N2 (rename the `FR-8 double tap` test) — the test exercises the Albums
+  route and its `FR-7` sibling the Months route; both names are correct.
+  N7 (test-only constructor param on `SourceCountsUseCase`) — the branch
+  diff adds no constructor params. B3.3 (delete a "Toast above the action
+  bar" line) — that line is not in §5.8, on this branch or on `main`.
+  B3.4 — §5.7 already documents the shared `ToastHost` pre-branch. The
+  "failed Albums scan does not self-heal" claim was also false: the
+  ViewModels keep collecting `library.changes()` and the retry tests prove
+  it. A §6.6 note was considered and dropped: §6.6 documents
+  `SwipeUiState` only; the `ListStatus` state-shape note is the §6.5
+  exception already cited under *Spec edits*.
+- A debug `println` left in `HomeDestinations.kt` by an earlier session was
+  removed; no debug output ships.
