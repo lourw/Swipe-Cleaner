@@ -484,7 +484,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 9.2 | verify | `arch-swipe-session` | ses_df437671cffei3ehCn01TO2P2q | 2026-11-24 | Impl done: 6 commits, --full PASS at base, 524 tests (+34). **Rebased onto `68f89cf`** (only CommonModule conflict — kept both sides), compile green post-rebase, tip `d4b55c7`. Fly-off-Undo: reasoned no-implement accepted → WP-9.10 queued. Prior verifier session (old orchestrator's leftover) died before reporting — fresh review |
-| 2 | 9.6 | implement | `fr-8-list-states` | ses_df459cf68ffeDefiI8QhjxSYY3 | 2026-11-24 | Launched on main `b1f0080`; clean vs 9.2. Two prior sessions died at startup with zero output (worktree was untouched) — relaunched fresh, hardened brief. 8.2 held until 9.2 merges (prefetch/deck overlap) |
+| 2 | 9.6 | implement | `fr-8-list-states` | ses_df425086affe45Ag521ThnQN5R | 2026-11-24 | Fresh attempt #4 (three died at/near start; scaffold commit `51533cf` exists). Stepwise brief: Months states → Albums states → double-tap test → §5.8 → validate + report |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
