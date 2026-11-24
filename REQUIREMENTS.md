@@ -278,6 +278,14 @@ normal text before the first row (NFR-8). An excluded row shows
 "Not in Shuffle" under its title in `caption textSecondary`; the row stays
 64 dp.
 
+The scan's states (WP-9.6, FR-8, §6.8): while the first scan runs the screen
+shows "Loading…" under the explainer — it opens at once and never shows a
+number that is about to be replaced (NFR-4). An answered empty list shows
+"No albums". A scan that cannot answer shows "Couldn't load albums" with a
+**Try again** `PrimaryButton` that starts a fresh scan. The error state never
+replaces shown rows: once the scan has answered once, a failed refresh keeps
+the rows on screen for the next `changes()` retry.
+
 ```
 ┌──────────────────────────────────┐
 │ ‹ Albums                         │  header
@@ -288,6 +296,17 @@ normal text before the first row (NFR-8). An excluded row shows
 │ ▣ Family        12,345  [●—]  ›  │  not excluded: no subtitle
 └──────────────────────────────────┘
 ```
+
+**By month**
+
+Year → month buckets (FR-7), newest first, each `SourceRow` showing the exact
+count of the deck its bucket opens (§6.5 *Counts*). The scan's states match
+Albums' (WP-9.6, FR-7, §6.8): "Loading…" while the first scan runs — the
+bucketing pass over a large library takes time and the screen says so —
+"Nothing to show" when the scan answers with no photos, and
+"Couldn't load your library" with a **Try again** `PrimaryButton` when it
+cannot answer. As on Albums, an error never replaces rows the scan already
+delivered; a failed refresh keeps them for the next `changes()` retry.
 
 **Swipe**
 
@@ -565,7 +584,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 
 **Final-or-placeholder, never an estimate (FR-5).** The raw→exact ladder is gone: PhotoKit's `estimatedAssetCount` and raw fetch sizes are never displayed — they ignore the type filter, include decided items, and can lag reality, and re-showing them on every type switch was the jump-to-the-total flicker. A row shows its placeholder until its exact count lands; a `changes()` or FR-37 re-run carries only final numbers, so a settled row never dips and is never replaced twice. The Flows still arrive progressively (NFR-4): the cheap identity reads first — `albums()` (titles + covers, no enumeration), `months(type)`'s bucket list — then one emission per row as its exact count lands. `HomeViewModel` merges arrival-over-held: an arrived count stands until a later run replaces it, an absent one keeps the placeholder or the held number.
 
-Switching the type filter drops every count to its placeholder at once — never stale numbers under a new label (FR-5) — and late arrivals from a superseded filter are discarded, never landing on the new label. A failed fetch keeps the row's placeholder (or held number across a refresh) and is retried by the next refresh (§6.8). `HomeViewModel` re-runs the count Flow — and re-reads the authorization for the FR-2 banner — exactly once per `MediaLibrary.changes()` emission, once per FR-37 exclusion-store change, and on every `SetTypeFilter`. Home never calls `months(type)`: the By-month screen is FR-7 and pays for that scan only when opened (WP-5.3). `MediaLibrary.smartCounts` has no screen caller since WP-8.12 and is a cleanup candidate.
+Switching the type filter drops every count to its placeholder at once — never stale numbers under a new label (FR-5) — and late arrivals from a superseded filter are discarded, never landing on the new label. A failed fetch keeps the row's placeholder (or held number across a refresh) and is retried by the next refresh (§6.8). The one exception is a row-list screen's **initial scan** read (`albums()`, `months(type)`): it is thrown, not swallowed, so the screen can explain itself — `AlbumsUiState` and `MonthsUiState` carry a `ListStatus` (loading / ready / empty / error) and the error state offers **Try again** (WP-9.6, FR-7, FR-8). `HomeViewModel` re-runs the count Flow — and re-reads the authorization for the FR-2 banner — exactly once per `MediaLibrary.changes()` emission, once per FR-37 exclusion-store change, and on every `SetTypeFilter`. Home never calls `months(type)`: the By-month screen is FR-7 and pays for that scan only when opened (WP-5.3). `MediaLibrary.smartCounts` has no screen caller since WP-8.12 and is a cleanup candidate.
 
 ### 6.6 State shape (Swipe screen)
 
