@@ -84,7 +84,7 @@ class CardAccessibilityAction(
  * release (FR-17).
  *
  * NFR-8: [accessibilityDescription] is the card's VoiceOver line and
- * [accessibilityActions] (Keep / Delete / Skip / Undo) ride the card node,
+ * [accessibilityActions] (Keep / Delete / Skip / Hide / Undo) ride the card node,
  * so a VoiceOver user decides without ever performing a swipe — the same
  * decisions the buttons run, wired by the caller to behave identically.
  *
@@ -142,17 +142,8 @@ fun SwipeCard(
             modifier =
                 Modifier
                     .matchParentSize()
-                    .graphicsLayer {
-                        translationX = state.offset.x
-                        translationY = state.offset.y
-                        rotationZ = appliedRotationZ
-                        transformOrigin = DRAG_TRANSFORM_ORIGIN
-                        alpha = state.alpha
-                        // FR-38 in-place return (§5.6); 1 at rest, so this is inert
-                        // for every other motion.
-                        scaleX = state.scale
-                        scaleY = state.scale
-                    }.shadow(
+                    .cardTransform(state, appliedRotationZ)
+                    .shadow(
                         elevation = SwipeTheme.componentSizes.cardShadowBlur,
                         shape = shape,
                         // §5.5: the one shadow in the app is soft black, blur 24, 40%.
@@ -185,6 +176,25 @@ fun SwipeCard(
         }
     }
 }
+
+/**
+ * The card's drag transform: the live offset, the §5.6 rotation, the
+ * reduce-motion fade, and the FR-38 in-place-return scale (1 at rest, so it
+ * is inert for every other motion).
+ */
+private fun Modifier.cardTransform(
+    state: SwipeCardState,
+    appliedRotationZ: Float,
+): Modifier =
+    graphicsLayer {
+        translationX = state.offset.x
+        translationY = state.offset.y
+        rotationZ = appliedRotationZ
+        transformOrigin = DRAG_TRANSFORM_ORIGIN
+        alpha = state.alpha
+        scaleX = state.scale
+        scaleY = state.scale
+    }
 
 /**
  * Reports the card's pixel size through [onCardSize] and to [state] (the

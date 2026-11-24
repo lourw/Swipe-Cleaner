@@ -73,6 +73,7 @@ internal fun CardMotionEffects(
                     cardState.returnFrom(verdict, reduceMotion)
                     pendingReturn = false
                 }
+
                 SwipeEvent.ReturnCardInPlace -> {
                     // FR-38: fade + scale in place (§5.6 "Hide undo return").
                     pendingReturn = true
@@ -203,12 +204,7 @@ internal fun ColumnScope.CardStack(
             state = cardState,
             reduceMotion = display.reduceMotion,
             accessibilityDescription = cardAccessibilityDescription(card),
-            accessibilityActions = decisionAccessibilityActions(
-            callbacks.onButtonCommit,
-            canUndo,
-            callbacks.onUndo,
-            callbacks.onHide,
-        ),
+            accessibilityActions = decisionAccessibilityActions(canUndo, callbacks),
             onTap = cardTapAction(card, display, video, callbacks),
             onDoubleTap = callbacks.onToggleFill,
             onLongPress = {
@@ -247,23 +243,21 @@ internal fun ColumnScope.CardStack(
 
 /**
  * The NFR-8 custom actions for the top card: Keep/Delete/Skip run the same
- * [onButtonCommit] the ActionBar buttons take, Hide (FR-38) the same
- * [onHide] the TopBar button takes, and Undo (only while
+ * [DeckCallbacks.onButtonCommit] the ActionBar buttons take, Hide (FR-38) the
+ * same [DeckCallbacks.onHide] the TopBar button takes, and Undo (only while
  * [canUndo], mirroring the disabled bar button — FR-15) the same
- * [onUndo], so a VoiceOver decision is a button decision.
+ * [DeckCallbacks.onUndo], so a VoiceOver decision is a button decision.
  */
 private fun decisionAccessibilityActions(
-    onButtonCommit: (SwipeVerdict) -> Unit,
     canUndo: Boolean,
-    onUndo: () -> Unit,
-    onHide: () -> Unit,
+    callbacks: DeckCallbacks,
 ): List<CardAccessibilityAction> =
     buildList {
-        add(CardAccessibilityAction("Keep") { onButtonCommit(SwipeVerdict.KEEP) })
-        add(CardAccessibilityAction("Delete") { onButtonCommit(SwipeVerdict.DELETE) })
-        add(CardAccessibilityAction("Skip") { onButtonCommit(SwipeVerdict.SKIP) })
-        add(CardAccessibilityAction("Hide", onHide))
-        if (canUndo) add(CardAccessibilityAction("Undo", onUndo))
+        add(CardAccessibilityAction("Keep") { callbacks.onButtonCommit(SwipeVerdict.KEEP) })
+        add(CardAccessibilityAction("Delete") { callbacks.onButtonCommit(SwipeVerdict.DELETE) })
+        add(CardAccessibilityAction("Skip") { callbacks.onButtonCommit(SwipeVerdict.SKIP) })
+        add(CardAccessibilityAction("Hide", callbacks.onHide))
+        if (canUndo) add(CardAccessibilityAction("Undo", callbacks.onUndo))
     }
 
 /**
