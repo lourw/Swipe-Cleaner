@@ -64,13 +64,21 @@ fun MonthsScreen(
         // WP-9.6 (FR-7, NFR-4, §5.8): the scan's four states each render
         // their own body under the header.
         when (state.status) {
-            ListStatus.Loading -> ListStateMessage(LIST_LOADING_MESSAGE)
-            ListStatus.Empty -> ListStateMessage(MONTHS_EMPTY_MESSAGE)
-            ListStatus.Error ->
+            ListStatus.Loading -> {
+                ListStateMessage(LIST_LOADING_MESSAGE)
+            }
+
+            ListStatus.Empty -> {
+                ListStateMessage(MONTHS_EMPTY_MESSAGE)
+            }
+
+            ListStatus.Error -> {
                 ListStateMessage(
                     message = MONTHS_ERROR_MESSAGE,
                     onRetry = { onIntent(MonthsIntent.Retry) },
                 )
+            }
+
             ListStatus.Ready -> {
                 val items = remember(state.rows) { monthsListItems(state.rows) }
                 LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {

@@ -64,7 +64,8 @@ class MonthsViewModel(
         viewModelScope.launch {
             reloads
                 .flatMapLatest {
-                    sourceCounts.months(typeFilter)
+                    sourceCounts
+                        .months(typeFilter)
                         .onEach { counted ->
                             _uiState.update { state ->
                                 // Final-or-placeholder merge (§6.5): an arrived
@@ -86,8 +87,7 @@ class MonthsViewModel(
                                     rows = rows,
                                 )
                             }
-                        }
-                        .catch {
+                        }.catch {
                             // WP-9.6 (FR-7): a scan that cannot answer explains
                             // itself — but only while the screen still has
                             // nothing to show. A failed refresh keeps the rows
@@ -100,8 +100,7 @@ class MonthsViewModel(
                                 }
                             }
                         }
-                }
-                .collect {
+                }.collect {
                     // onEach and catch above are the whole collector.
                 }
         }

@@ -84,14 +84,22 @@ fun AlbumsScreen(
         // WP-9.6 (FR-8, §5.8): the scan's four states each render their own
         // body under the header and explainer.
         when (state.status) {
-            ListStatus.Loading -> ListStateMessage(LIST_LOADING_MESSAGE)
-            ListStatus.Empty -> ListStateMessage(ALBUMS_EMPTY_MESSAGE)
-            ListStatus.Error ->
+            ListStatus.Loading -> {
+                ListStateMessage(LIST_LOADING_MESSAGE)
+            }
+
+            ListStatus.Empty -> {
+                ListStateMessage(ALBUMS_EMPTY_MESSAGE)
+            }
+
+            ListStatus.Error -> {
                 ListStateMessage(
                     message = ALBUMS_ERROR_MESSAGE,
                     onRetry = { onIntent(AlbumsIntent.Retry) },
                 )
-            ListStatus.Ready ->
+            }
+
+            ListStatus.Ready -> {
                 LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
                     items(state.rows, key = { it.id }) { row ->
                         val excluded = row.id in state.excludedAlbumIds
@@ -108,6 +116,7 @@ fun AlbumsScreen(
                         )
                     }
                 }
+            }
         }
     }
 }

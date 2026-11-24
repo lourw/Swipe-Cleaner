@@ -160,7 +160,12 @@ class AlbumsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    AlbumsScreen(state = AlbumsUiState(status = ListStatus.Ready, rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                    AlbumsScreen(
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
                 }
             }
             waitForIdle()
@@ -281,7 +286,12 @@ class AlbumsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    AlbumsScreen(state = AlbumsUiState(status = ListStatus.Ready, rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                    AlbumsScreen(
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
                 }
             }
             waitForIdle()

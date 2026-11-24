@@ -472,10 +472,11 @@ class PermissionFlowContentTest {
 
     /**
      * WP-9.6 (FR-8): a double tap on an album row pushes **exactly one** deck.
-     * The second tap lands before the first navigation settles, so both taps
-     * reach the Albums collector; navigation happens only while the Albums
-     * entry is resumed, and the second event is dropped instead of stacking
-     * a second Swipe on the same session.
+     * A double tap is two [AlbumsIntent.OpenAlbum] intents landing back to
+     * back, before the first navigation settles; the Albums collector must
+     * turn them into one Swipe entry, not two decks stacked on one session.
+     * (The test harness cannot inject the second UI click itself — it syncs
+     * between actions, and by then the row is behind the deck.)
      */
     @Test
     fun `FR-8 double tap on an album row pushes exactly one deck route`() =
@@ -506,9 +507,11 @@ class PermissionFlowContentTest {
             waitForIdle()
             onNodeWithText("Albums").performClick()
             waitForIdle()
-            // Double tap: both taps land before the first navigation settles.
-            onNodeWithText("Trip").performClick()
-            onNodeWithText("Trip").performClick()
+            // The double tap, at the level the row produces it: two intents,
+            // no idle in between, so both reach the collector.
+            val row = albums.uiState.value.rows.single()
+            albums.onIntent(AlbumsIntent.OpenAlbum(row))
+            albums.onIntent(AlbumsIntent.OpenAlbum(row))
             waitForIdle()
 
             assertEquals(1, deckEntries(controller))
@@ -541,11 +544,49 @@ class PermissionFlowContentTest {
             waitForIdle()
             onNodeWithText("By month").performClick()
             waitForIdle()
-            onNodeWithText("January").performClick()
-            onNodeWithText("January").performClick()
+            val bucket = months.uiState.value.rows.single().bucket
+            months.onIntent(MonthsIntent.OpenMonth(bucket))
+            months.onIntent(MonthsIntent.OpenMonth(bucket))
             waitForIdle()
 
             assertEquals(1, deckEntries(controller))
+            onNodeWithText("deck-destination").assertExists()
+        }
+
+    /**
+     * WP-9.6 (FR-8): an event from a screen the deck already covers must not
+     * navigate at all. The Albums fix cannot model this race (its row is
+     * behind the deck), so the stale event comes from Home: an
+     * [HomeIntent.OpenAlbums] that reaches Home's collector after the deck
+     * is on top is dropped, not stacked onto the deck.
+     */
+    @Test
+    fun `FR-8 events from a backgrounded screen do not stack onto the deck`() =
+        runComposeUiTest {
+            val home = HomeFixture()
+            lateinit var controller: NavHostController
+            val state = homePermissionState()
+            setContent {
+                controller = rememberNavController()
+                PermissionFlowContent(
+                    state = state,
+                    onIntent = {},
+                    navController = controller,
+                    homeDestination = { HomeDestination(controller, state, {}, homeViewModel = { home.viewModel }) },
+                    swipeDestination = { BasicText("deck-destination") },
+                )
+            }
+            waitForIdle()
+            onNodeWithText("Shuffle everything").performClick()
+            waitForIdle()
+            assertEquals(1, deckEntries(controller))
+
+            // Home is backgrounded now; its events must not move the stack.
+            home.viewModel.onIntent(HomeIntent.OpenAlbums)
+            waitForIdle()
+
+            assertEquals(1, deckEntries(controller))
+            assertEquals(0, albumsEntries(controller))
             onNodeWithText("deck-destination").assertExists()
         }
 
@@ -555,6 +596,12 @@ class PermissionFlowContentTest {
     private fun deckEntries(controller: NavHostController): Int =
         controller.currentBackStack.value.count { entry ->
             runCatching { entry.toRoute<Swipe>() }.isSuccess
+        }
+
+    /** How many [Albums] entries sit on the back stack (WP-9.6 stale-event test). */
+    private fun albumsEntries(controller: NavHostController): Int =
+        controller.currentBackStack.value.count { entry ->
+            runCatching { entry.toRoute<Albums>() }.isSuccess
         }
 
     private fun homePermissionState(): StateFlow<PermissionUiState> =

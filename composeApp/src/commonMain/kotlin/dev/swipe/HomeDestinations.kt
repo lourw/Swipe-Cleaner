@@ -97,12 +97,25 @@ internal fun HomeDestination(
             when (event) {
                 // The deck route describes the tapped row (WP-9.6): single-top
                 // so the double-tap race cannot stack a second copy.
-                is HomeEvent.OpenDeck ->
+                is HomeEvent.OpenDeck -> {
                     navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
-                is HomeEvent.OpenAlbums -> navController.navigateIfResumed(lifecycle, Albums(event.typeFilter.name))
-                is HomeEvent.OpenMonths -> navController.navigateIfResumed(lifecycle, Months(event.typeFilter.name))
-                HomeEvent.OpenQueue -> navController.navigateIfResumed(lifecycle, Queue)
-                HomeEvent.OpenSettings -> navController.navigateIfResumed(lifecycle, Settings)
+                }
+
+                is HomeEvent.OpenAlbums -> {
+                    navController.navigateIfResumed(lifecycle, Albums(event.typeFilter.name))
+                }
+
+                is HomeEvent.OpenMonths -> {
+                    navController.navigateIfResumed(lifecycle, Months(event.typeFilter.name))
+                }
+
+                HomeEvent.OpenQueue -> {
+                    navController.navigateIfResumed(lifecycle, Queue)
+                }
+
+                HomeEvent.OpenSettings -> {
+                    navController.navigateIfResumed(lifecycle, Settings)
+                }
             }
         }
     }
@@ -140,8 +153,9 @@ internal fun AlbumsDestination(
     LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is AlbumsEvent.OpenDeck ->
+                is AlbumsEvent.OpenDeck -> {
                     navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
+                }
             }
         }
     }
@@ -175,8 +189,9 @@ internal fun MonthsDestination(
     LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is MonthsEvent.OpenDeck ->
+                is MonthsEvent.OpenDeck -> {
                     navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
+                }
             }
         }
     }

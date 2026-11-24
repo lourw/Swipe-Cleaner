@@ -74,7 +74,8 @@ class AlbumsViewModel(
         viewModelScope.launch {
             reloads
                 .flatMapLatest {
-                    sourceCounts.albums(typeFilter)
+                    sourceCounts
+                        .albums(typeFilter)
                         .onEach { counted ->
                             _uiState.update { state ->
                                 // Final-or-placeholder merge (§6.5): an arrived
@@ -98,8 +99,7 @@ class AlbumsViewModel(
                                     rows = rows,
                                 )
                             }
-                        }
-                        .catch {
+                        }.catch {
                             // WP-9.6 (FR-8): a scan that cannot answer explains
                             // itself — but only while the screen still has
                             // nothing to show. A failed refresh keeps the rows
@@ -112,8 +112,7 @@ class AlbumsViewModel(
                                 }
                             }
                         }
-                }
-                .collect {
+                }.collect {
                     // onEach and catch above are the whole collector.
                 }
         }

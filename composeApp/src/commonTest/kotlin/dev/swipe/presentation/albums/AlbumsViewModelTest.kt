@@ -141,11 +141,17 @@ class AlbumsViewModelTest {
             val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
             // WP-9.6: the first state says "scanning", not "empty".
             assertEquals(ListStatus.Loading, viewModel.uiState.value.status)
-            assertTrue(viewModel.uiState.value.rows.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.rows
+                    .isEmpty(),
+            )
 
             testScheduler.advanceUntilIdle()
             assertEquals(ListStatus.Ready, viewModel.uiState.value.status)
-            assertTrue(viewModel.uiState.value.rows.isNotEmpty())
+            assertTrue(
+                viewModel.uiState.value.rows
+                    .isNotEmpty(),
+            )
         }
 
     @Test
@@ -174,7 +180,10 @@ class AlbumsViewModelTest {
             testScheduler.advanceUntilIdle()
             // WP-9.6 (FR-8): the failed scan is no longer a silent empty screen.
             assertEquals(ListStatus.Error, viewModel.uiState.value.status)
-            assertTrue(viewModel.uiState.value.rows.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.rows
+                    .isEmpty(),
+            )
 
             viewModel.onIntent(AlbumsIntent.Retry)
             testScheduler.advanceUntilIdle()
