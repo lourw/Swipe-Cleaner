@@ -3,6 +3,7 @@ package dev.swipe.domain.usecase
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.SessionStore
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SessionRecord
 
@@ -16,6 +17,11 @@ data class SessionStart(
     val sessionId: String,
     val deck: List<String>,
     val reviewedBase: Int,
+    /**
+     * FR-35: place-in-set info for the Likely Duplicates deck, empty for every
+     * other source; built with the deck in the same pass (§6.5).
+     */
+    val duplicateSets: Map<String, DuplicateSetMembership> = emptyMap(),
 )
 
 /**
@@ -50,16 +56,24 @@ class StartSessionUseCase(
         val resumable = sessionStore.openSession()?.takeIf { it.canResume(source, typeFilter) }
         return if (resumable != null) {
             val skipped = sessionStore.skippedIds(resumable.id)
-            val deck = buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped }
+            val built = buildDeck(source, typeFilter, resumable.seed)
             val counts = decisions.sessionCounts(resumable.id)
             // WP-6.4: `reviewed` counts committed DELETED rows too, so a
             // mid-session queue commit (FR-26) never under-counts the base.
-            SessionStart(resumable.id, deck, counts.reviewed + skipped.size)
+            // FR-35: the memberships describe the sets, not the deck — they
+            // survive the skipped filter unchanged.
+            SessionStart(
+                resumable.id,
+                built.ids.filterNot { it in skipped },
+                counts.reviewed + skipped.size,
+                built.duplicateSets,
+            )
         } else {
             val seed = seedProvider()
             val sessionId = sessionStore.create(source, typeFilter, seed)
             sessionStore.endOtherOpenSessions(sessionId)
-            SessionStart(sessionId, buildDeck(source, typeFilter, seed), reviewedBase = 0)
+            val built = buildDeck(source, typeFilter, seed)
+            SessionStart(sessionId, built.ids, reviewedBase = 0, duplicateSets = built.duplicateSets)
         }
     }
 

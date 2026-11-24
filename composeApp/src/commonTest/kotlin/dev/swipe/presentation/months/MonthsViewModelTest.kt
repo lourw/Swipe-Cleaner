@@ -91,7 +91,7 @@ class MonthsViewModelTest {
             val rows = viewModel.uiState.value.rows
             assertEquals(listOf(1, 1), rows.map { it.count }) // March 2026 − p-1 (FR-9)
             // The number on the row is the size of the deck the row opens.
-            val marchDeck = buildDeckUseCase(library, store)(DeckSource.Month(2026, 3), MediaTypeFilter.ALL, 0L)
+            val marchDeck = buildDeckUseCase(library, store)(DeckSource.Month(2026, 3), MediaTypeFilter.ALL, 0L).ids
             assertEquals(rows.first().count, marchDeck.size)
         }
 

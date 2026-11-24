@@ -67,6 +67,31 @@ class DuplicateGrouperTest {
         assertEquals(emptyList(), DuplicateGrouper.group(split))
     }
 
+    @Test
+    fun `FR-35 groups keeps each set its own list`() {
+        // Two runs in one candidate list: [groups] does not flatten them, so a
+        // card can count "2 of 3"; the flatten is exactly what [group] returns.
+        val candidates =
+            listOf(
+                key("trip-1", 0L, 4032, 3024),
+                key("trip-2", 1_000L, 4032, 3024),
+                key("trip-3", 2_000L, 4032, 3024),
+                key("home-1", 60_000L, 4032, 3024),
+                key("home-2", 61_000L, 4032, 3024),
+            )
+
+        val groups = DuplicateGrouper.groups(candidates)
+
+        assertEquals(
+            listOf(
+                listOf("trip-1", "trip-2", "trip-3"),
+                listOf("home-1", "home-2"),
+            ),
+            groups,
+        )
+        assertEquals(DuplicateGrouper.group(candidates), groups.flatten())
+    }
+
     private fun key(
         id: String,
         createdAtEpochMs: Long,

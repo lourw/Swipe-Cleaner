@@ -376,7 +376,7 @@ class SwipeViewModelHideTest {
             val store = FakeDecisionStore(FakeClock(), FakeSessionSkips())
             library.setHidden("asset-2", hidden = true)
 
-            val deck = buildDeckUseCase(library, store).invoke(SOURCE, MediaTypeFilter.ALL, SEED)
+            val deck = buildDeckUseCase(library, store).invoke(SOURCE, MediaTypeFilter.ALL, SEED).ids
 
             assertEquals(listOf("asset-1", "asset-3"), deck)
             assertFalse(library.items(listOf("asset-2")).any { it.id == "asset-2" })

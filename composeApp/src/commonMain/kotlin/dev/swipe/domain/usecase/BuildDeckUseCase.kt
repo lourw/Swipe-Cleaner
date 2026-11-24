@@ -2,8 +2,19 @@ package dev.swipe.domain.usecase
 
 import dev.swipe.data.DecisionStore
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
+
+/**
+ * The ordered asset ids a deck shows, plus the FR-35 duplicate-set memberships
+ * for the cards that sit in a likely duplicate set — empty for every other
+ * source, which shows no label (§6.6).
+ */
+data class BuiltDeck(
+    val ids: List<String>,
+    val duplicateSets: Map<String, DuplicateSetMembership> = emptyMap(),
+)
 
 /**
  * Builds the deck of asset ids for one review session (REQUIREMENTS §6.5):
@@ -18,8 +29,9 @@ import dev.swipe.domain.model.SmartFilter
  * - `Smart(LONG_VIDEOS)` keeps the library order, which is pre-sorted
  *   duration-descending by a PhotoKit sort descriptor (FR-6, §6.5).
  * - `Smart(LIKELY_DUPLICATES)` comes from
- *   [DeckMembership.duplicateDeckIds] — decided items subtracted before
- *   grouping so runs stay honest (FR-6).
+ *   [DeckMembership.duplicateDeck] — decided items subtracted before
+ *   grouping so runs stay honest (FR-6), and the FR-35 set memberships come
+ *   from the same single candidate pass.
  * - Everything else keeps the library order, creation date descending (§6.5).
  */
 class BuildDeckUseCase(
@@ -38,13 +50,17 @@ class BuildDeckUseCase(
         source: DeckSource,
         typeFilter: MediaTypeFilter,
         seed: Long,
-    ): List<String> {
+    ): BuiltDeck {
         val decided = decisions.decidedIds()
         if (source.isLikelyDuplicates) {
-            return membership.duplicateDeckIds(typeFilter, decided)
+            return membership.duplicateDeck(typeFilter, decided)
         }
         val ids = membership.ids(source, typeFilter, decided)
-        return if (source == DeckSource.All) stableShuffleOrder(ids, seed) else ids
+        return if (source == DeckSource.All) {
+            BuiltDeck(stableShuffleOrder(ids, seed))
+        } else {
+            BuiltDeck(ids)
+        }
     }
 
     private val DeckSource.isLikelyDuplicates: Boolean

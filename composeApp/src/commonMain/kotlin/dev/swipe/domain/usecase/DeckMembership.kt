@@ -3,6 +3,7 @@ package dev.swipe.domain.usecase
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.DuplicateSetMembership
 import dev.swipe.domain.model.MediaTypeFilter
 
 /**
@@ -51,18 +52,40 @@ class DeckMembership(
     }
 
     /**
-     * The Likely Duplicates deck order (FR-6): the cheap [MediaLibrary.duplicateCandidates]
-     * pass with [decided] subtracted **before** [DuplicateGrouper.group], so a twin
-     * whose partner is decided leaves the deck — membership-minus-decided would
-     * over-report it. The one path shared by the deck and the Home count.
+     * The Likely Duplicates deck order (FR-6) and each card's place in its set
+     * (FR-35) from the one cheap [MediaLibrary.duplicateCandidates] pass (§6.5):
+     * the deck groups the candidates with [decided] subtracted **before**
+     * [DuplicateGrouper.group], so a twin whose partner is decided leaves the
+     * deck — membership-minus-decided would over-report it. The FR-35
+     * memberships group the **unfiltered** candidates instead, so a set reads
+     * its full size even after the user decided members away (a decided member
+     * keeps its place in the set; the label counts it).
+     *
+     * Removing decided ids from a run can only split it, never merge it, so
+     * every deck id is always a member of exactly one unfiltered group.
      */
+    suspend fun duplicateDeck(
+        type: MediaTypeFilter,
+        decided: Set<String>,
+    ): BuiltDeck {
+        val candidates = library.duplicateCandidates(type)
+        val memberships =
+            buildMap {
+                DuplicateGrouper
+                    .groups(candidates)
+                    .forEach { group ->
+                        group.forEachIndexed { position, id ->
+                            put(id, DuplicateSetMembership(memberIds = group, position = position))
+                        }
+                    }
+            }
+        val ids = DuplicateGrouper.group(candidates.filterNot { it.id in decided })
+        return BuiltDeck(ids = ids, duplicateSets = memberships)
+    }
+
+    /** The deck ids of [duplicateDeck] — the path the Home count uses (FR-9). */
     suspend fun duplicateDeckIds(
         type: MediaTypeFilter,
         decided: Set<String>,
-    ): List<String> =
-        DuplicateGrouper.group(
-            library
-                .duplicateCandidates(type)
-                .filterNot { it.id in decided },
-        )
+    ): List<String> = duplicateDeck(type, decided).ids
 }

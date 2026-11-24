@@ -148,7 +148,7 @@ class SourceCountsUseCaseTest {
                     DeckSource.Smart(SmartFilter.LIKELY_DUPLICATES),
                     MediaTypeFilter.ALL,
                     0L,
-                )
+                ).ids
             assertEquals(0, deck.size) // count == deck size
         }
 
@@ -185,7 +185,7 @@ class SourceCountsUseCaseTest {
                     DeckSource.Smart(SmartFilter.BURSTS),
                     MediaTypeFilter.ALL,
                     0L,
-                )
+                ).ids
             assertEquals(setOf("b1a", "b1b", "b1c", "b2a", "b2b"), deck.toSet())
             assertEquals(5, deck.size) // count == deck size
         }
@@ -272,7 +272,7 @@ class SourceCountsUseCaseTest {
                 awaitComplete()
             }
             // The count and the deck the row opens are the same query.
-            val deck = buildDeckUseCase(library, store)(DeckSource.Month(2026, 3), MediaTypeFilter.ALL, 0L)
+            val deck = buildDeckUseCase(library, store)(DeckSource.Month(2026, 3), MediaTypeFilter.ALL, 0L).ids
             assertEquals(1, deck.size)
         }
 

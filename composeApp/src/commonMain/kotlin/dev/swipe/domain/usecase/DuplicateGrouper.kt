@@ -20,8 +20,16 @@ object DuplicateGrouper {
     private const val WINDOW_DUPLICATE_MS = 2_000L
 
     /** Ids of every candidate in a group of >= 2, in input order, members adjacent (FR-6). */
-    fun group(candidates: List<DuplicateKey>): List<String> {
-        val result = mutableListOf<String>()
+    fun group(candidates: List<DuplicateKey>): List<String> = groups(candidates).flatten()
+
+    /**
+     * FR-35: the same grouping as [group], but each group of >= 2 stays its own
+     * list so a card can show its place in the set. Group order and member
+     * order follow the input (newest first); the flatten of the result is
+     * exactly what [group] returns.
+     */
+    fun groups(candidates: List<DuplicateKey>): List<List<String>> {
+        val result = mutableListOf<List<String>>()
         var run = mutableListOf<DuplicateKey>()
 
         fun flush() {
