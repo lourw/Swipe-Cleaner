@@ -10,7 +10,6 @@ import dev.swipe.data.SessionStore
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
-import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
@@ -104,18 +103,16 @@ class SwipeViewModel(
 
     private var sessionId: String? = null
 
-    private var deck: List<String> = emptyList()
-    private var index = 0
-
     /**
      * Cards this session had already disposed when the deck was (re)built (FR-19):
      * after a resume they are out of the rebuilt deck but still count toward
-     * `reviewed`, so `reviewed = reviewedBase + index` and
-     * `total = deck.size + reviewedBase`.
+     * `reviewed`, so `reviewed = reviewedBase + cursor.index` and
+     * `total = cursor.deck.size + reviewedBase`.
      */
     private var reviewedBase = 0
-    private var loadedCount = 0
-    private val metadata = mutableMapOf<String, MediaItem>()
+
+    /** §6.5 step 2: the deck, its head, and the metadata paged around the head. */
+    private val cursor = DeckCursor(mediaLibrary)
 
     /** §6.5 steps 3–4: the image and video windows kept warm around the deck head. */
     private val prefetch = PrefetchWindow(mediaLoader, videoPreloader)
@@ -189,7 +186,7 @@ class SwipeViewModel(
                 // window finds nothing pending — the confirmed write can never
                 // target the next card.
                 val pending = _uiState.value.pendingFavoriteDelete
-                if (pending != null && intent.id == pending && deck.getOrNull(index) == pending) {
+                if (pending != null && intent.id == pending && cursor.currentId == pending) {
                     _uiState.update { it.copy(toast = null, pendingFavoriteDelete = null) }
                     decide(pending, Decision.DELETE, confirmed = true)
                 }
@@ -201,7 +198,7 @@ class SwipeViewModel(
 
             SwipeIntent.Share -> {
                 // FR-32: the current card only; no card, nothing to share.
-                deck.getOrNull(index)?.let(shareLauncher::launch)
+                cursor.currentId?.let(shareLauncher::launch)
             }
         }
     }
@@ -232,23 +229,22 @@ class SwipeViewModel(
             if (resumable != null) {
                 sessionId = resumable.id
                 val skipped = sessionStore.skippedIds(resumable.id)
-                deck = buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped }
+                cursor.reset(buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped })
                 val counts = decisions.sessionCounts(resumable.id)
                 // WP-6.4: `reviewed` counts committed DELETED rows too, so a
                 // mid-session queue commit (FR-26) never under-counts the base.
                 reviewedBase = counts.reviewed + skipped.size
-                index = 0
             } else {
                 val seed = seedProvider()
                 sessionId = sessionStore.create(source, typeFilter, seed)
-                deck = buildDeck(source, typeFilter, seed)
+                cursor.reset(buildDeck(source, typeFilter, seed))
             }
-            ensureMetadataLoaded()
-            prefetch.refresh(deck, index, metadata)
+            cursor.ensureMetadataLoaded()
+            prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
             when {
                 // A resumed session that is already exhausted (every card disposed before
                 // process death, the summary never delivered) retries FR-21 right away.
-                deck.isEmpty() && reviewedBase > 0 -> {
+                cursor.isEmpty && reviewedBase > 0 -> {
                     finish()
                 }
 
@@ -257,7 +253,7 @@ class SwipeViewModel(
                 // resume (FR-20) the row ends right away instead of staying open forever.
                 // Best effort: a failed end leaves the row open, and the next open
                 // resumes the still-empty, still-unreviewed deck and closes it again.
-                deck.isEmpty() -> {
+                cursor.isEmpty -> {
                     publish()
                     val emptySessionId = sessionId
                     if (emptySessionId != null) {
@@ -310,8 +306,8 @@ class SwipeViewModel(
         // one write per card: while the card's own verdict is in flight it is that
         // card's commit and the card has already advanced, so a second verdict
         // naming it is dropped and nothing is lost.
-        if (deck.getOrNull(index) != id || id in decideInFlight) return
-        if (!confirmed && decision == Decision.DELETE && metadata[id]?.isFavorite == true) {
+        if (cursor.currentId != id || id in decideInFlight) return
+        if (!confirmed && decision == Decision.DELETE && cursor.metadata[id]?.isFavorite == true) {
             // FR-22: ask before queueing a favorite; nothing is written yet.
             _uiState.update {
                 it.copy(toast = ToastMessage.FavoriteConfirm, pendingFavoriteDelete = id)
@@ -345,14 +341,14 @@ class SwipeViewModel(
                             revertToken = it.revertToken + 1,
                         )
                     }
-                } else if (deck.getOrNull(index) == id) {
+                } else if (cursor.currentId == id) {
                     // Stale-advance guard: only advance while the deck head is still the
                     // card this write recorded; a race loser discards its advance (the
                     // decision itself stays durable).
                     // FR-15: the decision is durable, so it becomes an undo step now; the
                     // oldest step falls off past the 50-cap.
-                    undoStack.push(UndoEntry(id, decision, index))
-                    index += 1
+                    undoStack.push(UndoEntry(id, decision, cursor.index))
+                    cursor.advance()
                     // The resume position is a best-effort hint (FR-20): the decision
                     // itself is already durable, so a failed position write must not
                     // revert the card.
@@ -360,9 +356,9 @@ class SwipeViewModel(
                     // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
                     // testing exhaustion, so a deck whose tail ids never resolve
                     // carries on to reviewable cards instead of finishing early.
-                    pageMetadataQuietly { ensureMetadataLoaded() }
-                    if (index >= deck.size) finish() else publish()
-                    prefetch.refresh(deck, index, metadata)
+                    pageMetadataQuietly { cursor.ensureMetadataLoaded() }
+                    if (cursor.isExhausted) finish() else publish()
+                    prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
                 }
             }
         }
@@ -410,14 +406,14 @@ class SwipeViewModel(
                 return@launch
             }
             undoStack.removalSettled()
-            // Single-flight guarantees `entry.index < index` here: the index only
-            // moves back through undo, and no other undo is in flight.
-            index = entry.index
+            // Single-flight guarantees `entry.index < cursor.index` here: the head
+            // only moves back through undo, and no other undo is in flight.
+            cursor.rewindTo(entry.index)
             savePosition()
             publish(toast = ToastMessage.Undone)
             eventChannel.trySend(SwipeEvent.ReturnCard(entry.verdict))
-            ensureMetadataLoaded()
-            prefetch.refresh(deck, index, metadata)
+            cursor.ensureMetadataLoaded()
+            prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
         }
     }
 
@@ -425,7 +421,7 @@ class SwipeViewModel(
     private suspend fun savePosition() {
         val sessionId = sessionId ?: return
         try {
-            sessionStore.updatePosition(sessionId, reviewedBase + index)
+            sessionStore.updatePosition(sessionId, reviewedBase + cursor.index)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
@@ -463,7 +459,11 @@ class SwipeViewModel(
             it.copy(
                 current = null,
                 next = null,
-                progress = Progress(reviewed = reviewedBase + index, total = deck.size + reviewedBase),
+                progress =
+                    Progress(
+                        reviewed = reviewedBase + cursor.index,
+                        total = cursor.deck.size + reviewedBase,
+                    ),
                 finished = summary,
                 canUndo = false,
                 toast = if (summary == null) ToastMessage.SaveFailed else null,
@@ -488,37 +488,6 @@ class SwipeViewModel(
     }
 
     /**
-     * §6.5 step 2: metadata in pages of 20, loading the next page while the index is
-     * within 5 of the loaded end. Called after each page decision so the first card
-     * emits as soon as its page is in.
-     *
-     * FR-6 (WP-8.3): an id whose metadata does not come back is **dropped from the
-     * deck**, not left as a card that can never show. The deck is built from ids a
-     * source fetch enumerated; between then and paging an asset can go away (deleted
-     * in the Photos app) or stay unresolvable, and the deck must run on to the
-     * reviewable cards instead of ending on the gap. Drops only ever remove
-     * positions at or beyond [loadedCount], and the loaded region always contains
-     * the index, so undo entries — whose `index` is behind the head — are never
-     * disturbed. A failing page fetch keeps its ids in the deck (nothing is
-     * dropped on a failed fetch) and the next call retries.
-     */
-    private suspend fun ensureMetadataLoaded() {
-        while (loadedCount < deck.size && index + METADATA_PAGE_TRIGGER >= loadedCount) {
-            val page = deck.subList(loadedCount, minOf(deck.size, loadedCount + METADATA_PAGE_SIZE))
-            for (item in mediaLibrary.items(page)) {
-                metadata[item.id] = item
-            }
-            // FR-6: ids the page did not resolve leave the deck; the loaded region
-            // advances only over what it actually resolved (or dropped).
-            val unresolved = page.filterNot { it in metadata }.toSet()
-            if (unresolved.isNotEmpty()) {
-                deck = deck.filterNot { it in unresolved }
-            }
-            loadedCount += page.size - unresolved.size
-        }
-    }
-
-    /**
      * Emit the deck slice. A move always clears the favorite confirm (its card is no
      * longer up) and abandons a loading share (FR-32); [toast], when given, replaces
      * the message (the "Undone" notice).
@@ -527,9 +496,13 @@ class SwipeViewModel(
         shareLauncher.cancel()
         _uiState.update {
             it.copy(
-                current = cardAt(index),
-                next = cardAt(index + 1),
-                progress = Progress(reviewed = reviewedBase + index, total = deck.size + reviewedBase),
+                current = cardAt(cursor.index),
+                next = cardAt(cursor.index + 1),
+                progress =
+                    Progress(
+                        reviewed = reviewedBase + cursor.index,
+                        total = cursor.deck.size + reviewedBase,
+                    ),
                 canUndo = undoStack.isNotEmpty(),
                 toast = toast,
                 pendingFavoriteDelete = null,
@@ -540,19 +513,11 @@ class SwipeViewModel(
     }
 
     /** The card at [i], or null past the deck's end or before its metadata arrives. */
-    private fun cardAt(i: Int): CardState? = deck.getOrNull(i)?.let { metadata[it] }?.let(CardState::from)
+    private fun cardAt(i: Int): CardState? = cursor.itemAt(i)?.let(CardState::from)
 
     /** §6.5 steps 3–4: leaving the deck cancels the still-warm image and video windows. */
     public override fun onCleared() {
         prefetch.release()
-    }
-
-    private companion object {
-        /** §6.5 step 2: metadata pages of 20 ids. */
-        const val METADATA_PAGE_SIZE = 20
-
-        /** §6.5 step 2: load the next page within 5 of the loaded end. */
-        const val METADATA_PAGE_TRIGGER = 5
     }
 }
 
