@@ -1,7 +1,7 @@
 package dev.swipe.domain.usecase
 
 import dev.swipe.data.DecisionStore
-import dev.swipe.data.MediaLibrary
+import dev.swipe.data.MediaDeleter
 import dev.swipe.domain.model.DeleteResult
 import kotlinx.coroutines.flow.first
 
@@ -28,15 +28,18 @@ class InAppDeleteConfirmation
     )
 
 /**
- * The one batch delete (FR-25–27, §6.7) — the only caller of [MediaLibrary.delete] in
- * `commonMain` (NFR-5, AGENTS.md rule 1; guarded by `scripts/check-rules.sh`).
+ * The one batch delete (FR-25–27, §6.7) — the only consumer of [MediaDeleter], and so
+ * the only caller of [MediaDeleter.delete] in `commonMain` (NFR-5, AGENTS.md rule 1;
+ * guarded by `scripts/check-rules.sh`, and by the type itself: this is the only class
+ * the Koin graph hands a [MediaDeleter] to, and no other production file may even
+ * name the type — WP-9.1).
  *
  * Flow (§6.7):
  * 1. Re-read [DecisionStore.deleteQueue] and keep only ids present in **both** the
  *    [confirmation] and the current queue — an id restored or pruned while the
  *    dialog was up is gone from the queue and is never deleted (NFR-5). The token
  *    carries the whole queue as it stood when Delete was tapped (FR-25).
- * 2. Call [MediaLibrary.delete] exactly **once** with that list (FR-25: one PhotoKit
+ * 2. Call [MediaDeleter.delete] exactly **once** with that list (FR-25: one PhotoKit
  *    change request for the whole batch, one iOS system dialog).
  * 3. Map the outcome:
  *    - [DeleteResult.Deleted] → [DecisionStore.markDeleted] for exactly the ids the
@@ -54,7 +57,7 @@ class InAppDeleteConfirmation
  * `Success(deleted = 0, notFound = 0)`.
  */
 class CommitDeletionsUseCase(
-    private val library: MediaLibrary,
+    private val deleter: MediaDeleter,
     private val decisions: DecisionStore,
 ) {
     /** Runs the confirmed batch delete described above. */
@@ -63,7 +66,7 @@ class CommitDeletionsUseCase(
         // Confirmation order is kept: it is the order the user read the list in.
         val ids = confirmation.ids.filter { it in queued }
         if (ids.isEmpty()) return CommitOutcome.Success(deleted = 0)
-        return when (val result = library.delete(ids)) {
+        return when (val result = deleter.delete(ids)) {
             is DeleteResult.Deleted -> {
                 // FR-26 (WP-7.6): PhotoKit resolves ids by `localIdentifier`, and an
                 // id it cannot fetch — a burst frame, or an asset outside a Limited

@@ -1,5 +1,6 @@
 package dev.swipe.fakes
 
+import dev.swipe.data.MediaDeleter
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.compareDatesDescending
 import dev.swipe.data.instantInMonth
@@ -23,8 +24,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.datetime.TimeZone
 
 /**
- * In-memory [MediaLibrary] for tests (§8.2), seeded with [items] and filtered the way
- * PhotoKit will (FR-5, FR-6, FR-7, §6.5):
+ * In-memory [MediaLibrary] and [MediaDeleter] for tests (§8.2), implementing both
+ * interfaces like the production `PhotoKitMediaLibrary` does (WP-9.1), seeded with
+ * [items] and filtered the way PhotoKit will (FR-5, FR-6, FR-7, §6.5):
  *
  * - **Type filter** (FR-5) is ANDed into every source; `PHOTOS` includes Live Photos.
  * - **All / Album / Month / Screenshots / Bursts / Selfies** come back creation-date
@@ -62,7 +64,7 @@ class FakeMediaLibrary(
     private val albumTitles: Map<String, String> = emptyMap(),
     /** Calendar zone for month membership and buckets (FR-7); UTC keeps tests deterministic. */
     private val monthZone: TimeZone = TimeZone.UTC,
-) : MediaLibrary {
+) : MediaLibrary, MediaDeleter {
     /** Current library contents; a [DeleteResult.Deleted] removes the ids it names from it (FR-26);
      * a verbatim [nextDeleteResult] override leaves it untouched. */
     val items = items.toMutableList()

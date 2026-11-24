@@ -6,6 +6,7 @@
 package dev.swipe.platform
 
 import dev.swipe.data.LONG_VIDEO_MIN_MS
+import dev.swipe.data.MediaDeleter
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.monthBuckets
 import dev.swipe.data.monthRange
@@ -69,7 +70,8 @@ import kotlin.math.roundToLong
 import kotlin.time.Instant
 
 /**
- * PhotoKit-backed [MediaLibrary] read side (WP-1.4; FR-1–3, §6.5 step 1, §6.8).
+ * PhotoKit-backed [MediaLibrary] read side (WP-1.4; FR-1–3, §6.5 step 1, §6.8) and
+ * [MediaDeleter] write side (WP-3.2, WP-9.1).
  *
  * Hot-path discipline (NFR-4): `assetIds` enumerates **only** `localIdentifier` off a
  * `PHFetchResult` — no other asset property is touched, so a 50k-item library stays
@@ -80,11 +82,13 @@ import kotlin.time.Instant
  *
  * The write side ([delete], WP-3.2) and the change observer ([changes]) also live
  * here: AGENTS.md rule 1 and the §8.3 check-rules guard keep this file the only
- * place that can ever call `performChanges` / `deleteAssets`.
+ * place that can ever call `performChanges` / `deleteAssets`. One instance serves
+ * both interfaces (bound in `di/IosModule.kt`), but only `CommitDeletionsUseCase`
+ * is ever handed the [MediaDeleter] view of it (NFR-5, WP-9.1).
  */
 class PhotoKitMediaLibrary(
     private val fetchDispatcher: CoroutineDispatcher = Dispatchers.Default,
-) : MediaLibrary {
+) : MediaLibrary, MediaDeleter {
     override suspend fun authorization(): LibraryAccess =
         withContext(fetchDispatcher) {
             photoKitLibraryAccess(PHPhotoLibrary.authorizationStatusForAccessLevel(PHAccessLevelReadWrite).toInt())

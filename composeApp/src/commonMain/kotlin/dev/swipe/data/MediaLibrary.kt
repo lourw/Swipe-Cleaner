@@ -2,7 +2,6 @@ package dev.swipe.data
 
 import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.DeckSource
-import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.DuplicateKey
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
@@ -12,9 +11,15 @@ import dev.swipe.domain.model.SmartFilter
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The photo library: reads through PhotoKit, and the single door through which assets
- * are deleted (REQUIREMENTS §6.4). Implemented in `iosMain/platform/`, faked in
- * `commonTest/fakes/` (§8.2). Fetches run on `Dispatchers.Default` (§6.8).
+ * The photo library's **read side** (REQUIREMENTS §6.4): authorization, sources, ids,
+ * metadata, and change notifications through PhotoKit. Implemented in
+ * `iosMain/platform/`, faked in `commonTest/fakes/` (§8.2). Fetches run on
+ * `Dispatchers.Default` (§6.8).
+ *
+ * Deleting is **not** on this interface (WP-9.1, NFR-5): it lives on [MediaDeleter],
+ * which only `CommitDeletionsUseCase` is given (AGENTS.md rule 1). Everything that
+ * reads the library — every ViewModel — takes this type and therefore cannot express
+ * a delete at all.
  */
 interface MediaLibrary {
     /** The current permission state without prompting the user (FR-1, FR-2, FR-3). */
@@ -61,12 +66,6 @@ interface MediaLibrary {
 
     /** Metadata for one page of at most 20 ids, kept in the order given (§6.5 step 2, NFR-4). */
     suspend fun items(ids: List<String>): List<MediaItem>
-
-    /**
-     * Delete assets via one PhotoKit change request and the iOS system dialog (FR-25).
-     * Only `CommitDeletionsUseCase` may call this (NFR-5, AGENTS.md rule 1).
-     */
-    suspend fun delete(ids: List<String>): DeleteResult
 
     /**
      * Emits whenever the library changes elsewhere, so Home refreshes counts and the

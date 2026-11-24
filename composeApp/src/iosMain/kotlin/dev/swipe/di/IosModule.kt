@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asSkiaBitmap
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.Haptics
+import dev.swipe.data.MediaDeleter
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
@@ -48,7 +49,12 @@ val iosModule: Module =
         single { SwipeDatabase(runBlocking { get<Deferred<NativeSqliteDriver>>().await() }) }
 
         // Platform bridges (WP-1.4): PhotoKit reads, system actions, and settings.
-        single<MediaLibrary> { PhotoKitMediaLibrary() }
+        // One PhotoKitMediaLibrary instance backs both typed views of the library
+        // (WP-9.1, NFR-5): the read-side MediaLibrary everyone may hold, and the
+        // write-side MediaDeleter the graph resolves only for CommitDeletionsUseCase.
+        single { PhotoKitMediaLibrary() }
+        single<MediaLibrary> { get<PhotoKitMediaLibrary>() }
+        single<MediaDeleter> { get<PhotoKitMediaLibrary>() }
         single<SystemActions> { IosSystemActions() }
         single<SettingsStore> { NSUserDefaultsSettingsStore() }
         single<Haptics> { IosHaptics(settings = get()) }

@@ -54,10 +54,12 @@ val commonModule: Module =
         single { RecordDecisionUseCase(decisions = get()) }
         single { UndoDecisionUseCase(decisions = get()) }
 
-        // Review-queue use cases (WP-3.1). CommitDeletionsUseCase is the only caller
-        // of MediaLibrary.delete (NFR-5); its confirmation token is constructible
-        // only inside QueueViewModel, after the in-app confirm (hard rule 1).
-        single { CommitDeletionsUseCase(library = get(), decisions = get()) }
+        // Review-queue use cases (WP-3.1). CommitDeletionsUseCase is the only
+        // consumer of MediaDeleter — the sole Koin binding that resolves it, so no
+        // other class in the graph can reach a delete (NFR-5, WP-9.1); its
+        // confirmation token is constructible only inside QueueViewModel, after the
+        // in-app confirm (hard rule 1).
+        single { CommitDeletionsUseCase(deleter = get(), decisions = get()) }
         single { PruneQueueUseCase(library = get(), decisions = get()) }
         single { RestoreFromQueueUseCase(decisions = get()) }
 
