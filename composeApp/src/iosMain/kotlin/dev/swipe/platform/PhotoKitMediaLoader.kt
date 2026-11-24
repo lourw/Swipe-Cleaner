@@ -88,8 +88,14 @@ class PhotoKitMediaLoader(
 ) : MediaLoader {
     private val manager = PHCachingImageManager()
 
-    /** For the fire-and-forget prefetch calls, which must not run PhotoKit on main (§6.8). */
-    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    /**
+     * For the fire-and-forget prefetch calls, which must not run PhotoKit on main
+     * (§6.8). Serial (`limitedParallelism(1)`, WP-9.4): the start/stop caching
+     * calls then take effect in call order, so a `cancelPrefetch` can never run
+     * before the `prefetch` it cancels and leave PhotoKit caching a departed
+     * window (NFR-3).
+     */
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher.limitedParallelism(1))
 
     override fun image(
         id: String,

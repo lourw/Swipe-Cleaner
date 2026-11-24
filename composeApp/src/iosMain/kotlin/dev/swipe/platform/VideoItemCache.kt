@@ -4,6 +4,7 @@ package dev.swipe.platform
 
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.VideoPreloader
+import dev.swipe.data.WarmItemCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -28,10 +29,19 @@ import platform.Photos.PHVideoRequestOptions
 import kotlin.coroutines.resume
 
 /**
- * The deck's warm playable-video cache (WP-4.1; §6.5 step 4, FR-16, FR-17): one
- * in-flight-or-completed `AVPlayerItem` request per asset id, fed ahead of the card
- * by [preload] and read by the `VideoPlayer` actual. A completed request *is* the
- * cache entry, so a warm id never re-requests.
+ * The deck's warm playable-video cache (WP-4.1, WP-9.4; §6.5 step 4, FR-16,
+ * FR-17): one in-flight-or-completed `AVPlayerItem` request per asset id, fed
+ * ahead of the card by [preload] and read by the `VideoPlayer` actual. A
+ * completed request *is* the cache entry, so a warm id never re-requests.
+ *
+ * **Ordering, leases, and the window bound (WP-9.4, NFR-2, NFR-3)** live in the
+ * shared [WarmItemCache] core: `preload`/`cancel` take effect in call order on a
+ * serial queue (a cancel can no longer run before its preload and leave an item
+ * cached forever), a cancel never tears down a `Deferred` a mounted player is
+ * awaiting (the load dies with the last await lease instead of stranding the
+ * card on its poster), and the map is hard-bounded to the prefetch window —
+ * [PREFETCH_WINDOW] entries, oldest retired first — so it is enforced, not
+ * caller discipline.
  *
  * **Request shape.** `PHImageManager.requestPlayerItemForVideo` with
  * `networkAccessAllowed = SettingsStore.includeCloudOnly` read when the request
@@ -50,24 +60,45 @@ import kotlin.coroutines.resume
  * the next read retries, because an iCloud-only item may succeed once the download
  * is allowed (R6), and caching nil would pin the failure for the session.
  *
- * **Memory (NFR-3).** Entries are bounded by the deck's prefetch window (4 ids) plus
- * one mounted Live Photo; [cancel] and [releaseLivePhotoVideo] retire entries as soon
- * as the deck moves on. The bound is caller discipline, not internal eviction — a
- * real bound (LRU or window-only eviction) is deferred to the WP-6.3 perf pass.
+ * Live Photo paired-video exports (FR-17) keep their own mount-counted map
+ * below: they exist only while a player is mounted, never enter the prefetch
+ * window, and are never cancelled mid-await — a release awaits the in-flight
+ * export before deleting the temp file, so the WP-9.4 race shape does not apply.
  */
 class VideoItemCache(
     private val settings: SettingsStore,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : VideoPreloader {
-    /** Shared scope for cache loads and the player view's item fetch (§6.5 step 4). */
+    /**
+     * Shared scope for cache loads and the player view's item fetch (§6.5 step 4).
+     * The `VideoPlayer` actual launches its await here; [WarmItemCache]'s leases
+     * keep that await safe from a racing [cancel].
+     */
     internal val loadScope = CoroutineScope(SupervisorJob() + ioDispatcher)
-    private val mutex = Mutex()
 
-    /** One in-flight-or-completed player-item request per asset id (§6.5 step 4). */
-    private val items = mutableMapOf<String, Deferred<AVPlayerItem?>>()
+    /** The serial, lease-tracking, window-bounded core (WP-9.4; see [WarmItemCache]). */
+    private val warm = WarmItemCache(maxEntries = PREFETCH_WINDOW, ioDispatcher = ioDispatcher, load = ::fetchItem)
 
     /**
-     * Live Photo paired-video exports by asset id (FR-17), same deferred-as-entry
+     * The playable item for [id] — the warm cache entry when there is one, otherwise
+     * the request is started here and awaited. Null when the asset is gone or the
+     * item cannot be produced (the caller keeps showing the poster frame).
+     */
+    suspend fun item(id: String): AVPlayerItem? = warm.item(id)
+
+    override fun preload(id: String) {
+        warm.preload(id)
+    }
+
+    override fun cancel(id: String) {
+        warm.cancel(id)
+    }
+
+    /** Ids currently warm (test seam for the NFR-3 window bound). */
+    internal suspend fun warmIds(): Set<String> = warm.cachedIds()
+
+    /**
+     * Live Photo paired-video exports by asset id (FR-17), deferred-as-entry
      * pattern plus a mount count: a re-mount that races a release keeps its file
      * (the delete only fires when the last mount lets go).
      */
@@ -79,28 +110,7 @@ class VideoItemCache(
 
     private val livePhotoVideos = mutableMapOf<String, LivePhotoEntry>()
 
-    override fun preload(id: String) {
-        // Fire-and-forget like MediaLoader.prefetch; a warm id returns from the map.
-        loadScope.launch { item(id) }
-    }
-
-    override fun cancel(id: String) {
-        loadScope.launch { mutex.withLock { items.remove(id) }?.cancel() }
-    }
-
-    /**
-     * The playable item for [id] — the warm cache entry when there is one, otherwise
-     * the request is started here and awaited. Null when the asset is gone or the
-     * item cannot be produced (the caller keeps showing the poster frame).
-     */
-    suspend fun item(id: String): AVPlayerItem? {
-        val request = mutex.withLock { items.getOrPut(id) { loadScope.async { fetchItem(id) } } }
-        val playerItem = request.await()
-        if (playerItem == null) {
-            mutex.withLock { if (items[id] === request) items.remove(id) }
-        }
-        return playerItem
-    }
+    private val mutex = Mutex()
 
     /**
      * The paired-video file of Live Photo [id] exported to a temp file (FR-17):
@@ -192,6 +202,16 @@ class VideoItemCache(
             .assetResourcesForAsset(asset)
             .filterIsInstance<PHAssetResource>()
             .firstOrNull { it.type == PHAssetResourceTypePairedVideo }
+
+    private companion object {
+        /**
+         * §6.5 step 3's prefetch window (current + next 3) — the same width as
+         * `presentation/swipe/PrefetchWindow.WINDOW`, which is the only caller that
+         * grows this cache (WP-9.4, NFR-3). The platform layer cannot import the
+         * presentation constant (layering, §6.1), so the two stay pinned by comment.
+         */
+        const val PREFETCH_WINDOW = 4
+    }
 }
 
 /** Hex-encoding knobs for [livePhotoTempFileName]'s escape (FR-17). */
