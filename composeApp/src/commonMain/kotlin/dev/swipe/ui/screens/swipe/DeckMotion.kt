@@ -62,16 +62,22 @@ internal fun CardMotionEffects(
     currentId: String?,
     reduceMotion: Boolean,
 ) {
-    var pendingReturn by remember { mutableStateOf<SwipeVerdict?>(null) }
-    // One-shot returns (undo FR-15; favorite refusal FR-22).
+    var pendingReturn by remember { mutableStateOf(false) }
+    // One-shot returns (undo FR-15; favorite refusal FR-22; hide undo FR-38).
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
                 is SwipeEvent.ReturnCard -> {
                     val verdict = event.decision.toSwipeVerdict()
-                    pendingReturn = verdict
+                    pendingReturn = true
                     cardState.returnFrom(verdict, reduceMotion)
-                    pendingReturn = null
+                    pendingReturn = false
+                }
+                SwipeEvent.ReturnCardInPlace -> {
+                    // FR-38: fade + scale in place (§5.6 "Hide undo return").
+                    pendingReturn = true
+                    cardState.returnInPlace(reduceMotion)
+                    pendingReturn = false
                 }
             }
         }
@@ -87,7 +93,7 @@ internal fun CardMotionEffects(
     // A new top card sits the slot at rest — unless the return animation
     // above is what brought it, which owns the slot until it lands.
     LaunchedEffect(currentId) {
-        if (pendingReturn == null) {
+        if (!pendingReturn) {
             cardState.resetForNext()
         }
     }
@@ -140,6 +146,8 @@ internal class DeckCallbacks(
     val onLivePressStart: () -> Unit,
     val onPressUp: () -> Unit,
     val onDragStart: () -> Unit = {},
+    /** FR-38: the Hide custom action, the same intent the TopBar button sends. */
+    val onHide: () -> Unit = {},
 )
 
 /**
@@ -195,7 +203,12 @@ internal fun ColumnScope.CardStack(
             state = cardState,
             reduceMotion = display.reduceMotion,
             accessibilityDescription = cardAccessibilityDescription(card),
-            accessibilityActions = decisionAccessibilityActions(callbacks.onButtonCommit, canUndo, callbacks.onUndo),
+            accessibilityActions = decisionAccessibilityActions(
+            callbacks.onButtonCommit,
+            canUndo,
+            callbacks.onUndo,
+            callbacks.onHide,
+        ),
             onTap = cardTapAction(card, display, video, callbacks),
             onDoubleTap = callbacks.onToggleFill,
             onLongPress = {
@@ -234,7 +247,8 @@ internal fun ColumnScope.CardStack(
 
 /**
  * The NFR-8 custom actions for the top card: Keep/Delete/Skip run the same
- * [onButtonCommit] the ActionBar buttons take, and Undo (only while
+ * [onButtonCommit] the ActionBar buttons take, Hide (FR-38) the same
+ * [onHide] the TopBar button takes, and Undo (only while
  * [canUndo], mirroring the disabled bar button — FR-15) the same
  * [onUndo], so a VoiceOver decision is a button decision.
  */
@@ -242,11 +256,13 @@ private fun decisionAccessibilityActions(
     onButtonCommit: (SwipeVerdict) -> Unit,
     canUndo: Boolean,
     onUndo: () -> Unit,
+    onHide: () -> Unit,
 ): List<CardAccessibilityAction> =
     buildList {
         add(CardAccessibilityAction("Keep") { onButtonCommit(SwipeVerdict.KEEP) })
         add(CardAccessibilityAction("Delete") { onButtonCommit(SwipeVerdict.DELETE) })
         add(CardAccessibilityAction("Skip") { onButtonCommit(SwipeVerdict.SKIP) })
+        add(CardAccessibilityAction("Hide", onHide))
         if (canUndo) add(CardAccessibilityAction("Undo", onUndo))
     }
 

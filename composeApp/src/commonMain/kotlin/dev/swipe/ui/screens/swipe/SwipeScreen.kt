@@ -272,6 +272,10 @@ private fun DeckContent(
             queueCount = state.queueCount,
             onClose = onClose,
             onOpenQueue = onOpenQueue,
+            // FR-38: the Hide button names the card on screen and disables
+            // itself while a hide or a decision write is in flight.
+            onHide = { state.current?.let { onIntent(SwipeIntent.Hide(it.id)) } },
+            hideEnabled = !(state.hiding || state.deciding),
             visible = chromeVisible,
         )
         state.current?.let { current ->
@@ -447,6 +451,9 @@ private fun BoxScope.DeckStage(
             onDragStart = {
                 if (state.pendingFavoriteDelete != null) onIntent(SwipeIntent.DismissToast)
             },
+            // FR-38: the card's Hide custom action sends the same intent the
+            // TopBar button does, for the card on screen.
+            onHide = { onIntent(SwipeIntent.Hide(current.id)) },
             onVideoStart = { video.started = true },
             onVideoProgress = video::onProgress,
             onLivePressStart = { video.livePress = true },
@@ -502,6 +509,8 @@ private fun toastText(message: ToastMessage): String =
     when (message) {
         ToastMessage.SaveFailed -> "Couldn't save — try again"
         ToastMessage.Undone -> "Undone"
+        ToastMessage.Hidden -> "Hidden in Photos"
+        ToastMessage.HideFailed -> "Couldn't hide this item — try again"
         ToastMessage.FavoriteConfirm -> "This is a favorite — delete anyway?"
         ToastMessage.StartFailed -> "Couldn't load your library — try again"
         ToastMessage.ShareFailed -> "Couldn't load this item to share — try again"

@@ -34,6 +34,13 @@ const val FLY_OFF_TRAVEL = 1.5f
 /** Undo return: 260 ms, `FastOutSlowInEasing` (§5.6). */
 const val UNDO_RETURN_MS = 260
 
+/**
+ * Hide undo return (§5.6, FR-38): the in-place return scales from this to 1.0
+ * over [UNDO_RETURN_MS] with `FastOutSlowInEasing`; Reduce Motion drops the
+ * scale and keeps the fade.
+ */
+const val RETURN_IN_PLACE_SCALE_FROM = 0.92f
+
 /** Button-triggered action: synthetic nudge distance (§5.6). */
 val NUDGE_DP: Dp = 30.dp
 

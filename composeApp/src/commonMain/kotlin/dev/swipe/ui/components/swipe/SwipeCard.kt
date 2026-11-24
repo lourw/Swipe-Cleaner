@@ -148,6 +148,10 @@ fun SwipeCard(
                         rotationZ = appliedRotationZ
                         transformOrigin = DRAG_TRANSFORM_ORIGIN
                         alpha = state.alpha
+                        // FR-38 in-place return (§5.6); 1 at rest, so this is inert
+                        // for every other motion.
+                        scaleX = state.scale
+                        scaleY = state.scale
                     }.shadow(
                         elevation = SwipeTheme.componentSizes.cardShadowBlur,
                         shape = shape,

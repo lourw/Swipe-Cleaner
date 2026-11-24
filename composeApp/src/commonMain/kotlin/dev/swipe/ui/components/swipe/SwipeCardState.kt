@@ -17,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Hoisted gesture state of a [SwipeCard]: the current drag [offset], the
@@ -31,12 +33,16 @@ import androidx.compose.ui.geometry.Size
 class SwipeCardState internal constructor(
     private val offsetAnim: Animatable<Offset, AnimationVector2D>,
     private val alphaAnim: Animatable<Float, AnimationVector1D>,
+    private val scaleAnim: Animatable<Float, AnimationVector1D>,
 ) {
     /** Live drag offset in pixels, read by the card's transform. */
     val offset: Offset get() = offsetAnim.value
 
     /** Fade for the reduce-motion crossfade; 1 while motion is on. */
     val alpha: Float get() = alphaAnim.value
+
+    /** Scale for the FR-38 in-place return (§5.6); 1 at rest. */
+    val scale: Float get() = scaleAnim.value
 
     /** True while a finger is dragging the card. */
     var dragging: Boolean by mutableStateOf(false)
@@ -157,11 +163,44 @@ class SwipeCardState internal constructor(
         }
     }
 
+    /**
+     * FR-38: the card returns **in place** where it stands after an undo
+     * unhides it — fade in with scale [RETURN_IN_PLACE_SCALE_FROM] → 1 over
+     * [UNDO_RETURN_MS] with [FastOutSlowInEasing] (§5.6 "Hide undo return"),
+     * not flying in from a side: the item never left through a verdict.
+     * Reduce Motion keeps the fade without the scale, like the other returns.
+     */
+    suspend fun returnInPlace(reduceMotion: Boolean = false) {
+        animating = true
+        try {
+            offsetAnim.snapTo(Offset.Zero)
+            committedVerdict = null
+            alphaAnim.snapTo(0f)
+            if (reduceMotion) {
+                scaleAnim.snapTo(1f)
+                alphaAnim.animateTo(1f, tween(REDUCE_MOTION_CROSSFADE_MS, easing = LinearEasing))
+            } else {
+                scaleAnim.snapTo(RETURN_IN_PLACE_SCALE_FROM)
+                coroutineScope {
+                    launch {
+                        alphaAnim.animateTo(1f, tween(UNDO_RETURN_MS, easing = FastOutSlowInEasing))
+                    }
+                    launch {
+                        scaleAnim.animateTo(1f, tween(UNDO_RETURN_MS, easing = FastOutSlowInEasing))
+                    }
+                }
+            }
+        } finally {
+            animating = false
+        }
+    }
+
     /** Put the slot back at rest for the next item after a fly-off. */
     suspend fun resetForNext() {
         committedVerdict = null
         offsetAnim.snapTo(Offset.Zero)
         alphaAnim.snapTo(1f)
+        scaleAnim.snapTo(1f)
     }
 
     /** A below-threshold release springs the card back to center (§5.6). */
@@ -199,5 +238,6 @@ fun rememberSwipeCardState(): SwipeCardState =
         SwipeCardState(
             offsetAnim = Animatable(Offset.Zero, Offset.VectorConverter),
             alphaAnim = Animatable(1f, Float.VectorConverter),
+            scaleAnim = Animatable(1f, Float.VectorConverter),
         )
     }

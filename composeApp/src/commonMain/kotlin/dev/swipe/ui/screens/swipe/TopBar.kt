@@ -24,10 +24,13 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
 
 /**
  * The §5.7 `TopBar`: 44 dp tall over `scrim`, close (×) at the start, the
- * FR-19 progress `128 / 2,340` centered in `caption` with tnum, and the
- * delete-queue button at the end with its red [QueueBadge] (hidden at 0,
- * FR-10). A 2 dp progress line runs under the row: `accent` filled to
- * `reviewed / total`, `border` for the rest.
+ * FR-19 progress `128 / 2,340` centered in `caption` with tnum, and at the
+ * end the FR-38 Hide button beside the delete-queue button with its red
+ * [QueueBadge] (hidden at 0, FR-10). A 2 dp progress line runs under the
+ * row: `accent` filled to `reviewed / total`, `border` for the rest.
+ *
+ * [hideEnabled] drives the Hide button (FR-38): disabled while a hide or a
+ * decision write is in flight, mirroring the ViewModel's single-flight.
  *
  * [visible] is the photo-tap chrome toggle (§5.6): the whole bar leaves,
  * space and all, and the card claims the room back.
@@ -38,8 +41,10 @@ fun TopBar(
     queueCount: Int,
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
+    onHide: () -> Unit,
     modifier: Modifier = Modifier,
     visible: Boolean = true,
+    hideEnabled: Boolean = true,
 ) {
     if (!visible) return
     val colors = SwipeTheme.colors
@@ -65,17 +70,27 @@ fun TopBar(
                     label = "Close",
                     onClick = onClose,
                 )
-                Box(contentAlignment = Alignment.TopEnd) {
+                // FR-38: Hide sits immediately left of the queue button, so the
+                // two travel as one trailing group.
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     CircleIconButton(
-                        symbol = SwipeIcons.DELETE,
-                        label = if (queueCount > 0) "$queueCount queued — open the queue" else "To delete queue",
-                        onClick = onOpenQueue,
+                        symbol = SwipeIcons.VISIBILITY_OFF,
+                        label = "Hide from library",
+                        enabled = hideEnabled,
+                        onClick = onHide,
                     )
-                    if (queueCount > 0) {
-                        QueueBadge(
-                            count = queueCount,
-                            modifier = Modifier.align(Alignment.TopEnd),
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        CircleIconButton(
+                            symbol = SwipeIcons.DELETE,
+                            label = if (queueCount > 0) "$queueCount queued — open the queue" else "To delete queue",
+                            onClick = onOpenQueue,
                         )
+                        if (queueCount > 0) {
+                            QueueBadge(
+                                count = queueCount,
+                                modifier = Modifier.align(Alignment.TopEnd),
+                            )
+                        }
                     }
                 }
             }

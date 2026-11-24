@@ -20,6 +20,9 @@ object SwipeIcons {
     const val ARROW_BACK: String = "arrow_back"
     const val FILTER_LIST: String = "filter_list"
 
+    /** FR-38 Hide: the crossed-out eye, `visibility_off` (§5.5 mapping). */
+    const val VISIBILITY_OFF: String = "visibility_off"
+
     /** FR-17 Live Photo badge: the iOS Live Photo glyph, `motion_photos_on`. */
     const val LIVE: String = "motion_photos_on"
 
