@@ -15,6 +15,7 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MonthBucket
 import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.presentation.ListStatus
 import dev.swipe.presentation.albums.AlbumsUiState
 import dev.swipe.presentation.home.HomeAlbumRow
 import dev.swipe.presentation.home.HomeUiState
@@ -165,7 +166,7 @@ class SafeAreaBoundsTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows),
                         onIntent = {},
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
@@ -185,6 +186,7 @@ class SafeAreaBoundsTest {
                     MonthsScreen(
                         state =
                             MonthsUiState(
+                                status = ListStatus.Ready,
                                 rows =
                                     listOf(
                                         MonthRow(MonthBucket(year = 2026, month = 11, count = 40), count = 40),
