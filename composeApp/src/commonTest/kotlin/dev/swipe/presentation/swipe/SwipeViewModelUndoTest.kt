@@ -54,6 +54,7 @@ class SwipeViewModelUndoTest {
                 awaitDeckReady()
 
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertTrue(after.canUndo)
@@ -142,6 +143,7 @@ class SwipeViewModelUndoTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = library,
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -149,6 +151,7 @@ class SwipeViewModelUndoTest {
             viewModel.uiState.test {
                 awaitDeckReady()
                 viewModel.onIntent(viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 assertEquals("asset-2", awaitItem().current?.id)
 
                 // A failed removal leaves everything in place: the decision stays
@@ -266,6 +269,8 @@ class SwipeViewModelUndoTest {
                 f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
                 // The write is suspended on the gate: nothing has moved (NFR-7).
+                // FR-38: the only emission is the `deciding` toggle.
+                awaitDecidingToggle()
                 expectNoEvents()
 
                 // Undo during the write is ignored (WP-7.2): rewinding now would

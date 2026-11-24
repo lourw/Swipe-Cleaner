@@ -90,12 +90,14 @@ class SwipeViewModelBurstDeckTest {
                 // early on the unresolved id; emission 24 carries the summary.
                 repeat(23) { k ->
                     f.viewModel.onIntent(f.viewModel.keep())
+                    awaitDecidingToggle() // FR-38: the write's toggle-up emission
                     val after = awaitItem()
                     assertEquals("asset-${k + 2}", after.current?.id)
                     assertFalse(after.loading)
                     assertNull(after.finished)
                 }
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 val last = awaitItem()
                 assertNotNull(last.finished)
                 assertEquals(24, last.finished.kept)
@@ -130,6 +132,7 @@ class SwipeViewModelBurstDeckTest {
                 var latest: SwipeUiState? = null
                 repeat(15) {
                     f.viewModel.onIntent(f.viewModel.keep())
+                    awaitDecidingToggle() // FR-38: the write's toggle-up emission
                     latest = awaitItem()
                 }
                 assertEquals("asset-16", latest?.current?.id)
@@ -153,6 +156,7 @@ class SwipeViewModelBurstDeckTest {
                 awaitDeckReady()
                 repeat(14) {
                     f.viewModel.onIntent(f.viewModel.keep())
+                    awaitDecidingToggle() // FR-38: the write's toggle-up emission
                     awaitItem()
                 }
                 // Arm the failure only now: page 1 (asset-1…20) loaded at open; the
@@ -161,6 +165,7 @@ class SwipeViewModelBurstDeckTest {
                 // The page load fails; the decision is already
                 // durable, so the card still advances (NFR-7).
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 assertEquals("asset-16", awaitItem().current?.id)
             }
 

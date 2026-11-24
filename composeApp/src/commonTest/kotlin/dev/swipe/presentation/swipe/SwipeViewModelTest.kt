@@ -60,6 +60,7 @@ class SwipeViewModelTest {
                 assertEquals("asset-2", ready.next?.id)
 
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
 
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
@@ -82,6 +83,7 @@ class SwipeViewModelTest {
                 awaitDeckReady()
 
                 f.viewModel.onIntent(f.viewModel.delete())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
 
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
@@ -102,6 +104,7 @@ class SwipeViewModelTest {
 
                 f.viewModel.onIntent(f.viewModel.skip())
 
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 assertEquals("asset-2", awaitItem().current?.id)
             }
             assertEquals(listOf(Triple("asset-1", Decision.SKIP, "session-1")), f.store.recordCalls)
@@ -123,6 +126,7 @@ class SwipeViewModelTest {
                 awaitDeckReady()
 
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
 
                 val failed = awaitItem()
                 // The card stays exactly where it was, with a toast and a revert event.
@@ -163,6 +167,7 @@ class SwipeViewModelTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = library,
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -171,6 +176,7 @@ class SwipeViewModelTest {
                 awaitDeckReady()
 
                 viewModel.onIntent(viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
 
                 assertEquals("asset-2", awaitItem().current?.id)
             }
@@ -196,8 +202,10 @@ class SwipeViewModelTest {
                 f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
 
-                // Exactly one emission, and asset-2 — the card a double tap used
-                // to skip — is current and undecided.
+                // One deciding toggle (FR-38), then exactly one deck emission, and
+                // asset-2 — the card a double tap used to skip — is current and
+                // undecided.
+                awaitDecidingToggle()
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertEquals(1, after.progress.reviewed)
@@ -283,9 +291,11 @@ class SwipeViewModelTest {
                 assertEquals(Progress(0, 2), awaitDeckReady().progress)
 
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 assertEquals(Progress(1, 2), awaitItem().progress)
 
                 f.viewModel.onIntent(f.viewModel.skip())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 // Deck exhausted → current is null and the summary is set (FR-21, §6.6).
                 val done = awaitItem()
                 assertEquals(Progress(2, 2), done.progress)

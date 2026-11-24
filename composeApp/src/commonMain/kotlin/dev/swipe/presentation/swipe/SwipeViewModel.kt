@@ -328,15 +328,18 @@ class SwipeViewModel(
                         // Cleared the moment the write returns. Everything below runs to
                         // the next suspension point on the ViewModel's single dispatcher,
                         // so an Undo tap can never slip in between the write and the
-                        // index advance.
+                        // index advance. The `deciding` flag itself rides the *terminal*
+                        // state (the failure toast, publish, or finish), so one decision
+                        // is two emissions: the toggle-up here and the settled state —
+                        // the same shape as the FR-32 share loading states.
                         decideInFlight -= id
-                        _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
                     }
                 if (!saved) {
                     _uiState.update {
                         it.copy(
                             toast = ToastMessage.SaveFailed,
                             revertToken = it.revertToken + 1,
+                            deciding = false,
                         )
                     }
                 } else if (cursor.currentId == id) {
@@ -353,6 +356,11 @@ class SwipeViewModel(
                     pageMetadataQuietly { cursor.ensureMetadataLoaded() }
                     if (cursor.isExhausted) finish() else publish()
                     prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+                } else {
+                    // Race loser: the write is durable but the deck already moved, so
+                    // no deck state follows — clear the FR-38 `deciding` flag here so
+                    // the Hide button does not stay disabled.
+                    _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
                 }
             }
         }
@@ -399,20 +407,26 @@ class SwipeViewModel(
                     false
                 }
             hideInFlight = false
-            _uiState.update { it.copy(hiding = false) }
             if (!hidden) {
                 // The card stays exactly where it is (NFR-7); nothing was pushed.
-                _uiState.update { it.copy(toast = ToastMessage.HideFailed) }
+                // Like decide(), the settled state carries the flag down: one hide
+                // is two emissions, the toggle-up at the tap and this one.
+                _uiState.update { it.copy(hiding = false, toast = ToastMessage.HideFailed) }
                 return@launch
             }
             if (cursor.currentId == id) {
                 // Stale-advance guard, mirror of decide(): the hide is durable in the
-                // library either way, but only the current head advances.
+                // library either way, but only the current head advances. publish()
+                // and finish() carry `hiding = false` down with the deck state.
                 undoStack.push(UndoEntry(id = id, verdict = null, index = cursor.index, pendingFavorite = pendingFavorite))
                 cursor.advance()
                 pageMetadataQuietly { cursor.ensureMetadataLoaded() }
                 if (cursor.isExhausted) finish() else publish(toast = ToastMessage.Hidden)
                 prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+            } else {
+                // Race loser, mirror of decide(): the hide is durable but the deck
+                // already moved, so no deck state follows — clear the flag.
+                _uiState.update { if (it.hiding) it.copy(hiding = false) else it }
             }
         }
     }

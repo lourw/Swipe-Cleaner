@@ -1,6 +1,7 @@
 package dev.swipe.fakes
 
 import dev.swipe.data.MediaDeleter
+import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.compareDatesDescending
 import dev.swipe.data.instantInMonth
@@ -10,6 +11,7 @@ import dev.swipe.domain.model.AlbumSource
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.DuplicateKey
+import dev.swipe.domain.model.HideResult
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
@@ -65,7 +67,8 @@ class FakeMediaLibrary(
     /** Calendar zone for month membership and buckets (FR-7); UTC keeps tests deterministic. */
     private val monthZone: TimeZone = TimeZone.UTC,
 ) : MediaLibrary,
-    MediaDeleter {
+    MediaDeleter,
+    MediaHider {
     /** Current library contents; a [DeleteResult.Deleted] removes the ids it names from it (FR-26);
      * a verbatim [nextDeleteResult] override leaves it untouched. */
     val items = items.toMutableList()
@@ -123,6 +126,33 @@ class FakeMediaLibrary(
      * them, exactly like the real deck build.
      */
     val hiddenItemIds: MutableSet<String> = mutableSetOf()
+
+    /**
+     * FR-38: ids whose `hidden` flag [setHidden] has set. PhotoKit's default fetch
+     * view excludes hidden assets (`includeHiddenAssets = false`), so these ids are
+     * absent from **every** read path — `assetIds`, [items], [months], [smartCounts],
+     * [albums], [duplicateCandidates] — exactly like a hidden asset is absent from
+     * the real deck's source fetches. Distinct from [hiddenItemIds], which models
+     * unresolvable ids (FR-6), not hidden ones.
+     */
+    val hiddenAssetIds: MutableSet<String> = mutableSetOf()
+
+    val setHiddenCalls = mutableListOf<Pair<String, Boolean>>()
+
+    /**
+     * When non-null, [setHidden] records the call and then suspends until this
+     * completes — holds a hide write in flight to test the FR-38 single-flight.
+     */
+    var setHiddenGate: CompletableDeferred<Unit>? = null
+
+    /** When set, the next [setHidden] throws this once (a failed change). */
+    var failNextSetHidden: Throwable? = null
+
+    /**
+     * When non-null, returned verbatim by the next [setHidden] without touching
+     * [hiddenAssetIds] — models a change request PhotoKit refuses.
+     */
+    var nextSetHiddenResult: HideResult? = null
 
     /**
      * When non-null, [delete] records the call and then suspends until this
@@ -190,7 +220,7 @@ class FakeMediaLibrary(
         val estimate = nextAlbumsEstimate
         nextAlbumsEstimate = null
         return albums.map { (id, memberIds) ->
-            val members = items.filter { it.id in memberIds }
+            val members = items.filter { it.id in memberIds && it.id !in hiddenAssetIds }
             AlbumSource(
                 id = id,
                 title = albumTitles[id] ?: id,
@@ -207,7 +237,7 @@ class FakeMediaLibrary(
             throw it
         }
         // The same commonMain bucketing the PhotoKit library runs (FR-7).
-        return monthBuckets(items.filterType(type).map { it.createdAt }, monthZone)
+        return monthBuckets(visibleItems.filterType(type).map { it.createdAt }, monthZone)
     }
 
     /**
@@ -255,6 +285,10 @@ class FakeMediaLibrary(
         return matchingItems(source, type).map { it.id }
     }
 
+    /** FR-38: PhotoKit's default fetch view — hidden assets are not in it. */
+    private val visibleItems: List<MediaItem>
+        get() = items.filterNot { it.id in hiddenAssetIds }
+
     /** Source filter, then the type filter ANDed on top (FR-5), in deck order (§6.5). */
     private fun matchingItems(
         source: DeckSource,
@@ -262,18 +296,18 @@ class FakeMediaLibrary(
     ): List<MediaItem> =
         when (source) {
             DeckSource.All -> {
-                items.filterType(type).byDateDescending()
+                visibleItems.filterType(type).byDateDescending()
             }
 
             is DeckSource.Album -> {
-                items
+                visibleItems
                     .filter { it.id in albums[source.id].orEmpty() }
                     .filterType(type)
                     .byDateDescending()
             }
 
             is DeckSource.Month -> {
-                items
+                visibleItems
                     .filter { it.isInMonth(source.year, source.month) }
                     .filterType(type)
                     .byDateDescending()
@@ -290,26 +324,26 @@ class FakeMediaLibrary(
     ): List<MediaItem> =
         when (kind) {
             SmartFilter.SCREENSHOTS -> {
-                items.filter { it.isScreenshot }.filterType(type).byDateDescending()
+                visibleItems.filter { it.isScreenshot }.filterType(type).byDateDescending()
             }
 
             SmartFilter.LONG_VIDEOS -> {
-                items
+                visibleItems
                     .filter { it.type == MediaType.VIDEO && isLongVideoDuration(it.durationMs) }
                     .filterType(type)
                     .sortedByDescending { it.durationMs ?: 0L }
             }
 
             SmartFilter.BURSTS -> {
-                items.filter { it.burstId != null }.filterType(type).byDateDescending()
+                visibleItems.filter { it.burstId != null }.filterType(type).byDateDescending()
             }
 
             SmartFilter.LIKELY_DUPLICATES -> {
                 // The shared DuplicateGrouper over the same candidates the real library
                 // feeds it (FR-6, §6.5), so fake and deck cannot drift.
-                val byId = items.associateBy { it.id }
+                val byId = visibleItems.associateBy { it.id }
                 val candidates =
-                    items
+                    visibleItems
                         .filterType(type)
                         .byDateDescending()
                         .map { DuplicateKey(it.id, it.createdAt, it.widthPx, it.heightPx) }
@@ -317,7 +351,7 @@ class FakeMediaLibrary(
             }
 
             SmartFilter.SELFIES -> {
-                items.filter { it.id in selfieIds }.filterType(type).byDateDescending()
+                visibleItems.filter { it.id in selfieIds }.filterType(type).byDateDescending()
             }
         }
 
@@ -330,9 +364,12 @@ class FakeMediaLibrary(
             throw it
         }
         // Keep the input order; ids the library no longer has are dropped (FR-28),
-        // and so are ids hidden via [hiddenItemIds] (FR-6, WP-8.3).
+        // and so are ids hidden via [hiddenItemIds] (FR-6, WP-8.3) or the FR-38
+        // hidden flag — PhotoKit's default view carries neither.
         val byId = items.associateBy { it.id }
-        return ids.mapNotNull { id -> byId[id]?.takeUnless { id in hiddenItemIds } }
+        return ids.mapNotNull { id ->
+            byId[id]?.takeUnless { id in hiddenItemIds || id in hiddenAssetIds }
+        }
     }
 
     override suspend fun delete(ids: List<String>): DeleteResult {
@@ -376,6 +413,38 @@ class FakeMediaLibrary(
         }
     }
 
+    override suspend fun setHidden(
+        id: String,
+        hidden: Boolean,
+    ): HideResult {
+        setHiddenCalls += id to hidden
+        failNextSetHidden?.let {
+            failNextSetHidden = null
+            throw it
+        }
+        setHiddenGate?.await()
+        val forced = nextSetHiddenResult
+        nextSetHiddenResult = null
+        val result =
+            when {
+                forced != null -> {
+                    forced
+                }
+
+                // Mirror PhotoKitMediaHider's nil-lookup path: an id the library does
+                // not hold is unresolvable, and the write reports FAILED without applying.
+                items.none { it.id == id } -> {
+                    HideResult.FAILED
+                }
+
+                else -> {
+                    if (hidden) hiddenAssetIds += id else hiddenAssetIds -= id
+                    HideResult.APPLIED
+                }
+            }
+        return result
+    }
+
     override fun changes(): Flow<Unit> = changesFlow
 
     override suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey> {
@@ -384,7 +453,7 @@ class FakeMediaLibrary(
             failNextDuplicateCandidates = null
             throw it
         }
-        return items
+        return visibleItems
             .filter { type.matches(it.type) }
             .byDateDescending()
             .map { DuplicateKey(it.id, it.createdAt, it.widthPx, it.heightPx) }

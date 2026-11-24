@@ -53,6 +53,7 @@ class SwipeViewModelAuditTest {
             mediaLoader = FakeMediaLoader(),
             videoPreloader = FakeVideoPreloader(),
             mediaSharer = FakeMediaSharer(),
+            mediaHider = f.library,
             decisions = f.store,
             seedProvider = { SEED },
         )
@@ -71,6 +72,9 @@ class SwipeViewModelAuditTest {
                 // asset-1's KEEP is suspended on the gate: the head is still asset-1.
                 f.viewModel.onIntent(f.viewModel.keep())
                 advanceUntilIdle()
+                // FR-38: the only emission the in-flight write makes is the `deciding`
+                // toggle; the card has not moved.
+                assertEquals("asset-1", awaitDecidingToggle().current?.id)
                 expectNoEvents()
 
                 // Stray intents from a racing UI naming cards that are not on
@@ -174,11 +178,13 @@ class SwipeViewModelAuditTest {
                 awaitDeckReady()
 
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 val failed = awaitItem()
                 // NFR-7: the card stays, the failure surfaces.
                 assertEquals(ToastMessage.SaveFailed, failed.toast)
                 assertEquals("asset-1", failed.current?.id)
                 assertFalse(failed.canUndo)
+                assertFalse(failed.deciding)
 
                 // Undo has nothing to undo — the failed decision never became a step —
                 // so it removes nothing and the stored state stays empty.

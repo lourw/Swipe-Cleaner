@@ -24,6 +24,7 @@ import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
 import dev.swipe.fakes.FakeVideoPreloader
 import dev.swipe.fakes.buildDeckUseCase
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /** The fixed shuffle seed; unused by the source, stored on the session (§6.5 step 1). */
@@ -88,6 +89,9 @@ internal class Fixture(
             mediaLoader = loader,
             videoPreloader = videoPreloader,
             mediaSharer = sharer,
+            // FR-38: the fake library is also the fake hide door, like the real
+            // PhotoKitMediaLibrary is the fake delete door.
+            mediaHider = library,
             decisions = store,
             seedProvider = { seed },
         )
@@ -131,6 +135,18 @@ internal class OrderRecordingDecisionStore(
 internal suspend fun ReceiveTurbine<SwipeUiState>.awaitDeckReady(): SwipeUiState {
     awaitItem()
     return awaitItem()
+}
+
+/**
+ * FR-38: a decision write emits `deciding = true` when it begins (the Hide
+ * button's disable state) and settles the flag on the terminal state, so tests
+ * that assert the state **after** a decision consume the toggle first. The
+ * toggle never moves the deck: the card on screen is unchanged.
+ */
+internal suspend fun ReceiveTurbine<SwipeUiState>.awaitDecidingToggle(): SwipeUiState {
+    val up = awaitItem()
+    assertTrue(up.deciding)
+    return up
 }
 
 /** The id of the card [SwipeViewModel] shows right now (the FR-13 binding). */

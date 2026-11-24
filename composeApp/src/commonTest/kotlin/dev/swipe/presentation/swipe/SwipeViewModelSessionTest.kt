@@ -201,6 +201,7 @@ class SwipeViewModelSessionTest {
 
                 // The setting survives card changes for the session's lifetime.
                 f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
                 val after = awaitItem()
                 assertEquals("asset-2", after.current?.id)
                 assertFalse(after.muted)
@@ -316,6 +317,7 @@ class SwipeViewModelSessionTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = library,
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -353,6 +355,7 @@ class SwipeViewModelSessionTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = library,
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -430,6 +433,7 @@ class SwipeViewModelSessionTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = f.library,
                     decisions = f.store,
                     seedProvider = { SEED },
                 )
@@ -476,6 +480,7 @@ class SwipeViewModelSessionTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = library,
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -515,6 +520,7 @@ class SwipeViewModelSessionTest {
                     mediaLoader = FakeMediaLoader(),
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
+                    mediaHider = f.library,
                     decisions = f.store,
                     seedProvider = { SEED },
                 )
@@ -533,6 +539,7 @@ class SwipeViewModelSessionTest {
                 mediaLoader = FakeMediaLoader(),
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
+                mediaHider = f.library,
                 decisions = f.store,
                 seedProvider = { SEED },
             )
@@ -561,6 +568,7 @@ class SwipeViewModelSessionTest {
                 mediaLoader = FakeMediaLoader(),
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
+                mediaHider = f.library,
                 decisions = f.store,
                 seedProvider = { SEED },
             )
