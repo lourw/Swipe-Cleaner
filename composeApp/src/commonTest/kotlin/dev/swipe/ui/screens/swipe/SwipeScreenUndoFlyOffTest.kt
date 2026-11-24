@@ -26,10 +26,13 @@ import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.ui.components.swipe.COMMIT_FRACTION_HORIZONTAL
 import dev.swipe.ui.components.swipe.FLY_OFF_MS
 import dev.swipe.ui.components.swipe.NUDGE_MS
+import dev.swipe.ui.components.swipe.UNDO_RETURN_MS
 import dev.swipe.ui.theme.SwipeTheme
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -212,6 +215,77 @@ class SwipeScreenUndoFlyOffTest {
                     SwipeIntent.Decide("current-id", Decision.KEEP),
                     SwipeIntent.Undo,
                     SwipeIntent.Decide("next-id", Decision.DELETE),
+                ),
+                intents,
+            )
+        }
+
+    @Test
+    fun `FR-15 the hold re-arms when the same card flies off again after a return`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            // The events channel shape the ViewModel hands the screen in
+            // production: trySend never suspends, so the frame-driven
+            // collector cannot deadlock the manual test clock.
+            val events = Channel<SwipeEvent>()
+            mainClock.autoAdvance = false
+            setContent {
+                TestScreen(
+                    deckState().copy(canUndo = true),
+                    events = events.receiveAsFlow(),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            waitForIdle()
+            val size = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() / 2L)
+            onNodeWithContentDescription("Undo").performClick()
+            // Flight one lands: Decide, then the forwarded Undo.
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                ),
+                intents,
+            )
+            // The VM sends the card back (FR-15 undo return / FR-22 refused
+            // favorite): same card, same id, back at rest.
+            events.trySend(SwipeEvent.ReturnCard(Decision.KEEP))
+            mainClock.advanceTimeBy(UNDO_RETURN_MS.toLong() + 50L)
+            waitForIdle()
+            // A second fly-off of the SAME card opens the window again: a tap
+            // mid-flight is held, not sent early to rewind some older step.
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() / 2L)
+            onNodeWithContentDescription("Undo").performClick()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                ),
+                intents,
+            )
+            // And it rides the second flight's Decide, in order.
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
                 ),
                 intents,
             )

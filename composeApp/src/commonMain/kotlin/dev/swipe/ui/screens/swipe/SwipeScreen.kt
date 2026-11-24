@@ -241,9 +241,11 @@ internal fun rememberCommit(
  * stays set after the Decide goes out (until the next card's reset), so a bare
  * null check would keep holding taps made during the write itself — the
  * ViewModel's queue owns that stretch — and a held tap could leak across a
- * snap-back and rewind a later decision. `decided` marks the flight whose
- * Decide has already been dispatched, and re-arms with each new card; a tap
- * after it goes straight through, exactly as if the card were at rest.
+ * returned card and rewind a later decision. The helper remembers the flight
+ * whose Decide went out ([SwipeCardState.flightToken]); taps made while a
+ * different flight owns the card are held, taps after its Decide go straight
+ * through, exactly as if the card were at rest, and a returned card's retry
+ * (same id, new flight) opens the window again.
  *
  * Returns the deck's two affordances: `commit` wraps [sendCommit] so a held
  * Undo follows its Decide immediately, and `undo` is the single Undo affordance
@@ -253,17 +255,18 @@ internal fun rememberCommit(
 @Composable
 private fun rememberUndoFlyOffHold(
     cardState: SwipeCardState,
-    currentId: String?,
-    revertToken: Long,
     sendCommit: (SwipeVerdict) -> Unit,
     onIntent: (SwipeIntent) -> Unit,
 ): Pair<(SwipeVerdict) -> Unit, () -> Unit> {
-    // Keyed on (card, revert): a failed write returns the SAME card (its id
-    // never moved), so the token bump is what re-arms the hold for the retry.
-    var decided by remember(currentId, revertToken) { mutableStateOf(false) }
-    var undoHeldForFlight by remember(currentId, revertToken) { mutableStateOf(false) }
+    // The flight whose Decide has been dispatched, or −1 before the first.
+    // Unkeyed remembers on purpose: the gesture path captures the commit
+    // lambda at release (FR-13), BEFORE the flight's flightToken bump
+    // recomposes this helper, so commit and undo must share one holder
+    // across the bump and compare [SwipeCardState.flightToken] at call time.
+    var decidedFlight by remember { mutableLongStateOf(-1L) }
+    var undoHeldForFlight by remember { mutableStateOf(false) }
     val commit: (SwipeVerdict) -> Unit = { verdict ->
-        decided = true
+        decidedFlight = cardState.flightToken
         sendCommit(verdict)
         if (undoHeldForFlight) {
             undoHeldForFlight = false
@@ -271,7 +274,7 @@ private fun rememberUndoFlyOffHold(
         }
     }
     val undo: () -> Unit = {
-        if (cardState.committedVerdict != null && !decided) {
+        if (cardState.committedVerdict != null && cardState.flightToken != decidedFlight) {
             undoHeldForFlight = true
         } else {
             onIntent(SwipeIntent.Undo)
@@ -307,7 +310,7 @@ private fun DeckContent(
     val (latency, sendCommit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
     // FR-15 (WP-9.10): the animation half of the queued-Undo window; see
     // [rememberUndoFlyOffHold].
-    val (commit, undo) = rememberUndoFlyOffHold(cardState, state.current?.id, state.revertToken, sendCommit, onIntent)
+    val (commit, undo) = rememberUndoFlyOffHold(cardState, sendCommit, onIntent)
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
     // same commit a gesture makes. A card that is not at rest (a flight, a
     // snap-back, a finger on it) refuses the fly-off, and nothing is

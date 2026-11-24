@@ -410,6 +410,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
                 val dismiss = onDismiss.value
                 if (verdict != null) {
                     state.committedVerdict = verdict
+                    state.flightToken++
                     scope.launch {
                         state.flyOffCommitted(reduceMotion)
                         dismiss(verdict)

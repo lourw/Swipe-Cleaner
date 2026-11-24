@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -66,6 +67,16 @@ class SwipeCardState internal constructor(
 
     /** The verdict a completed fly-off committed, or null while in the deck. */
     var committedVerdict: SwipeVerdict? by mutableStateOf(null)
+        internal set
+
+    /**
+     * Bumped every time a fly-off starts — gesture release or the button
+     * path. Transient per-flight windows (FR-15's queued-Undo hold) key on
+     * the flight, not the card: a refused favorite (FR-22) or a failed write
+     * (NFR-7) returns the SAME card under the same id, and only the next
+     * flight's bump reopens those windows.
+     */
+    var flightToken: Long by mutableLongStateOf(0L)
         internal set
 
     internal var cardSize: Size = Size.Zero
@@ -125,6 +136,7 @@ class SwipeCardState internal constructor(
     ): Boolean {
         if (!isIdle) return false
         committedVerdict = verdict
+        flightToken++
         if (!reduceMotion) {
             val nudgePx = NUDGE_DP.value * density
             offsetAnim.animateTo(directionToward(verdict) * nudgePx, tween(NUDGE_MS, easing = FastOutLinearInEasing))
