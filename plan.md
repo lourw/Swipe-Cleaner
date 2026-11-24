@@ -484,7 +484,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 9.4 | implement | `nfr-3-video-cache-order` | ses_df3077a31ffePXEdDNGGmDxmGr | 2026-11-24 | WP-9.4 video preload race fix, worktree created at `a46ccbe`. Chosen over 8.5 (no file overlap with running 8.11; 8.5 waits — it edits the swipe card + ViewModel too) |
-| 2 | 8.11 | implement (rewrite) | `fr-38-hide-button` | ses_df35718bcffe0VFSoj6ne2yVZf | 2026-11-24 | Real progress verified: 9 commits `ee882fe..1f25e3c` (spec, `MediaHider` write door + PhotoKit impl + check-rules doors, ViewModel single-flight hide, TopBar button + toasts + custom action + in-place return, detekt refactors, e2e tests). 544 tests green pre-gate; session died before final `--full` — resumed to finish gate + commit report. Then: independent verifier (checklist F1–F4), rebase onto main, merge |
+| 2 | 8.11 | verify (independent) | `fr-38-hide-button` | ses_df257d5edfferCgijNXeVC2uXJ | 2026-11-24 | Implementer DONE (verified): 10 commits `ee882fe..3a4016d`, `--full` PASSED, 544 tests / 0 failures (fresh XMLs required from verifier — last run UP-TO-DATE), tree clean. Verifier checklist includes F1–F4 + fresh-test-evidence + check-rules door audit. 👤 from report: on-device Hide permission prompt check (Limited vs Full) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
