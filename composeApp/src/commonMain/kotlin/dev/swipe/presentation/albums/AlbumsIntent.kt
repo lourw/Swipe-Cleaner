@@ -16,4 +16,11 @@ sealed interface AlbumsIntent {
     data class ToggleShuffleExclusion(
         val row: HomeAlbumRow,
     ) : AlbumsIntent
+
+    /**
+     * Re-run the album scan from the error state (WP-9.6, FR-8): the screen
+     * goes back to [dev.swipe.presentation.ListStatus.Loading] and one fresh
+     * scan answers.
+     */
+    data object Retry : AlbumsIntent
 }

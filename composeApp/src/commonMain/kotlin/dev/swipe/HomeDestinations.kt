@@ -5,6 +5,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.NoPerfTrace
@@ -88,14 +91,15 @@ internal fun HomeDestination(
     val viewModel = homeViewModel()
     val onIntent: (HomeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
-    LaunchedEffect(viewModel) {
+    val lifecycle = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is HomeEvent.OpenDeck -> navController.navigate(swipeRoute(event.source, event.typeFilter))
-                is HomeEvent.OpenAlbums -> navController.navigate(Albums(event.typeFilter.name))
-                is HomeEvent.OpenMonths -> navController.navigate(Months(event.typeFilter.name))
-                HomeEvent.OpenQueue -> navController.navigate(Queue)
-                HomeEvent.OpenSettings -> navController.navigate(Settings)
+                is HomeEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
+                is HomeEvent.OpenAlbums -> navController.navigateIfResumed(lifecycle, Albums(event.typeFilter.name))
+                is HomeEvent.OpenMonths -> navController.navigateIfResumed(lifecycle, Months(event.typeFilter.name))
+                HomeEvent.OpenQueue -> navController.navigateIfResumed(lifecycle, Queue)
+                HomeEvent.OpenSettings -> navController.navigateIfResumed(lifecycle, Settings)
             }
         }
     }
@@ -111,22 +115,29 @@ internal fun HomeDestination(
  * The Albums destination (FR-8, WP-5.3): [AlbumsViewModel] is resolved with
  * the route's filter (same contract as the deck), and its single event type
  * opens the album deck with that filter. State is collected inside this
- * destination composable, never in the NavHost builder (WP-1.7 rule).
+ * destination composable, never in the NavHost builder (WP-1.7 rule). The
+ * ViewModel and [mediaLoader] providers let navigation tests run the real
+ * ViewModel over the fakes without Koin (WP-9.6); event-driven navigation
+ * happens only while this entry is resumed, so a double tap on a row pushes
+ * exactly one deck (WP-9.6, FR-8).
  */
 @Composable
 internal fun AlbumsDestination(
     route: Albums,
     navController: NavHostController,
     mediaLoader: MediaLoader = koinInject(),
+    albumsViewModel: @Composable () -> AlbumsViewModel = {
+        koinViewModel(parameters = { parametersOf(decodeTypeFilter(route.typeFilter)) })
+    },
 ) {
-    val typeFilter = remember(route.typeFilter) { decodeTypeFilter(route.typeFilter) }
-    val viewModel: AlbumsViewModel = koinViewModel(parameters = { parametersOf(typeFilter) })
+    val viewModel: AlbumsViewModel = albumsViewModel()
     val onIntent: (AlbumsIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
-    LaunchedEffect(viewModel) {
+    val lifecycle = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is AlbumsEvent.OpenDeck -> navController.navigate(swipeRoute(event.source, event.typeFilter))
+                is AlbumsEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
             }
         }
     }
@@ -141,21 +152,26 @@ internal fun AlbumsDestination(
 /**
  * The By month destination (FR-7, WP-5.3): [MonthsViewModel] is resolved
  * with the route's filter and pays for the creation-date scan only now, with
- * the screen open (NFR-4); its single event type opens the month deck.
+ * the screen open (NFR-4); its single event type opens the month deck. The
+ * ViewModel provider keeps the double-tap navigation test (WP-9.6, FR-7)
+ * able to run the real ViewModel without Koin.
  */
 @Composable
 internal fun MonthsDestination(
     route: Months,
     navController: NavHostController,
+    monthsViewModel: @Composable () -> MonthsViewModel = {
+        koinViewModel(parameters = { parametersOf(decodeTypeFilter(route.typeFilter)) })
+    },
 ) {
-    val typeFilter = remember(route.typeFilter) { decodeTypeFilter(route.typeFilter) }
-    val viewModel: MonthsViewModel = koinViewModel(parameters = { parametersOf(typeFilter) })
+    val viewModel: MonthsViewModel = monthsViewModel()
     val onIntent: (MonthsIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
-    LaunchedEffect(viewModel) {
+    val lifecycle = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is MonthsEvent.OpenDeck -> navController.navigate(swipeRoute(event.source, event.typeFilter))
+                is MonthsEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
             }
         }
     }
@@ -164,6 +180,25 @@ internal fun MonthsDestination(
         onIntent = onIntent,
         onBack = { navController.navigateUp() },
     )
+}
+
+/**
+ * WP-9.6 (FR-7, FR-8, NFR-4): navigate only while [owner] — the lifecycle of
+ * the back-stack entry whose events these are — is at least
+ * [Lifecycle.State.RESUMED]. A double tap on a row lands two events; the
+ * first navigation moves this screen off RESUMED, and the second event must
+ * not stack a second deck onto the session. An event that arrives while the
+ * screen is not resumed is dropped, not queued: its row is behind whatever
+ * screen is open now, so a queued navigation could only ever surprise the
+ * user later.
+ */
+private fun NavHostController.navigateIfResumed(
+    owner: LifecycleOwner,
+    route: Any,
+) {
+    if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+        navigate(route)
+    }
 }
 
 /**

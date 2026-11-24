@@ -76,7 +76,9 @@ data class CountedRows<T>(
  *
  * A failed fetch never kills a Flow: that row keeps its placeholder (or its
  * held number across a refresh) and the caller's next `changes()` re-run
- * retries it (§6.8).
+ * retries it (§6.8). The one exception is the row-list reads' **initial
+ * scan** ([albums] / [months] on the library): a failed scan is thrown so the
+ * screen can explain itself (WP-9.6, FR-7, FR-8).
  */
 class SourceCountsUseCase(
     private val library: MediaLibrary,
@@ -137,11 +139,13 @@ class SourceCountsUseCase(
      * The Albums screen's rows for [type] (FR-8, FR-9): identity and covers
      * first, then each row's exact count, one emission per row. The same
      * album path Home's own flow uses, so both screens' numbers come from one
-     * place (WP-8.12).
+     * place (WP-8.12). A failed **scan** is thrown, not swallowed: the screen
+     * owns the explanation (WP-9.6, FR-8) — only the per-row count reads
+     * stay silent, keeping their placeholders (§6.8).
      */
     fun albums(type: MediaTypeFilter): Flow<CountedRows<AlbumSource>> =
         flow {
-            val albums = attempt { library.albums() } ?: return@flow
+            val albums = library.albums()
             emit(CountedRows(albums, emptyMap()))
             val decided = attempt { decisions.decidedIds() }.orEmpty()
             var counts: Map<String, Int> = emptyMap()
@@ -160,11 +164,13 @@ class SourceCountsUseCase(
      * bucket's exact count — the size of the `DeckSource.Month` deck the row
      * opens, decided items subtracted (FR-9). Before WP-8.12 this screen
      * showed the raw scan count, which over-reported every bucket that held a
-     * decided item.
+     * decided item. A failed **scan** is thrown, not swallowed: the screen
+     * owns the explanation (WP-9.6, FR-7) — only the per-row count reads stay
+     * silent, keeping their placeholders (§6.8).
      */
     fun months(type: MediaTypeFilter): Flow<CountedRows<MonthBucket>> =
         flow {
-            val buckets = attempt { library.months(type) } ?: return@flow
+            val buckets = library.months(type)
             emit(CountedRows(buckets, emptyMap()))
             val decided = attempt { decisions.decidedIds() }.orEmpty()
             var counts: Map<String, Int> = emptyMap()

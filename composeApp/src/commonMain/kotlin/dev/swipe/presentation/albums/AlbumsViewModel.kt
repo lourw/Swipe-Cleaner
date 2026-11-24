@@ -9,6 +9,7 @@ import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.SourceCountsUseCase
+import dev.swipe.presentation.ListStatus
 import dev.swipe.presentation.home.HomeAlbumRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -17,7 +18,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -39,7 +42,10 @@ import kotlinx.coroutines.launch
  * **Refreshes (§6.8):** one collector owns reloads; `latest-wins` via
  * [flatMapLatest] the way [dev.swipe.presentation.home.HomeViewModel] does it,
  * so a burst of `changes()` never runs two album enumerations at once. A
- * failed fetch keeps what the screen already shows; the next refresh retries.
+ * failed refresh keeps what the screen already shows; the next refresh
+ * retries. A scan that fails while the screen still has nothing to show
+ * moves it to [ListStatus.Error] — the failure explains itself with a retry
+ * (WP-9.6, FR-8, §5.8).
  */
 class AlbumsViewModel(
     /** The media-type filter carried from Home (FR-5), fixed for this visit. */
@@ -67,26 +73,48 @@ class AlbumsViewModel(
         reloads.tryEmit(Unit)
         viewModelScope.launch {
             reloads
-                .flatMapLatest { sourceCounts.albums(typeFilter) }
-                .collect { counted ->
-                    _uiState.update { state ->
-                        // Final-or-placeholder merge (§6.5): an arrived count
-                        // is exact, an absent one keeps the row's held number,
-                        // so a refresh never dips a settled row back.
-                        state.copy(
-                            rows =
-                                counted.rows.map { album ->
-                                    HomeAlbumRow(
-                                        id = album.id,
-                                        title = album.title,
-                                        coverAssetId = album.coverAssetId,
-                                        count =
-                                            counted.countFor(album.id)
-                                                ?: state.rows.firstOrNull { it.id == album.id }?.count,
-                                    )
-                                },
-                        )
-                    }
+                .flatMapLatest {
+                    sourceCounts.albums(typeFilter)
+                        .onEach { counted ->
+                            _uiState.update { state ->
+                                // Final-or-placeholder merge (§6.5): an arrived
+                                // count is exact, an absent one keeps the row's
+                                // held number, so a refresh never dips a settled
+                                // row back. The scan answering moves the screen
+                                // from Loading to Ready or Empty (WP-9.6).
+                                val rows =
+                                    counted.rows.map { album ->
+                                        HomeAlbumRow(
+                                            id = album.id,
+                                            title = album.title,
+                                            coverAssetId = album.coverAssetId,
+                                            count =
+                                                counted.countFor(album.id)
+                                                    ?: state.rows.firstOrNull { it.id == album.id }?.count,
+                                        )
+                                    }
+                                state.copy(
+                                    status = if (rows.isEmpty()) ListStatus.Empty else ListStatus.Ready,
+                                    rows = rows,
+                                )
+                            }
+                        }
+                        .catch {
+                            // WP-9.6 (FR-8): a scan that cannot answer explains
+                            // itself — but only while the screen still has
+                            // nothing to show. A failed refresh keeps the rows
+                            // for the next changes() retry (§6.8).
+                            _uiState.update { state ->
+                                if (state.status == ListStatus.Loading) {
+                                    state.copy(status = ListStatus.Error)
+                                } else {
+                                    state
+                                }
+                            }
+                        }
+                }
+                .collect {
+                    // onEach and catch above are the whole collector.
                 }
         }
         viewModelScope.launch {
@@ -117,6 +145,13 @@ class AlbumsViewModel(
                     // write changes nothing on screen (NFR-7).
                     val excludedNow = intent.row.id in _uiState.value.excludedAlbumIds
                     attempt { exclusions.setExcluded(intent.row.id, !excludedNow) }
+                }
+
+                AlbumsIntent.Retry -> {
+                    // WP-9.6: from the error state, back to the loading
+                    // message and one fresh scan (FR-8).
+                    _uiState.update { it.copy(status = ListStatus.Loading) }
+                    reloads.tryEmit(Unit)
                 }
             }
         }

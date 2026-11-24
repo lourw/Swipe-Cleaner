@@ -8,4 +8,11 @@ sealed interface MonthsIntent {
     data class OpenMonth(
         val bucket: MonthBucket,
     ) : MonthsIntent
+
+    /**
+     * Re-run the month scan from the error state (WP-9.6, FR-7): the screen
+     * goes back to [dev.swipe.presentation.ListStatus.Loading] and one fresh
+     * scan answers.
+     */
+    data object Retry : MonthsIntent
 }
