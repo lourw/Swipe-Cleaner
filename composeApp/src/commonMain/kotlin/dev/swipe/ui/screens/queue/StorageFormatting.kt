@@ -16,12 +16,12 @@ import dev.swipe.domain.model.StorageEstimate
 internal fun formatStorageBytes(bytes: Long): String {
     if (bytes < BYTES_PER_KB) return "$bytes B"
     var unit = 0
-    while (unit < UNIT_DIVISORS.lastIndex && UNIT_DIVISORS[unit + 1] <= bytes) unit++
-    var tenths = roundedTenths(bytes, UNIT_DIVISORS[unit])
+    while (unit < unitDivisors.lastIndex && unitDivisors[unit + 1] <= bytes) unit++
+    var tenths = roundedTenths(bytes, unitDivisors[unit])
     // The tenth-place rounding can carry a 999.6 MB into 1000.0 MB; show 1 GB.
-    if (tenths >= CARRY_TENTHS && unit < UNIT_DIVISORS.lastIndex) {
+    if (tenths >= CARRY_TENTHS && unit < unitDivisors.lastIndex) {
         unit++
-        tenths = roundedTenths(bytes, UNIT_DIVISORS[unit])
+        tenths = roundedTenths(bytes, unitDivisors[unit])
     }
     val whole = tenths / TEN_TENTHS
     val fraction = tenths % TEN_TENTHS
@@ -31,7 +31,7 @@ internal fun formatStorageBytes(bytes: Long): String {
         } else {
             whole.toString()
         }
-    return "$number ${UNIT_NAMES[unit]}"
+    return "$number ${unitNames[unit]}"
 }
 
 /** [bytes] in tenths of [divisor], rounded to the nearest tenth. */
@@ -55,7 +55,7 @@ internal fun deleteSizeLabel(estimate: StorageEstimate?): String? {
         when (estimate) {
             null,
             StorageEstimate.Unavailable,
-            -> return null
+            -> 0L
 
             is StorageEstimate.Complete -> estimate.totalBytes
 
@@ -72,7 +72,7 @@ internal fun deleteSizeLabel(estimate: StorageEstimate?): String? {
 
 // Decimal (1000-based) units, the way iOS labels storage.
 private const val BYTES_PER_KB = 1_000L
-private val UNIT_DIVISORS =
+private val unitDivisors =
     longArrayOf(
         BYTES_PER_KB,
         BYTES_PER_KB * 1_000L, // MB
@@ -80,7 +80,7 @@ private val UNIT_DIVISORS =
         BYTES_PER_KB * 1_000L * 1_000L * 1_000L, // TB
         BYTES_PER_KB * 1_000L * 1_000L * 1_000L * 1_000L, // PB
     )
-private val UNIT_NAMES = listOf("KB", "MB", "GB", "TB", "PB")
+private val unitNames = listOf("KB", "MB", "GB", "TB", "PB")
 private const val TEN_TENTHS = 10L
 
 /** Tenths at which a value rounds up to 1000.0 of its unit and carries to the next. */

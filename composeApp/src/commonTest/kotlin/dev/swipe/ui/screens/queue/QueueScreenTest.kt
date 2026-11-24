@@ -15,6 +15,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.filter
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -24,6 +25,7 @@ import dev.swipe.data.MediaLoader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
+import dev.swipe.domain.model.StorageEstimate
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
@@ -32,6 +34,7 @@ import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.fakes.FakeMediaSizing
 import dev.swipe.presentation.queue.QueueEvent
 import dev.swipe.presentation.queue.QueueIntent
 import dev.swipe.presentation.queue.QueueTile
@@ -42,6 +45,7 @@ import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.screens.swipe.formatCardDate
 import dev.swipe.ui.theme.SwipeTheme
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -332,6 +336,66 @@ class QueueScreenTest {
         }
 
     @Test
+    fun `FR-34 dialog shows the complete estimate as an About line`() =
+        runComposeUiTest {
+            val f = ScreenFixture(3)
+            f.sizing.estimate = StorageEstimate.Complete(totalBytes = 1_200_000_000L)
+            setContent { TestScreen(f.viewModel) }
+            waitForIdle()
+
+            onNodeWithContentDescription("Delete 3 items").performClick()
+            waitForIdle()
+
+            onNodeWithText("Delete 3 items?").assertExists()
+            onNodeWithText("About 1.2 GB. Space is freed after Recently Deleted clears.").assertExists()
+            // The honest 30-day line is still the dialog's own message (the bar
+            // behind the dialog repeats it, so the phrase shows twice).
+            assertEquals(
+                2,
+                onAllNodesWithText("They'll move to Recently Deleted for 30 days.").fetchSemanticsNodes().size,
+            )
+        }
+
+    @Test
+    fun `FR-34 a partial estimate reads as an At least lower bound`() =
+        runComposeUiTest {
+            val f = ScreenFixture(3)
+            f.sizing.estimate = StorageEstimate.Partial(totalBytes = 850_000_000L)
+            setContent { TestScreen(f.viewModel) }
+            waitForIdle()
+
+            onNodeWithContentDescription("Delete 3 items").performClick()
+            waitForIdle()
+
+            onNodeWithText("At least 850 MB. Space is freed after Recently Deleted clears.").assertExists()
+            assertEquals(0, onAllNodesWithText("About ", substring = true).fetchSemanticsNodes().size)
+        }
+
+    @Test
+    fun `FR-34 no estimate means no size line and the dialog still deletes`() =
+        runComposeUiTest {
+            val f = ScreenFixture(3)
+            // The estimate hangs and the delete goes ahead anyway (Risk R3):
+            // the dialog is complete without the line.
+            f.sizing.gate = CompletableDeferred()
+            val successes = mutableListOf<Pair<Int, Int>>()
+            setContent {
+                TestScreen(f.viewModel, onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) })
+            }
+            waitForIdle()
+
+            onNodeWithContentDescription("Delete 3 items").performClick()
+            waitForIdle()
+            assertEquals(0, onAllNodesWithText("Space is freed after", substring = true).fetchSemanticsNodes().size)
+
+            onNodeWithContentDescription("Delete").performClick() // the dialog's confirm
+            waitForIdle()
+
+            assertEquals(1, f.library.deleteCalls.size)
+            assertEquals(listOf(3 to 0), successes)
+        }
+
+    @Test
     fun `FR-26 success event navigates with the deleted and not-found counts`() =
         runComposeUiTest {
             val successes = mutableListOf<Pair<Int, Int>>()
@@ -507,6 +571,7 @@ class QueueScreenTest {
         val store = FakeDecisionStore(clock)
         val library = FakeMediaLibrary(photos(count))
         val haptics = FakeHaptics()
+        val sizing = FakeMediaSizing()
         val viewModel: QueueViewModel
 
         init {
@@ -524,6 +589,7 @@ class QueueScreenTest {
                     decisions = store,
                     mediaLibrary = library,
                     haptics = haptics,
+                    mediaSizing = sizing,
                 )
         }
 

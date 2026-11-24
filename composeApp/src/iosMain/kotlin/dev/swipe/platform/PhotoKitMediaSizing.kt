@@ -56,15 +56,20 @@ class PhotoKitMediaSizing(
 
     /** [id]'s resource sizes summed; null when the asset is gone or any of its resources reads no size. */
     private fun sizeOfAsset(id: String): Long? {
-        val asset = assetById(id) ?: return null
-        val resources = PHAssetResource.assetResourcesForAsset(asset).filterIsInstance<PHAssetResource>()
-        if (resources.isEmpty()) return null
-        var total = 0L
-        for (resource in resources) {
-            val bytes = fileSizeOf(resource) ?: return null
-            total += bytes
-        }
-        return total
+        val sizes: List<Long?>? =
+            assetById(id)?.let { asset ->
+                PHAssetResource
+                    .assetResourcesForAsset(asset)
+                    .filterIsInstance<PHAssetResource>()
+                    .map { resource -> fileSizeOf(resource) }
+            }
+        // Gone, resource-less, or a single unreadable resource: the asset as a
+        // whole reads no size (R3), so it is what makes the total Partial.
+        return sizes
+            ?.takeIf { it.isNotEmpty() }
+            ?.mapNotNull { it }
+            ?.takeIf { it.size == sizes.size }
+            ?.sum()
     }
 
     /** The undocumented-KVC read (R3); null when the key throws, is absent, or answers 0. */

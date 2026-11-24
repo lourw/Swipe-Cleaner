@@ -15,6 +15,7 @@ import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeMediaSizing
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -202,7 +203,9 @@ class QueueViewModelTest {
                 // …and ConfirmDelete with no dialog up (never requested, or since
                 // closed) is ignored.
                 f.viewModel.onIntent(QueueIntent.CancelConfirm)
-                assertFalse(awaitItem().confirming)
+                // FR-34: the sizing run also emits while the dialog is up, so
+                // wait for the state where the dialog is actually gone.
+                assertFalse(awaitStateThat { !it.confirming }.confirming)
                 f.viewModel.onIntent(QueueIntent.ConfirmDelete)
                 expectNoEvents()
                 assertTrue(f.library.deleteCalls.isEmpty())
@@ -212,7 +215,7 @@ class QueueViewModelTest {
                 f.viewModel.onIntent(QueueIntent.RequestDelete)
                 awaitItem()
                 f.viewModel.onIntent(QueueIntent.CancelConfirm)
-                val cancelled = awaitItem()
+                val cancelled = awaitStateThat { !it.confirming }
                 assertFalse(cancelled.confirming)
                 assertTrue(f.library.deleteCalls.isEmpty())
                 assertEquals(3, cancelled.items.size)
@@ -750,6 +753,7 @@ class QueueViewModelTest {
         val store = FakeDecisionStore(clock)
         val library = FakeMediaLibrary(photos(count))
         val haptics = FakeHaptics()
+        val sizing = FakeMediaSizing()
         lateinit var viewModel: QueueViewModel
             private set
 
@@ -765,6 +769,7 @@ class QueueViewModelTest {
                     decisions = store,
                     mediaLibrary = library,
                     haptics = haptics,
+                    mediaSizing = sizing,
                 )
             return this
         }

@@ -136,7 +136,9 @@ safe_area_violations() {
     local file need modifier
     while IFS= read -r -d '' file; do
         case "$(basename "$file")" in
-            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt)
+            # StorageFormatting (FR-34) is the dialog's byte-formatting helper,
+            # not UI at all — like CommitLatencyTrace it renders nothing.
+            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt | StorageFormatting.kt)
                 continue ;;
             # ListStateView (WP-9.6) is the loading/empty/error block hosted *inside*
             # AlbumsScreen and MonthsScreen, so like ScreenHeader it takes its
