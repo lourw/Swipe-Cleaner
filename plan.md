@@ -483,8 +483,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.5 | verify (independent) | `fr-35-duplicate-set-label` | ses_df1abafe4ffeW6JTlyhmq22xxg | 2026-11-24 | Implementer DONE (verified): 4 commits `77fd29e..09a31e4`; orchestrator gate PASSED 574/0 (XML 08:27). Verifier told to trap: membership from UNFILTERED candidates, deck order/counts unchanged, no label on other decks |
-| 2 | 8.4 | verify (independent) | `fr-34-storage-freed` | ses_df1aa5443ffex9El30D58srtDv | 2026-11-24 | Implementer DONE (verified): 5 commits `2991353..79ab629` (report self-committed by the alive session at 09:11); orchestrator gate PASSED 586/0 (XML 08:57). Verifier told to trap: KVC throw guard, delete never gated on estimate, stale-queue race (the old discarded attempt's failure) |
+| 1 | 9.10 | implement | `fr-15-undo-flyoff` | ses_df1931ac5ffen4M3FNm9xTbJy2 | 2026-11-24 | UX decision made: queue the Undo (fires once commit lands, card returns). Update §5.6/FR-15 in-branch |
+| 2 | — | — | — | — | — | (empty — WP-8.6 waits for 8.4 merge, same delete-path files) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -504,8 +504,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
 | 8.3 | Fix empty Bursts deck | merged | `fr-6-burst-deck` | Verified PASS (no blockers, 5 nits) 2026-11-24 — verifier re-ran --full itself (485 tests) and confirmed hard rule 1 + drop/undo/page-retry logic. Nits folded pre-merge (verifiedGone requires an empty probe; honest comments; import cleanup; report fixes). Merged at 4c13339. Root cause: six single-asset lookups passed nil options (one burst representative) while the deck lists every frame. 👤: real-burst device checks (incl. undocumented includeAllBurstAssets on id fetches; fallback documented in code) |
-| 8.4 | Storage freed (nice to have) | verifying | `fr-34-storage-freed` | 5 commits `2991353..79ab629`, gate PASSED 586/0. Independent verifier running (R3 traps: KVC throw guard, delete never gated, stale-estimate race) |
-| 8.5 | Duplicate set label | verifying | `fr-35-duplicate-set-label` | 4 commits `77fd29e..09a31e4`, gate PASSED 574/0. Independent verifier running |
+| 8.4 | Storage freed (nice to have) | ready to merge | `fr-34-storage-freed` | Verifier PASS (all items, R3 traps: KVC throw-guarded, delete never gated on estimate, stale-queue race fixed). Rebased onto `d2b09e1` (clean); orchestrator `--full` gate running on the rebased tree — merge on green |
+| 8.5 | Duplicate set label | **merged** | `fr-35-duplicate-set-label` | Merged 2026-11-24 at `d2b09e1` (verifier PASS 574/0; memberships from UNFILTERED candidates trap pinned; 👤-checkpoint nit folded pre-merge). Main `--full` gate PASSED post-merge. 👤: label placement vs §5.8 wireframe + VoiceOver line |
 | 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
