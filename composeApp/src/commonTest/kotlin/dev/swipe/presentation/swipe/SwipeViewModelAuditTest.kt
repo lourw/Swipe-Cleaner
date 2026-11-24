@@ -115,10 +115,12 @@ class SwipeViewModelAuditTest {
             advanceUntilIdle()
             assertEquals("asset-2", f.viewModel.currentId())
 
-            // Fly-off nit (documented, not fixed): asset-2's committed swipe and an
-            // Undo tap race, and the Undo is processed first. It pops asset-1's step;
-            // asset-2's late Decide then names a card that is no longer at the head
-            // and is dropped by the FR-13 guard.
+            // Raw-protocol race the UI can no longer produce (WP-9.10: DeckContent
+            // holds an Undo tapped mid-fly-off and forwards it right after the
+            // Decide, where the ViewModel queues it behind the write). Delivered in
+            // the old order anyway, the Undo is processed first: it pops asset-1's
+            // step; asset-2's late Decide then names a card that is no longer at the
+            // head and is dropped by the FR-13 guard.
             f.viewModel.onIntent(SwipeIntent.Undo)
             advanceUntilIdle()
             f.viewModel.onIntent(SwipeIntent.Decide("asset-2", Decision.DELETE))

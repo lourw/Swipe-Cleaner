@@ -333,7 +333,7 @@ class SwipeViewModel(
             }
             eventChannel.trySend(SwipeEvent.ReturnCard(Decision.DELETE))
         } else {
-            // FR-15: hold Undo for the duration of the write (WP-7.2).
+            // FR-15: the write window an Undo tap queues behind (WP-7.2 → WP-9.10).
             // FR-38: mirror the write into `deciding` so the Hide button disables
             // itself — the deck never hides a card whose verdict is being stored.
             decideInFlight += id
