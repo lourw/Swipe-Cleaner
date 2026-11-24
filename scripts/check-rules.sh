@@ -121,6 +121,11 @@ safe_area_violations() {
         case "$(basename "$file")" in
             CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt)
                 continue ;;
+            # ListStateView (WP-9.6) is the loading/empty/error block hosted *inside*
+            # AlbumsScreen and MonthsScreen, so like ScreenHeader it takes its
+            # insets from the screens hosting it.
+            ListStateView.kt)
+                continue ;;
             TopBar.kt | DebugComponentGallery.kt) need='statusBarsPadding' ;;
             ActionBar.kt) need='navigationBarsPadding' ;;
             *) need='statusBarsPadding navigationBarsPadding' ;;
