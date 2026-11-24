@@ -517,8 +517,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.10 | implement | `fr-15-undo-flyoff` | ses_df1931ac5ffen4M3FNm9xTbJy2 | 2026-11-24 | UX decision made: queue the Undo (fires once commit lands, card returns). Update §5.6/FR-15 in-branch |
-| 2 | — | — | — | — | — | (empty — WP-8.6 waits for 8.4 merge, same delete-path files) |
+| 1 | 9.10 | verify | `fr-15-undo-flyoff` | ses_df0e2d309ffeuh8AQjor5T0rBz | 2026-11-24 | Re-review of fix commits `4309f8c` + `3e4a97e` (hold window = release→dispatch via `flightToken`; 604/604). `--full` gate **PASSED** at `3e4a97e` (wp910-gate3.log). Merge on PASS |
+| 2 | — | — | — | — | — | (empty. ⚠️ An agent outside this session is actively committing to `fr-36-last-copy-warning` (WP-8.6) — 3 commits at 14:57–15:29, worktree dirty until it goes quiet. Do not touch that worktree; verify independently once quiet) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -538,9 +538,9 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.1 | Share button | merged | | 👤 manual share checks (FR-32) |
 | 8.2 | Hide sensitive photos | queued | | |
 | 8.3 | Fix empty Bursts deck | merged | `fr-6-burst-deck` | Verified PASS (no blockers, 5 nits) 2026-11-24 — verifier re-ran --full itself (485 tests) and confirmed hard rule 1 + drop/undo/page-retry logic. Nits folded pre-merge (verifiedGone requires an empty probe; honest comments; import cleanup; report fixes). Merged at 4c13339. Root cause: six single-asset lookups passed nil options (one burst representative) while the deck lists every frame. 👤: real-burst device checks (incl. undocumented includeAllBurstAssets on id fetches; fallback documented in code) |
-| 8.4 | Storage freed (nice to have) | **merged** | `fr-34-storage-freed` | Merged 2026-11-24 at `0498c65` (verifier PASS all items — R3 traps: KVC throw-guarded, delete never gated on estimate, stale-queue race fixed; tests 586/0). Caution: the rebased-tree gate's final xcodebuild Release step FAILED once (likely fallout from the SIGTERM'd duplicate builds — details lost to tail truncation); orchestrator re-running `--full` on merged main to confirm. 👤: KVC `fileSize` on real assets, iCloud-only Partial/Unavailable |
+| 8.4 | Storage freed (nice to have) | **merged** | `fr-34-storage-freed` | Merged 2026-11-24 at `0498c65` (verifier PASS all items — R3 traps: KVC throw-guarded, delete never gated on estimate, stale-queue race fixed). Main `--full` gate **PASSED** on the merged tree (597/0, XML 09:45); the earlier one-off Release failure was SIGTERM fallout. 👤: KVC `fileSize` on real assets, iCloud-only Partial/Unavailable |
 | 8.5 | Duplicate set label | **merged** | `fr-35-duplicate-set-label` | Merged 2026-11-24 at `d2b09e1` (verifier PASS 574/0; memberships from UNFILTERED candidates trap pinned; 👤-checkpoint nit folded pre-merge). Main `--full` gate PASSED post-merge. 👤: label placement vs §5.8 wireframe + VoiceOver line |
-| 8.6 | Last-copy warning | queued | | After 8.5, 9.2, and 8.9 |
+| 8.6 | Last-copy warning | implementing | `fr-36-last-copy-warning` | ⚠️ Branch advanced by an agent outside this session (spec + data + presentation/ui commits `3b27c5f`/`7781c90`/`3117ba9`, following plan.md's "check stored decisions at swipe time" — no new table). My own implementer stood down on the collision. On quiet: independent verifier, rebase onto post-9.10 main, gate, merge |
 | 8.7 | Remove intro screen | merged | `fr-1-remove-onboarding` | 👤 reset-simulator permission checks (manual-test Permissions 1–4) |
 | 8.8 | Center media type selector | merged | `fr-5-center-selector` | 👤 Home visual glance vs §5.8 wireframe |
 | 8.9 | Favorite confirmation redesign | merged | `fr-22-favorite-confirm-redesign` | Verified PASS-with-nits 2026-11-23; nits folded pre-merge (FR-22 spec: a completed left swipe after drag-cancel **re-raises** the confirm; §5.7 Toast row no longer describes a confirm-toast). `FavoriteConfirmCard` (bottom card above action bar, Cancel/Delete ≥44 dp, 150 ms fade, live-region announce), U3 drag-to-cancel. Merged at 617805e after rebase onto 7.7 + `--full`. Deviation: no forced VO focus (CMP limit). Report at docs/reports/2026-11-wp-8.9-favorite-confirm.md. 👤 §3 user test (2–3 people, TestFlight) — WP not fully done until findings dealt with |
@@ -560,4 +560,4 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
 | 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
-| 9.10 | Undo vs. fly-off window | queued | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report). 👤 UX decision made 2026-11-24: **queue the Undo** — a tap during the 220 ms fly-off is remembered and fires once the commit lands (card returns). Implement per that, update §5.6/FR-15 in-branch. Conflicts with 8.11 (SwipeViewModel/UndoStack) — run after it merges |
+| 9.10 | Undo vs. fly-off window | verifying | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report). 👤 UX decision 2026-11-24: **queue the Undo**. Verifier REVISE (2 blocking: stale held-Undo across aborts; unforwarded hold) fixed: hold window is release→dispatch, keyed per flight via `SwipeCardState.flightToken` (`4309f8c`, `3e4a97e`), 3 new UI regression tests, 604/604, `--full` gate PASSED. 👤 device-check candidates in report |
