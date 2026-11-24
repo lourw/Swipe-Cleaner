@@ -11,7 +11,6 @@ import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaItem
-import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
@@ -89,13 +88,6 @@ class SwipeViewModel(
     private val sessionStore: SessionStore,
     private val seedProvider: () -> Long,
 ) : ViewModel() {
-    /** One pushed step of the undo stack (FR-15): what to remove and where to return. */
-    private data class UndoEntry(
-        val id: String,
-        val verdict: Decision,
-        val index: Int,
-    )
-
     private val _uiState = MutableStateFlow(SwipeUiState())
 
     /** The one state flow (AGENTS.md ViewModel convention). */
@@ -123,21 +115,18 @@ class SwipeViewModel(
      */
     private var reviewedBase = 0
     private var loadedCount = 0
-    private var prefetched: List<String> = emptyList()
-
-    /** §6.5 step 4: the window's video ids kept warm in [VideoPreloader] (FR-16). */
-    private var prefetchedVideos: List<String> = emptyList()
     private val metadata = mutableMapOf<String, MediaItem>()
 
-    /** FR-15: successful decisions in order, newest last, capped at [UNDO_STACK_LIMIT]. */
-    private val undoStack = ArrayDeque<UndoEntry>()
+    /** §6.5 steps 3–4: the image and video windows kept warm around the deck head. */
+    private val prefetch = PrefetchWindow(mediaLoader, videoPreloader)
 
-    /** FR-15: the popped step whose removal is in flight; further Undo taps are ignored. */
-    private var undoInFlight: UndoEntry? = null
+    /** FR-15: successful decisions in order, newest last, capped at [UndoStack.LIMIT]. */
+    private val undoStack = UndoStack()
 
     /**
      * FR-15: cards whose decision write is in flight. While non-empty, [undo]
-     * is ignored — the mirror of [undoInFlight] holding further Undo taps. Rewinding
+     * is ignored — the mirror of the undo stack's single-flight removal holding
+     * further Undo taps. Rewinding
      * under a completing write would re-show the card being decided, and that write's
      * stale-advance guard would discard the advance, leaving a stored verdict behind a
      * card the user then decides a second time; ignoring the tap keeps the deck and
@@ -255,7 +244,7 @@ class SwipeViewModel(
                 deck = buildDeck(source, typeFilter, seed)
             }
             ensureMetadataLoaded()
-            refreshPrefetch()
+            prefetch.refresh(deck, index, metadata)
             when {
                 // A resumed session that is already exhausted (every card disposed before
                 // process death, the summary never delivered) retries FR-21 right away.
@@ -362,8 +351,7 @@ class SwipeViewModel(
                     // decision itself stays durable).
                     // FR-15: the decision is durable, so it becomes an undo step now; the
                     // oldest step falls off past the 50-cap.
-                    if (undoStack.size == UNDO_STACK_LIMIT) undoStack.removeFirst()
-                    undoStack.addLast(UndoEntry(id, decision, index))
+                    undoStack.push(UndoEntry(id, decision, index))
                     index += 1
                     // The resume position is a best-effort hint (FR-20): the decision
                     // itself is already durable, so a failed position write must not
@@ -374,7 +362,7 @@ class SwipeViewModel(
                     // carries on to reviewable cards instead of finishing early.
                     pageMetadataQuietly { ensureMetadataLoaded() }
                     if (index >= deck.size) finish() else publish()
-                    refreshPrefetch()
+                    prefetch.refresh(deck, index, metadata)
                 }
             }
         }
@@ -386,11 +374,11 @@ class SwipeViewModel(
      * the card return with the "Undone" toast. A failed removal puts the step back on
      * the stack, leaves the state exactly as it was, and shows the error toast.
      *
-     * The removal is single-flight via [undoInFlight]: while one is in progress,
-     * further Undo taps are ignored. That keeps the popped entry on top of every
-     * later push and the index monotonic between pop and completion, so a failed
-     * removal can always restore stack order with a plain re-add, and the entry's
-     * index is guaranteed to sit behind the deck head when the removal lands.
+     * The removal is single-flight via [UndoStack.popForRemoval]: while one is in
+     * progress, further Undo taps are ignored. That keeps the popped entry on top of
+     * every later push and the index monotonic between pop and completion, so a
+     * failed removal can always restore stack order with a plain re-add, and the
+     * entry's index is guaranteed to sit behind the deck head when the removal lands.
      *
      * A tap is likewise ignored while a [decide] write is in flight
      * ([decideInFlight], WP-7.2): rewinding under a completing write re-shows
@@ -400,10 +388,8 @@ class SwipeViewModel(
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
         // FR-15: single-flight, no-op on an empty stack (§6.6 canUndo), and held
         // while a decision write is in flight (WP-7.2).
-        val blocked = undoInFlight != null || decideInFlight.isNotEmpty()
-        val entry = if (!blocked) undoStack.removeLastOrNull() else null
+        val entry = if (decideInFlight.isEmpty()) undoStack.popForRemoval() else null
         entry ?: return
-        undoInFlight = entry
         viewModelScope.launch {
             val removed =
                 try {
@@ -414,16 +400,16 @@ class SwipeViewModel(
                 } catch (_: Exception) {
                     false
                 }
-            undoInFlight = null
             if (!removed) {
                 // The removal failed, so the decision is still stored: the step goes
                 // back on the stack — nothing else could have been popped while it
                 // was in flight (single-flight), so re-adding restores the exact
                 // order — and the deck does not move (FR-15, NFR-7 mirror).
-                undoStack.addLast(entry)
+                undoStack.restore(entry)
                 _uiState.update { it.copy(toast = ToastMessage.SaveFailed) }
                 return@launch
             }
+            undoStack.removalSettled()
             // Single-flight guarantees `entry.index < index` here: the index only
             // moves back through undo, and no other undo is in flight.
             index = entry.index
@@ -431,7 +417,7 @@ class SwipeViewModel(
             publish(toast = ToastMessage.Undone)
             eventChannel.trySend(SwipeEvent.ReturnCard(entry.verdict))
             ensureMetadataLoaded()
-            refreshPrefetch()
+            prefetch.refresh(deck, index, metadata)
         }
     }
 
@@ -533,35 +519,6 @@ class SwipeViewModel(
     }
 
     /**
-     * §6.5 step 3: keep current + next 3 requested from [MediaLoader.prefetch] and
-     * cancel ids that left the window. Both calls pass the identical target size —
-     * PhotoKit only cancels prefetches made at the same size (§6.4).
-     *
-     * §6.5 step 4: the window's videos are pre-playlisted through [VideoPreloader]
-     * (FR-16); ids that left the window are released again. `preload` is idempotent
-     * for warm ids, so re-entering a window never re-requests (the cache dedupes).
-     * Live Photos are deliberately absent — their paired video is exported on mount
-     * (FR-17), not ahead of the card.
-     */
-    private fun refreshPrefetch() {
-        val window =
-            (index until index + PREFETCH_WINDOW)
-                .mapNotNull { deck.getOrNull(it) }
-        val stale = prefetched.filterNot { it in window }
-        if (stale.isNotEmpty()) {
-            mediaLoader.cancelPrefetch(stale, PREFETCH_TARGET_PX)
-        }
-        if (window.isNotEmpty()) {
-            mediaLoader.prefetch(window, PREFETCH_TARGET_PX)
-        }
-        prefetched = window
-        val videos = window.filter { metadata[it]?.type == MediaType.VIDEO }
-        prefetchedVideos.filterNot { it in videos }.forEach(videoPreloader::cancel)
-        videos.filterNot { it in prefetchedVideos }.forEach(videoPreloader::preload)
-        prefetchedVideos = videos
-    }
-
-    /**
      * Emit the deck slice. A move always clears the favorite confirm (its card is no
      * longer up) and abandons a loading share (FR-32); [toast], when given, replaces
      * the message (the "Undone" notice).
@@ -587,14 +544,7 @@ class SwipeViewModel(
 
     /** §6.5 steps 3–4: leaving the deck cancels the still-warm image and video windows. */
     public override fun onCleared() {
-        if (prefetched.isNotEmpty()) {
-            mediaLoader.cancelPrefetch(prefetched, PREFETCH_TARGET_PX)
-            prefetched = emptyList()
-        }
-        if (prefetchedVideos.isNotEmpty()) {
-            prefetchedVideos.forEach(videoPreloader::cancel)
-            prefetchedVideos = emptyList()
-        }
+        prefetch.release()
     }
 
     private companion object {
@@ -603,22 +553,6 @@ class SwipeViewModel(
 
         /** §6.5 step 2: load the next page within 5 of the loaded end. */
         const val METADATA_PAGE_TRIGGER = 5
-
-        /** §6.5 step 3: prefetch current + next 3. */
-        const val PREFETCH_WINDOW = 4
-
-        /**
-         * Prefetch asks for the screen's pixel size (§6.5 step 3); the loader caps
-         * every request at the screen's pixel size (NFR-2, R1), so an unbounded
-         * request resolves to exactly that. [MediaLoader.cancelPrefetch] must pass
-         * the identical value, and WP-1.9's cards request the same
-         * [MediaLoader.FULL_TARGET_PX] so a prefetched decode lands in the card's
-         * cache key — one shared constant on the interface.
-         */
-        val PREFETCH_TARGET_PX = MediaLoader.FULL_TARGET_PX
-
-        /** FR-15: the undo stack holds up to 50 steps per session. */
-        const val UNDO_STACK_LIMIT = 50
     }
 }
 
