@@ -42,7 +42,10 @@ import kotlinx.coroutines.withContext
  * prefetch window (§6.5 step 3). Inserting beyond the bound retires the oldest
  * entry first (insertion order, so the id furthest behind the deck goes), which
  * makes the bound enforced rather than caller discipline: a lost or mismatched
- * [cancel] can no longer grow the map.
+ * [cancel] can no longer grow the map. (Eviction removes by key, not through
+ * the `entries`-iterator's `remove()` — that throws
+ * `ConcurrentModificationException` on Kotlin/Native, and the NFR-3 bound
+ * tests are what surfaced it.)
  *
  * **Failure.** A `null` load result is *not* cached: the next [item] call
  * retries, mirroring [MediaLoader]'s handling of a refused cloud download (R6).
@@ -124,9 +127,10 @@ class WarmItemCache<T>(
     suspend fun item(id: String): T? {
         val reply = CompletableDeferred<Entry<T>>()
         check(
-            commands.trySend {
-                reply.complete(getOrCreate(id).also { it.leases++ })
-            }.isSuccess,
+            commands
+                .trySend {
+                    reply.complete(getOrCreate(id).also { it.leases++ })
+                }.isSuccess,
         ) { "the cache is closed" }
         // The acquire runs when the queue drains to it, and the drain never
         // awaits a load, so this is bounded; keep it NonCancellable so a caller
@@ -168,12 +172,13 @@ class WarmItemCache<T>(
     private fun getOrCreate(id: String): Entry<T> {
         items[id]?.let { return it }
         // Bound enforcement (NFR-3): the cache never exceeds the window, so a
-        // new entry retires the oldest one in before it goes in.
+        // new entry retires the oldest one in before it goes in. Remove by key,
+        // not through the entries-iterator — its remove() throws
+        // ConcurrentModificationException on Kotlin/Native here, and an
+        // exception between evict and insert would silently drop the new entry.
         while (items.size >= maxEntries) {
-            val oldest = items.entries.iterator()
-            val evicted = oldest.next()
-            oldest.remove()
-            retire(evicted.value)
+            val oldestKey = items.keys.first()
+            retire(items.remove(oldestKey))
         }
         return Entry(loadScope.async { load(id) }).also { items[id] = it }
     }

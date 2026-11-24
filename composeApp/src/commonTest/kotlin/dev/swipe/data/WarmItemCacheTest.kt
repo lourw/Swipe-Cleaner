@@ -76,7 +76,11 @@ class WarmItemCacheTest {
             cache.cancel("a")
             advanceUntilIdle()
             assertEquals(emptySet(), cache.cachedIds())
-            assertEquals(listOf("a"), loader.cancelledIds)
+            // The queue drains preload and cancel in one go, so the cancel beats
+            // the load even to its first line: the fetch never starts, which is
+            // the strongest form of "nothing left behind".
+            assertTrue(loader.calls.isEmpty(), "no fetch may start for a cancelled id")
+            assertTrue(loader.cancelledIds.isEmpty())
             cache.close()
         }
 
@@ -103,8 +107,11 @@ class WarmItemCacheTest {
             val loader = RecordingLoader()
             val cache = newCache(loader, testScheduler, maxEntries = 4)
             cache.preload("a")
-            cache.preload("b")
+            runCurrent() // each load starts before the next command, so a later
+            cache.preload("b") // eviction catches it in flight, as in a real deck move
+            runCurrent()
             cache.preload("c")
+            runCurrent()
             cache.cancel("a")
             cache.preload("d")
             advanceUntilIdle()
@@ -179,10 +186,14 @@ class WarmItemCacheTest {
         runTest {
             val loader = RecordingLoader()
             val cache = newCache(loader, testScheduler, maxEntries = 4)
-            (1..10).forEach { cache.preload("id-$it") }
+            (1..10).forEach {
+                cache.preload("id-$it")
+                runCurrent() // start each load before the next id can evict it
+            }
             advanceUntilIdle()
-            assertEquals(setOf("id-6", "id-7", "id-8", "id-9"), cache.cachedIds())
-            // The six that fell out of the bound had their loads cancelled, oldest first.
+            // Bound of 4: the four newest ids are held, every older load was
+            // cancelled as it fell out, oldest first.
+            assertEquals(setOf("id-7", "id-8", "id-9", "id-10"), cache.cachedIds())
             assertEquals((1..6).map { "id-$it" }, loader.cancelledIds)
             cache.close()
         }

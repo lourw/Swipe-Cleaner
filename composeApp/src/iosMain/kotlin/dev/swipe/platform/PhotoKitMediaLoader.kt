@@ -90,12 +90,34 @@ class PhotoKitMediaLoader(
 
     /**
      * For the fire-and-forget prefetch calls, which must not run PhotoKit on main
-     * (§6.8). Serial (`limitedParallelism(1)`, WP-9.4): the start/stop caching
-     * calls then take effect in call order, so a `cancelPrefetch` can never run
-     * before the `prefetch` it cancels and leave PhotoKit caching a departed
-     * window (NFR-3).
+     * (§6.8). One consumer coroutine drains a FIFO command queue (WP-9.4), so the
+     * start/stop caching calls take effect in **call order**: a `cancelPrefetch`
+     * can never run before the `prefetch` it cancels and leave PhotoKit caching a
+     * departed window (NFR-3). (`limitedParallelism(1)` was tried first and
+     * rejected — it confines but does not order, "It is not a mutex!"; the same
+     * failure was measured in `WarmItemCache`.) The consumer may suspend on the
+     * keyed id → PHAsset fetch, which is cheap (NFR-4), so a stop waits at most
+     * one fetch behind its start.
      */
-    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher.limitedParallelism(1))
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val prefetchCommands = Channel<PrefetchCommand>(Channel.UNLIMITED)
+
+    /** One `startCachingImagesForAssets` / `stopCachingImagesForAssets` call. */
+    private class PrefetchCommand(
+        val ids: List<String>,
+        val targetPx: IntSize,
+        val start: Boolean,
+    )
+
+    init {
+        scope.launch {
+            // runCatching keeps the consumer alive: a failed fetch for one window
+            // must not strand every later start/stop (the same rule as WarmItemCache).
+            for (command in prefetchCommands) {
+                runCatching { applyPrefetch(command) }
+            }
+        }
+    }
 
     override fun image(
         id: String,
@@ -184,7 +206,7 @@ class PhotoKitMediaLoader(
         targetPx: IntSize,
     ) {
         if (ids.isEmpty()) return
-        startOrStopCaching(ids, targetPx, start = true)
+        prefetchCommands.trySend(PrefetchCommand(ids, targetPx, start = true))
     }
 
     override fun cancelPrefetch(
@@ -192,7 +214,7 @@ class PhotoKitMediaLoader(
         targetPx: IntSize,
     ) {
         if (ids.isEmpty()) return
-        startOrStopCaching(ids, targetPx, start = false)
+        prefetchCommands.trySend(PrefetchCommand(ids, targetPx, start = false))
     }
 
     /**
@@ -200,27 +222,22 @@ class PhotoKitMediaLoader(
      * options as [image] — PhotoKit matches cached images by asset + size + content mode,
      * so stop only undoes start if both cap [targetPx] identically (§6.5 step 3). The
      * id → PHAsset fetch is a keyed lookup, cheap even for a large library (NFR-4).
+     * Runs on the prefetch consumer, in command order (WP-9.4).
      */
-    private fun startOrStopCaching(
-        ids: List<String>,
-        targetPx: IntSize,
-        start: Boolean,
-    ) {
-        val size = capToScreen(targetPx)
+    private suspend fun applyPrefetch(command: PrefetchCommand) {
+        val size = capToScreen(command.targetPx)
         val options = requestOptions(settings.includeCloudOnly.value)
-        scope.launch {
-            val fetched = fetchAssetsByIds(ids)
-            val assets = ArrayList<PHAsset>(fetched?.count?.toInt() ?: 0)
-            fetched?.enumerateObjectsUsingBlock { asset, _, _ ->
-                (asset as? PHAsset)?.let(assets::add)
-            }
-            if (assets.isEmpty()) return@launch
-            val cgSize = size.toCGSize()
-            if (start) {
-                manager.startCachingImagesForAssets(assets, cgSize, PHImageContentModeAspectFit, options)
-            } else {
-                manager.stopCachingImagesForAssets(assets, cgSize, PHImageContentModeAspectFit, options)
-            }
+        val fetched = fetchAssetsByIds(command.ids)
+        val assets = ArrayList<PHAsset>(fetched?.count?.toInt() ?: 0)
+        fetched?.enumerateObjectsUsingBlock { asset, _, _ ->
+            (asset as? PHAsset)?.let(assets::add)
+        }
+        if (assets.isEmpty()) return
+        val cgSize = size.toCGSize()
+        if (command.start) {
+            manager.startCachingImagesForAssets(assets, cgSize, PHImageContentModeAspectFit, options)
+        } else {
+            manager.stopCachingImagesForAssets(assets, cgSize, PHImageContentModeAspectFit, options)
         }
     }
 
