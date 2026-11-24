@@ -45,15 +45,6 @@ class SqlSessionStore(
             id
         }
 
-    override suspend fun updatePosition(
-        id: String,
-        position: Int,
-    ) {
-        withContext(dispatcher) {
-            sessions.updatePosition(position.toLong(), id)
-        }
-    }
-
     override suspend fun end(id: String) {
         withContext(dispatcher) {
             sessions.endSession(clock.now().toEpochMilliseconds(), id)
@@ -83,7 +74,6 @@ class SqlSessionStore(
                         source = json.decodeFromString(DeckSource.serializer(), row.source),
                         typeFilter = MediaTypeFilter.valueOf(row.type_filter),
                         seed = row.seed,
-                        position = row.position.toInt(),
                         startedAt = Instant.fromEpochMilliseconds(row.started_at),
                         endedAt = row.ended_at?.let(Instant::fromEpochMilliseconds),
                     )

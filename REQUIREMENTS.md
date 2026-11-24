@@ -498,7 +498,6 @@ interface DecisionStore {
 
 interface SessionStore {                                    // session + session_skip rows (§7); timestamps from the injected kotlin.time.Clock
     suspend fun create(source: DeckSource, typeFilter: MediaTypeFilter, seed: Long): String
-    suspend fun updatePosition(id: String, position: Int)   // resume position (FR-20)
     suspend fun end(id: String)                                 // stamp ended_at: deck ran out (FR-21), or opened empty with nothing reviewed (WP-7.3)
     suspend fun endOtherOpenSessions(exceptId: String)        // stamp ended_at on every other open row: a fresh session closes the rows a source switch leaves behind, which can never be resumed (WP-9.2)
     suspend fun openSession(): SessionRecord?               // an undecodable row is ended on the spot and reported as none (WP-8.10)
@@ -548,7 +547,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
 ### 6.5 Deck pipeline
 
 1. `BuildDeckUseCase(source, typeFilter, seed)` takes the source's membership from one shared `DeckMembership` function (FR-9, FR-37, WP-8.10) — **asset IDs only** (`PHFetchResult`, which is fast even with 50k items) minus `decidedIds()`, and for `DeckSource.All` minus every item of any album excluded from Shuffle (FR-37; see below) — then orders them per source. The Home and Albums counts run through the same function, so a displayed count and the deck its row opens are the same query by construction (FR-9):
-   - Shuffle: ordered by a **stable per-id key** — the splitmix64 hash of `(seed, id)` sorted ascending, with the id string itself breaking ties so the order is total and never depends on fetch order (the fetches are sorted by §6.5, but Shuffle must not rely on that). The seed is stored on the session row, so the order survives process death. Because the key is a property of `(seed, id)` alone, filtering commutes with ordering: subtracting decided ids (FR-9), subtracting FR-37 excluded-album ids, and items entering or leaving the library between sessions never move the survivors — a rebuild with the same seed reopens a resumed session on the same card (FR-20), where a positional `shuffled(Random(seed))` permutation would move every card after the first library edit. Resume recomputes everything from that rebuild — `SessionRecord.position` stores cards disposed in the session, a progress hint whose value is never read back (FR-20).
+   - Shuffle: ordered by a **stable per-id key** — the splitmix64 hash of `(seed, id)` sorted ascending, with the id string itself breaking ties so the order is total and never depends on fetch order (the fetches are sorted by §6.5, but Shuffle must not rely on that). The seed is stored on the session row, so the order survives process death. Because the key is a property of `(seed, id)` alone, filtering commutes with ordering: subtracting decided ids (FR-9), subtracting FR-37 excluded-album ids, and items entering or leaving the library between sessions never move the survivors — a rebuild with the same seed reopens a resumed session on the same card (FR-20), where a positional `shuffled(Random(seed))` permutation would move every card after the first library edit. Resume recomputes everything from that rebuild; no per-card position is stored (the `session.position` column and its write path were dropped in WP-9.2 — resume never read it back).
    - Shuffle exclusions (FR-37): PhotoKit has no "not in album" predicate, so the deck subtracts the ids of every excluded album (each one ids-only fetch, NFR-4) after the ordering. An id whose album the user has since deleted matches nothing and is ignored. The subtraction applies only to `DeckSource.All`: opening an excluded album, By month, and the smart filters keep its items.
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
@@ -738,7 +737,6 @@ CREATE TABLE session (
   source      TEXT NOT NULL,          -- serialized DeckSource
   type_filter TEXT NOT NULL,
   seed        INTEGER NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0,
   started_at  INTEGER NOT NULL,
   ended_at    INTEGER
 );

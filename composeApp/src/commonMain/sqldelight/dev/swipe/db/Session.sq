@@ -1,12 +1,12 @@
--- Review sessions and their per-session skips (REQUIREMENTS §7). The stored seed and
--- position let a relaunch resume the same deck (FR-20, §6.5 step 1).
+-- Review sessions and their per-session skips (REQUIREMENTS §7). The stored seed
+-- lets a relaunch resume the same deck (FR-20, §6.5 step 1); the position is not
+-- stored — resume recomputes it from the seed minus decided and skipped ids (WP-9.2).
 
 CREATE TABLE session (
   id          TEXT NOT NULL PRIMARY KEY,
   source      TEXT NOT NULL,          -- serialized DeckSource
   type_filter TEXT NOT NULL,
   seed        INTEGER NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0,
   started_at  INTEGER NOT NULL,
   ended_at    INTEGER
 );
@@ -17,16 +17,10 @@ CREATE TABLE session_skip (
   PRIMARY KEY (session_id, asset_id)
 );
 
--- Start a session (§6.5 step 1): position starts at the column default, ended_at is NULL.
+-- Start a session (§6.5 step 1): ended_at is NULL until the run ends.
 insert:
 INSERT INTO session(id, source, type_filter, seed, started_at)
 VALUES (?, ?, ?, ?, ?);
-
--- Save the resume position (FR-20).
-updatePosition:
-UPDATE session
-SET position = ?
-WHERE id = ?;
 
 -- Stamp the end when the deck runs out (FR-21, §7).
 endSession:

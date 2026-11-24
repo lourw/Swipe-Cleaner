@@ -68,8 +68,6 @@ class SwipeViewModelTest {
             }
             // The KEEP was persisted for this session before the index moved (FR-12, FR-20).
             assertEquals(listOf(Triple("asset-1", Decision.KEEP, "session-1")), f.store.recordCalls)
-            // …and the resume position was saved (FR-20).
-            assertEquals(listOf("session-1" to 1), f.sessionStore.updatePositionCalls)
             // The seed is stored on the session row so the order survives process death (§6.5 step 1).
             assertEquals(listOf(Triple(SOURCE, MediaTypeFilter.ALL, SEED)), f.sessionStore.createCalls)
         }
@@ -133,8 +131,7 @@ class SwipeViewModelTest {
                 assertEquals(ToastMessage.SaveFailed, failed.toast)
                 assertEquals(1, failed.revertToken)
             }
-            // Nothing moved: no position save, and the deck head is unchanged.
-            assertEquals(emptyList(), f.sessionStore.updatePositionCalls)
+            // Nothing moved: the deck head is unchanged.
             assertEquals(
                 "asset-1",
                 f.viewModel.uiState.value.current
@@ -167,7 +164,6 @@ class SwipeViewModelTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
 
@@ -210,8 +206,6 @@ class SwipeViewModelTest {
             // Exactly one write for asset-1 (FR-13), nothing for asset-2.
             assertEquals(1, f.store.recordCalls.count { it.first == "asset-1" })
             assertTrue(f.store.recordCalls.none { it.first == "asset-2" })
-            // The resume position moved by exactly one (FR-20).
-            assertEquals(listOf("session-1" to 1), f.sessionStore.updatePositionCalls)
         }
 
     @Test

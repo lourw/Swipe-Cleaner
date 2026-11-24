@@ -50,10 +50,9 @@ class SwipeViewModelShareTest {
             assertEquals(Progress(reviewed = 0, total = 3), after.progress)
             assertFalse(after.sharing)
             assertNull(after.toast)
-            // Nothing persisted: no decision, no resume position (FR-32, NFR-7).
+            // Nothing persisted: no decision (FR-32, NFR-7).
             assertTrue(f.store.recordCalls.isEmpty())
             assertTrue(f.store.entries.isEmpty())
-            assertTrue(f.sessionStore.updatePositionCalls.isEmpty())
         }
 
     @Test
@@ -108,7 +107,6 @@ class SwipeViewModelShareTest {
                 assertEquals(0, settled.progress.reviewed)
             }
             assertTrue(f.store.recordCalls.isEmpty())
-            assertTrue(f.sessionStore.updatePositionCalls.isEmpty())
         }
 
     @Test

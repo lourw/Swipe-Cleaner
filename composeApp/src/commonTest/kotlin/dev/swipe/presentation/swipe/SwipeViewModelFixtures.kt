@@ -89,7 +89,6 @@ internal class Fixture(
             videoPreloader = videoPreloader,
             mediaSharer = sharer,
             decisions = store,
-            sessionStore = sessionStore,
             seedProvider = { seed },
         )
 }

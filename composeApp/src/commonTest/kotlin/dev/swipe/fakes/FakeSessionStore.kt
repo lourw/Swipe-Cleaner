@@ -20,9 +20,6 @@ class FakeSessionStore(
     /** Every [create] call, oldest first. */
     val createCalls = mutableListOf<Triple<DeckSource, MediaTypeFilter, Long>>()
 
-    /** Every [updatePosition] call, oldest first. */
-    val updatePositionCalls = mutableListOf<Pair<String, Int>>()
-
     /** Every [end] call, oldest first. */
     val endCalls = mutableListOf<String>()
 
@@ -30,7 +27,6 @@ class FakeSessionStore(
     val endOtherOpenSessionsCalls = mutableListOf<String>()
 
     var failNextCreate: Throwable? = null
-    var failNextUpdatePosition: Throwable? = null
     var failNextEnd: Throwable? = null
     var failNextEndOtherOpenSessions: Throwable? = null
 
@@ -58,23 +54,10 @@ class FakeSessionStore(
                 source = source,
                 typeFilter = typeFilter,
                 seed = seed,
-                position = 0,
                 startedAt = clock.now(),
                 endedAt = null,
             )
         return id
-    }
-
-    override suspend fun updatePosition(
-        id: String,
-        position: Int,
-    ) {
-        updatePositionCalls += id to position
-        failNextUpdatePosition?.let {
-            failNextUpdatePosition = null
-            throw it
-        }
-        sessions[id]?.let { sessions[id] = it.copy(position = position) }
     }
 
     override suspend fun end(id: String) {

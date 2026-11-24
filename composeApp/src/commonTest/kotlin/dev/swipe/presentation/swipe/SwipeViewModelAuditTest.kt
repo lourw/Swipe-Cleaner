@@ -54,7 +54,6 @@ class SwipeViewModelAuditTest {
             videoPreloader = FakeVideoPreloader(),
             mediaSharer = FakeMediaSharer(),
             decisions = f.store,
-            sessionStore = f.sessionStore,
             seedProvider = { SEED },
         )
 

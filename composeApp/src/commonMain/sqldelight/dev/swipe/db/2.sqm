@@ -1,0 +1,20 @@
+-- WP-9.2: the resume position was never read back. Resume recomputes everything
+-- from the stored seed minus the decided and skipped ids (§6.5 step 1), so the
+-- column and its write path are dropped. SQLDelight's migration grammar has no
+-- ALTER TABLE … DROP COLUMN, so the table is rebuilt the documented way.
+CREATE TABLE session_new (
+  id          TEXT NOT NULL PRIMARY KEY,
+  source      TEXT NOT NULL,          -- serialized DeckSource
+  type_filter TEXT NOT NULL,
+  seed        INTEGER NOT NULL,
+  started_at  INTEGER NOT NULL,
+  ended_at    INTEGER
+);
+
+INSERT INTO session_new(id, source, type_filter, seed, started_at, ended_at)
+SELECT id, source, type_filter, seed, started_at, ended_at
+FROM session;
+
+DROP TABLE session;
+
+ALTER TABLE session_new RENAME TO session;

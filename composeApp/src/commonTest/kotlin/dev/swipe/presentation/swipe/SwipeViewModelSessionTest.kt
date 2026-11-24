@@ -317,7 +317,6 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
             advanceUntilIdle()
@@ -355,7 +354,6 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
 
@@ -433,7 +431,6 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = f.store,
-                    sessionStore = f.sessionStore,
                     seedProvider = { SEED },
                 )
             advanceUntilIdle()
@@ -480,7 +477,6 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
             advanceUntilIdle()
@@ -520,7 +516,6 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = f.store,
-                    sessionStore = f.sessionStore,
                     seedProvider = { SEED },
                 )
             advanceUntilIdle()
@@ -539,7 +534,6 @@ class SwipeViewModelSessionTest {
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
                 decisions = f.store,
-                sessionStore = f.sessionStore,
                 seedProvider = { SEED },
             )
             advanceUntilIdle()
@@ -568,7 +562,6 @@ class SwipeViewModelSessionTest {
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
                 decisions = f.store,
-                sessionStore = f.sessionStore,
                 seedProvider = { SEED },
             )
             advanceUntilIdle()

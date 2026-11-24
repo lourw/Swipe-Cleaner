@@ -6,7 +6,6 @@ import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
-import dev.swipe.data.SessionStore
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
@@ -30,16 +29,16 @@ import kotlinx.coroutines.launch
 /**
  * The Swipe screen's deck pipeline (§6.5 steps 2–3 and 5; FR-12–16, FR-19–22, NFR-7).
  *
- * **Start** (§6.5 step 1): if [SessionStore.openSession] matches this screen's source
- * and filter, the session *resumes* — the stored seed rebuilds the same shuffle order
- * (it survives process death), the stored keeps and this session's skips stay excluded
- * so the screen reopens on the same card, and their count becomes the reviewed base;
- * otherwise a fresh session row is created. A failed open/build degrades to an empty
+ * **Start** (§6.5 step 1): [StartSessionUseCase] resumes or starts fresh — a stored
+ * open session matching this screen's source and filter reopens on the same card (the
+ * stored seed rebuilds the same shuffle order; it survives process death, and the
+ * stored keeps and this session's skips stay excluded), otherwise a fresh session row
+ * is created. A failed open/build degrades to an empty
  * deck plus [ToastMessage.StartFailed] instead of crashing.
  *
  * **Decisions** (§6.5 step 5): [RecordDecisionUseCase] runs *before* anything moves.
- * Only after the write succeeds does the index advance, the resume position save
- * (FR-20), and the state re-emit. A failed write keeps the card exactly where it is,
+ * Only after the write succeeds does the index advance and the state re-emit. A failed
+ * write keeps the card exactly where it is,
  * sets [SwipeUiState.toast] to [ToastMessage.SaveFailed], and bumps
  * [SwipeUiState.revertToken] so the card animates back (NFR-7). A Delete on a favorite
  * records nothing and asks first (FR-22, [SwipeIntent.ConfirmFavoriteDelete]).
@@ -85,7 +84,6 @@ class SwipeViewModel(
     private val videoPreloader: VideoPreloader,
     private val mediaSharer: MediaSharer,
     private val decisions: DecisionStore,
-    private val sessionStore: SessionStore,
     private val seedProvider: () -> Long,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SwipeUiState())
@@ -251,7 +249,7 @@ class SwipeViewModel(
 
     /**
      * The decision path (FR-12–14, §6.5 step 5): (a) persist first; (b) on success
-     * only, advance, save the resume position (FR-20), and emit; (c) on failure keep
+     * only, advance and emit; (c) on failure keep
      * the index and revert the card (NFR-7).
      *
      * Every decision names the card it was made for: an intent whose [id] is not the
@@ -320,10 +318,6 @@ class SwipeViewModel(
                     // oldest step falls off past the 50-cap.
                     undoStack.push(UndoEntry(id, decision, cursor.index))
                     cursor.advance()
-                    // The resume position is a best-effort hint (FR-20): the decision
-                    // itself is already durable, so a failed position write must not
-                    // revert the card.
-                    savePosition()
                     // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
                     // testing exhaustion, so a deck whose tail ids never resolve
                     // carries on to reviewable cards instead of finishing early.
@@ -380,23 +374,10 @@ class SwipeViewModel(
             // Single-flight guarantees `entry.index < cursor.index` here: the head
             // only moves back through undo, and no other undo is in flight.
             cursor.rewindTo(entry.index)
-            savePosition()
             publish(toast = ToastMessage.Undone)
             eventChannel.trySend(SwipeEvent.ReturnCard(entry.verdict))
             cursor.ensureMetadataLoaded()
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
-        }
-    }
-
-    /** Best-effort resume position save; the decision itself is already durable (FR-20). */
-    private suspend fun savePosition() {
-        val sessionId = sessionId ?: return
-        try {
-            sessionStore.updatePosition(sessionId, reviewedBase + cursor.index)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (_: Exception) {
-            // Ignored on purpose; see above.
         }
     }
 

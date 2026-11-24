@@ -63,14 +63,13 @@ class SqlStoresTest {
         }
 
     @Test
-    fun `FR-20 session keeps seed and position across a new store instance`() =
+    fun `FR-20 session keeps its seed across a new store instance`() =
         runTest {
             val name = "fr20-session-${Uuid.random()}.db"
             val factory = DatabaseDriverFactory()
             val first = factory.createIn(NSTemporaryDirectory(), name)
             val sessions = SqlSessionStore(SwipeDatabase(first), clock)
             val id = sessions.create(DeckSource.All, MediaTypeFilter.PHOTOS, seed = 12_345L)
-            sessions.updatePosition(id, 7)
             first.close()
 
             val reopened = SqlSessionStore(SwipeDatabase(factory.createIn(NSTemporaryDirectory(), name)), clock)
@@ -79,7 +78,6 @@ class SqlStoresTest {
             assertEquals(DeckSource.All, open?.source)
             assertEquals(MediaTypeFilter.PHOTOS, open?.typeFilter)
             assertEquals(12_345L, open?.seed)
-            assertEquals(7, open?.position)
             deleteTempDatabase(name)
         }
 

@@ -70,8 +70,6 @@ class SwipeViewModelUndoTest {
             // The stored verdict is gone, so the card really comes back (FR-15)…
             assertEquals(listOf("asset-1"), f.store.removeCalls)
             assertEquals(emptyList(), f.store.entries)
-            // …and the position moved back with it (FR-20).
-            assertEquals(listOf("session-1" to 1, "session-1" to 0), f.sessionStore.updatePositionCalls)
         }
 
     @Test
@@ -145,7 +143,6 @@ class SwipeViewModelUndoTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
 
