@@ -6,7 +6,9 @@ import app.cash.turbine.test
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
@@ -129,11 +131,13 @@ class SwipeViewModelUndoTest {
             // Snapshot the UI's reviewed count at the exact moment remove() runs.
             val store = OrderRecordingDecisionStore(backing) { viewModel.uiState.value.progress.reviewed }
             val library = FakeMediaLibrary(photos(3))
+            val sessionStore = FakeSessionStore(clock, skips)
             viewModel =
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(library, store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(library, store), store, sessionStore),
+                    finishSession = FinishSessionUseCase(store, sessionStore),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -141,7 +145,7 @@ class SwipeViewModelUndoTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     decisions = store,
-                    sessionStore = FakeSessionStore(clock, skips),
+                    sessionStore = sessionStore,
                     seedProvider = { SEED },
                 )
 

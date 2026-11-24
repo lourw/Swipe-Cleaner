@@ -26,9 +26,13 @@ class FakeSessionStore(
     /** Every [end] call, oldest first. */
     val endCalls = mutableListOf<String>()
 
+    /** Every [endOtherOpenSessions] call, oldest first. */
+    val endOtherOpenSessionsCalls = mutableListOf<String>()
+
     var failNextCreate: Throwable? = null
     var failNextUpdatePosition: Throwable? = null
     var failNextEnd: Throwable? = null
+    var failNextEndOtherOpenSessions: Throwable? = null
 
     /** All stored sessions, for assertions. */
     val stored: List<SessionRecord> get() = sessions.values.toList()
@@ -80,6 +84,20 @@ class FakeSessionStore(
             throw it
         }
         sessions[id]?.let { sessions[id] = it.copy(endedAt = clock.now()) }
+    }
+
+    override suspend fun endOtherOpenSessions(exceptId: String) {
+        endOtherOpenSessionsCalls += exceptId
+        failNextEndOtherOpenSessions?.let {
+            failNextEndOtherOpenSessions = null
+            throw it
+        }
+        sessions
+            .filterKeys { it != exceptId }
+            .filterValues { it.endedAt == null }
+            .keys
+            .toList()
+            .forEach { id -> sessions[id] = checkNotNull(sessions[id]).copy(endedAt = clock.now()) }
     }
 
     // Stable ascending sort: ties on a fixed clock resolve to the most recently

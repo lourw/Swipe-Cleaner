@@ -11,7 +11,9 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
@@ -78,7 +80,8 @@ internal class Fixture(
         SwipeViewModel(
             source = SOURCE,
             typeFilter = MediaTypeFilter.ALL,
-            buildDeck = buildDeckUseCase(library, store),
+            startSession = StartSessionUseCase(buildDeckUseCase(library, store), store, sessionStore),
+            finishSession = FinishSessionUseCase(store, sessionStore),
             recordDecision = RecordDecisionUseCase(store),
             undoDecision = UndoDecisionUseCase(store),
             mediaLibrary = library,

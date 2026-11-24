@@ -33,6 +33,14 @@ interface SessionStore {
      */
     suspend fun end(id: String)
 
+    /**
+     * Stamp `ended_at` on every open session except [exceptId] (WP-9.2): opening a
+     * different source starts a fresh row, and the row it leaves behind can never
+     * be resumed — closing it keeps stale rows and their skip rows from growing
+     * forever.
+     */
+    suspend fun endOtherOpenSessions(exceptId: String)
+
     /** The most recent session with no end time, for resume (FR-20); null if none. */
     suspend fun openSession(): SessionRecord?
 

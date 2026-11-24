@@ -12,9 +12,9 @@ import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
-import dev.swipe.domain.model.SessionSummary
-import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -76,7 +76,8 @@ import kotlinx.coroutines.launch
 class SwipeViewModel(
     private val source: DeckSource,
     private val typeFilter: MediaTypeFilter,
-    private val buildDeck: BuildDeckUseCase,
+    private val startSession: StartSessionUseCase,
+    private val finishSession: FinishSessionUseCase,
     private val recordDecision: RecordDecisionUseCase,
     private val undoDecision: UndoDecisionUseCase,
     private val mediaLibrary: MediaLibrary,
@@ -204,66 +205,36 @@ class SwipeViewModel(
     }
 
     /**
-     * §6.5 step 1, resume or start fresh, then first page, prefetch, first emit. A
-     * failure anywhere in the start path (session open, deck build, first metadata
-     * page) leaves the screen empty with [ToastMessage.StartFailed] — there is
-     * nothing to revert, and the deck can be retried by reopening.
-     *
-     * Resume (FR-20): [SessionStore.openSession] matching this screen's source and
-     * filter resumes that session — the stored seed rebuilds the same shuffle order
-     * (it survives process death), the stored keeps and this session's skips stay
-     * excluded so the screen reopens on the same card, and their count becomes the
-     * [reviewedBase]. Anything else (no open session, mismatched source or filter)
-     * creates a fresh session row with the stored seed.
+     * §6.5 step 1: [StartSessionUseCase] resumes or starts fresh, then first page,
+     * prefetch, first emit. A failure anywhere in the start path (session open,
+     * deck build, first metadata page) leaves the screen empty with
+     * [ToastMessage.StartFailed] — there is nothing to revert, and the deck can be
+     * retried by reopening.
      *
      * A deck that opens empty (fresh or resumed with nothing reviewed) publishes the
      * §5.8 empty state and its row ends right away, so `openSession()` never holds a
-     * session with nothing to resume (FR-21, WP-7.3).
+     * session with nothing to resume (FR-21, WP-7.3). A resumed session that is
+     * already exhausted retries the FR-21 summary right away.
      */
     private suspend fun start() {
         try {
-            val resumable =
-                sessionStore
-                    .openSession()
-                    ?.takeIf { it.source == source && it.typeFilter == typeFilter }
-            if (resumable != null) {
-                sessionId = resumable.id
-                val skipped = sessionStore.skippedIds(resumable.id)
-                cursor.reset(buildDeck(source, typeFilter, resumable.seed).filterNot { it in skipped })
-                val counts = decisions.sessionCounts(resumable.id)
-                // WP-6.4: `reviewed` counts committed DELETED rows too, so a
-                // mid-session queue commit (FR-26) never under-counts the base.
-                reviewedBase = counts.reviewed + skipped.size
-            } else {
-                val seed = seedProvider()
-                sessionId = sessionStore.create(source, typeFilter, seed)
-                cursor.reset(buildDeck(source, typeFilter, seed))
-            }
+            val started = startSession(source, typeFilter, seedProvider)
+            sessionId = started.sessionId
+            reviewedBase = started.reviewedBase
+            cursor.reset(started.deck)
             cursor.ensureMetadataLoaded()
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
             when {
-                // A resumed session that is already exhausted (every card disposed before
-                // process death, the summary never delivered) retries FR-21 right away.
+                // Every card disposed before process death, the summary never delivered.
                 cursor.isEmpty && reviewedBase > 0 -> {
                     finish()
                 }
 
-                // FR-21 (WP-7.3): a deck that opens empty never runs out, so there is no
-                // summary — the screen shows the §5.8 empty state — and with nothing to
-                // resume (FR-20) the row ends right away instead of staying open forever.
-                // Best effort: a failed end leaves the row open, and the next open
-                // resumes the still-empty, still-unreviewed deck and closes it again.
                 cursor.isEmpty -> {
                     publish()
                     val emptySessionId = sessionId
                     if (emptySessionId != null) {
-                        try {
-                            sessionStore.end(emptySessionId)
-                        } catch (cancellation: CancellationException) {
-                            throw cancellation // ViewModel teardown, not a failed end
-                        } catch (_: Exception) {
-                            // Ignored on purpose; see above.
-                        }
+                        finishSession.endEmptyDeck(emptySessionId)
                     }
                 }
 
@@ -430,29 +401,17 @@ class SwipeViewModel(
     }
 
     /**
-     * FR-21: the deck ran out. The counts come from the stored rows so they cover the
-     * whole session across process death, the session row is ended, and the undo
-     * stack empties with it (the review run is over). A failed count query still
-     * publishes the exhausted state — the card is already disposed, so leaving the
-     * old card on screen would lie — with [ToastMessage.SaveFailed] instead of a
-     * summary, and the session row stays open so resuming an exhausted session
-     * retries the summary ([start]).
+     * FR-21: the deck ran out. [FinishSessionUseCase] builds the summary from the
+     * stored rows (they cover the whole session across process death) and ends the
+     * session row; a failed count query yields no summary and the row stays open so
+     * resuming an exhausted session retries. A failed summary publishes the
+     * exhausted state with [ToastMessage.SaveFailed] instead — the card is already
+     * disposed, so leaving the old card on screen would lie. The undo stack empties
+     * with the run (there is nothing to undo past the summary).
      */
     private suspend fun finish() {
         val sessionId = sessionId ?: return
-        val summary =
-            try {
-                val counts = decisions.sessionCounts(sessionId)
-                SessionSummary(
-                    kept = counts.kept,
-                    queued = counts.queued,
-                    skipped = sessionStore.skippedIds(sessionId).size,
-                )
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                null
-            }
+        val summary = finishSession(sessionId)
         undoStack.clear()
         shareLauncher.cancel()
         _uiState.update {
@@ -471,19 +430,6 @@ class SwipeViewModel(
                 sharing = false,
                 loading = false,
             )
-        }
-        if (summary == null) {
-            // Counts unavailable: keep the row open so the next resume retries.
-            return
-        }
-        // Best effort: an un-stamped end leaves the row open, and a resumed exhausted
-        // deck simply rebuilds empty — no decision is at stake.
-        try {
-            sessionStore.end(sessionId)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (_: Exception) {
-            // Ignored on purpose; see above.
         }
     }
 

@@ -34,6 +34,13 @@ UPDATE session
 SET ended_at = ?
 WHERE id = ?;
 
+-- WP-9.2: a new session closes every other open row — a left-behind row can never
+-- be resumed (openSession returns the newest), so end it instead of orphans.
+endOtherOpenSessions:
+UPDATE session
+SET ended_at = ?
+WHERE ended_at IS NULL AND id != ?;
+
 -- The most recent session with no end time, for resume (FR-20). decided_at-style tie:
 -- same started_at resolves to the most recently inserted row.
 selectOpen:

@@ -5,7 +5,9 @@ package dev.swipe.presentation.swipe
 import app.cash.turbine.test
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaTypeFilter
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
@@ -43,7 +45,8 @@ class SwipeViewModelAuditTest {
         SwipeViewModel(
             source = SOURCE,
             typeFilter = MediaTypeFilter.ALL,
-            buildDeck = buildDeckUseCase(f.library, f.store),
+            startSession = StartSessionUseCase(buildDeckUseCase(f.library, f.store), f.store, f.sessionStore),
+            finishSession = FinishSessionUseCase(f.store, f.sessionStore),
             recordDecision = RecordDecisionUseCase(f.store),
             undoDecision = UndoDecisionUseCase(f.store),
             mediaLibrary = f.library,

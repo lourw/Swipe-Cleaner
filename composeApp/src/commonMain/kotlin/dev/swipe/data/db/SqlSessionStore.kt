@@ -60,6 +60,12 @@ class SqlSessionStore(
         }
     }
 
+    override suspend fun endOtherOpenSessions(exceptId: String) {
+        withContext(dispatcher) {
+            sessions.endOtherOpenSessions(clock.now().toEpochMilliseconds(), exceptId)
+        }
+    }
+
     /**
      * The most recent open session, or null when there is none. An undecodable
      * row — a `source` JSON or `type_filter` from a build this version cannot

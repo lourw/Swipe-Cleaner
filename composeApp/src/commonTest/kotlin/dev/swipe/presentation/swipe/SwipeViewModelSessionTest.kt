@@ -9,7 +9,9 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.model.SessionSummary
 import dev.swipe.domain.usecase.BuildDeckUseCase
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
@@ -306,7 +308,8 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(library, store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(library, store), store, sessionStore),
+                    finishSession = FinishSessionUseCase(store, sessionStore),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -343,7 +346,8 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = DeckSource.All,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(library, store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(library, store), store, sessionStore),
+                    finishSession = FinishSessionUseCase(store, sessionStore),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -420,7 +424,8 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(f.library, f.store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(f.library, f.store), f.store, f.sessionStore),
+                    finishSession = FinishSessionUseCase(f.store, f.sessionStore),
                     recordDecision = RecordDecisionUseCase(f.store),
                     undoDecision = UndoDecisionUseCase(f.store),
                     mediaLibrary = f.library,
@@ -466,7 +471,8 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(library, store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(library, store), store, sessionStore),
+                    finishSession = FinishSessionUseCase(store, sessionStore),
                     recordDecision = RecordDecisionUseCase(store),
                     undoDecision = UndoDecisionUseCase(store),
                     mediaLibrary = library,
@@ -505,7 +511,8 @@ class SwipeViewModelSessionTest {
                 SwipeViewModel(
                     source = SOURCE,
                     typeFilter = MediaTypeFilter.ALL,
-                    buildDeck = buildDeckUseCase(f.library, f.store),
+                    startSession = StartSessionUseCase(buildDeckUseCase(f.library, f.store), f.store, f.sessionStore),
+                    finishSession = FinishSessionUseCase(f.store, f.sessionStore),
                     recordDecision = RecordDecisionUseCase(f.store),
                     undoDecision = UndoDecisionUseCase(f.store),
                     mediaLibrary = f.library,
@@ -523,7 +530,8 @@ class SwipeViewModelSessionTest {
             SwipeViewModel(
                 source = DeckSource.All,
                 typeFilter = MediaTypeFilter.ALL,
-                buildDeck = buildDeckUseCase(f.library, f.store),
+                startSession = StartSessionUseCase(buildDeckUseCase(f.library, f.store), f.store, f.sessionStore),
+                finishSession = FinishSessionUseCase(f.store, f.sessionStore),
                 recordDecision = RecordDecisionUseCase(f.store),
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,
@@ -551,7 +559,8 @@ class SwipeViewModelSessionTest {
             SwipeViewModel(
                 source = SOURCE,
                 typeFilter = MediaTypeFilter.PHOTOS,
-                buildDeck = buildDeckUseCase(f.library, f.store),
+                startSession = StartSessionUseCase(buildDeckUseCase(f.library, f.store), f.store, f.sessionStore),
+                finishSession = FinishSessionUseCase(f.store, f.sessionStore),
                 recordDecision = RecordDecisionUseCase(f.store),
                 undoDecision = UndoDecisionUseCase(f.store),
                 mediaLibrary = f.library,

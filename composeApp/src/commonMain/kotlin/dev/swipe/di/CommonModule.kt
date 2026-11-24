@@ -9,10 +9,12 @@ import dev.swipe.data.db.SqlShuffleExclusionStore
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.DeckMembership
+import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.SourceCountsUseCase
+import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
 import dev.swipe.presentation.albums.AlbumsViewModel
 import dev.swipe.presentation.home.HomeViewModel
@@ -54,6 +56,10 @@ val commonModule: Module =
         single { RecordDecisionUseCase(decisions = get()) }
         single { UndoDecisionUseCase(decisions = get()) }
 
+        // Session lifecycle (WP-9.2): §6.5 step 1 start/resume and the FR-21 finish.
+        single { StartSessionUseCase(buildDeck = get(), decisions = get(), sessionStore = get()) }
+        single { FinishSessionUseCase(decisions = get(), sessionStore = get()) }
+
         // Review-queue use cases (WP-3.1). CommitDeletionsUseCase is the only
         // consumer of MediaDeleter — the sole Koin binding that resolves it, so no
         // other class in the graph can reach a delete (NFR-5, WP-9.1); its
@@ -73,7 +79,8 @@ val commonModule: Module =
             SwipeViewModel(
                 source = params.get(),
                 typeFilter = params.get(),
-                buildDeck = get(),
+                startSession = get(),
+                finishSession = get(),
                 recordDecision = get(),
                 undoDecision = get(),
                 mediaLibrary = get(),

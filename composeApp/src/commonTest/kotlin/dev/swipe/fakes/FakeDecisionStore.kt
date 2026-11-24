@@ -54,6 +54,7 @@ class FakeDecisionStore(
     var failNextRecord: Throwable? = null
     var failNextRemove: Throwable? = null
     var failNextDecidedIds: Throwable? = null
+    var failNextSessionCounts: Throwable? = null
     var failNextMarkDeleted: Throwable? = null
     var failNextDropFromQueue: Throwable? = null
     var failNextClearKeeps: Throwable? = null
@@ -120,6 +121,10 @@ class FakeDecisionStore(
     }
 
     override suspend fun sessionCounts(sessionId: String): SessionCounts {
+        failNextSessionCounts?.let {
+            failNextSessionCounts = null
+            throw it
+        }
         val sessionRows = rows.value.filter { it.sessionId == sessionId }
         return SessionCounts(
             kept = sessionRows.count { it.decision == Decision.KEEP },
