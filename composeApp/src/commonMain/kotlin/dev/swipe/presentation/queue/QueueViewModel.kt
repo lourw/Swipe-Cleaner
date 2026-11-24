@@ -5,13 +5,16 @@ import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
+import dev.swipe.data.MediaSizing
 import dev.swipe.domain.model.MediaItem
+import dev.swipe.domain.model.StorageEstimate
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.CommitOutcome
 import dev.swipe.domain.usecase.InAppDeleteConfirmation
 import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,11 +49,19 @@ import kotlinx.coroutines.launch
  * navigates; the ViewModel never does); failure emits
  * [QueueEvent.ShowDeleteError] and the queue stays as it was; a cancelled iOS
  * dialog is silent (FR-27).
+ *
+ * **Size estimate** (FR-34, WP-8.4): [QueueIntent.RequestDelete] also kicks off
+ * [MediaSizing.estimateBytes] over the queue on the dialog's behalf — a side
+ * channel that gates nothing. The result lands in [QueueUiState.deleteSize]
+ * whenever it finishes (a throw or an unavailable read renders no line, R3),
+ * and the delete path never consults it: [QueueIntent.ConfirmDelete] is exactly
+ * the FR-25 flow with or without an estimate.
  */
 class QueueViewModel(
     private val commitDeletions: CommitDeletionsUseCase,
     private val pruneQueue: PruneQueueUseCase,
     private val restoreFromQueue: RestoreFromQueueUseCase,
+    private val mediaSizing: MediaSizing,
     private val decisions: DecisionStore,
     private val mediaLibrary: MediaLibrary,
     private val haptics: Haptics,
@@ -153,6 +164,13 @@ class QueueViewModel(
         }
     }
 
+    /**
+     * The FR-34 estimate run for the dialog currently up; cancelled when the
+     * dialog closes so a late result can never decorate a later one. Null when
+     * no sizing is in flight.
+     */
+    private var sizingJob: Job? = null
+
     /** FR-24: open a queued item full-screen; ids the queue no longer has are ignored. */
     private fun open(id: String) {
         val state = _uiState.value
@@ -162,7 +180,9 @@ class QueueViewModel(
 
     /** Back/Close: drop the viewer and the confirm dialog; data is untouched. */
     private fun close() {
-        _uiState.update { it.copy(selected = null, confirming = false) }
+        sizingJob?.cancel()
+        sizingJob = null
+        _uiState.update { it.copy(selected = null, confirming = false, deleteSize = null) }
     }
 
     /** FR-24: restore one item; the deleteQueue re-emit removes it from [QueueUiState.items]. */
@@ -189,18 +209,45 @@ class QueueViewModel(
     /**
      * NFR-5: the "Delete N items" tap raises the dialog and stops there — no
      * confirmation token exists yet, so no delete is even expressible.
+     *
+     * FR-34: raising the dialog also starts the size estimate for it, over the
+     * queue as it stands now. The run is fire-and-forget — nothing here awaits
+     * it, and its result only ever fills in [QueueUiState.deleteSize].
      */
     private fun requestDelete() {
         val state = _uiState.value
         if (state.deleting || state.items.isEmpty()) return
-        _uiState.update { it.copy(confirming = true, result = null) }
+        _uiState.update { it.copy(confirming = true, result = null, deleteSize = null) }
+        sizeQueue(state.items)
+    }
+
+    /**
+     * FR-34: asks [MediaSizing] for [ids] and publishes whatever comes back.
+     * A throw is not an event: it is `Unavailable`, and the line is omitted
+     * (R3 — sizing never reaches the user as an error). A result that lands
+     * after the dialog closed updates state the dialog no longer renders;
+     * reopening starts a fresh run, whose job cancels this one.
+     */
+    private fun sizeQueue(ids: List<String>) {
+        sizingJob?.cancel()
+        sizingJob =
+            viewModelScope.launch {
+                val estimate =
+                    runCatching { mediaSizing.estimateBytes(ids) }
+                        .getOrElse { error ->
+                            if (error is CancellationException) throw error
+                            StorageEstimate.Unavailable
+                        }
+                _uiState.update { it.copy(deleteSize = estimate) }
+            }
     }
 
     /**
      * The dialog's Delete: the sole construction site of [InAppDeleteConfirmation]
      * (§6.7). The token carries the whole queue as it stands at the tap (FR-25);
      * [CommitDeletionsUseCase] intersects it with the current queue and calls
-     * PhotoKit once.
+     * PhotoKit once. Nothing here consults the FR-34 estimate — the delete never
+     * waits on sizing (R3).
      */
     private fun confirmDelete() {
         val state = _uiState.value
@@ -209,7 +256,9 @@ class QueueViewModel(
         // was up is handled by the use case's empty intersection.
         if (!state.confirming || state.deleting) return
         val confirmation = InAppDeleteConfirmation(state.items)
-        _uiState.update { it.copy(confirming = false, deleting = true, result = null) }
+        sizingJob?.cancel()
+        sizingJob = null
+        _uiState.update { it.copy(confirming = false, deleting = true, result = null, deleteSize = null) }
         viewModelScope.launch {
             val outcome =
                 runCatching { commitDeletions(confirmation) }
@@ -266,7 +315,9 @@ class QueueViewModel(
     private fun cancelConfirm() {
         val state = _uiState.value
         if (state.deleting) return // the iOS dialog, not this one, owns the cancel now
-        _uiState.update { it.copy(confirming = false) }
+        sizingJob?.cancel()
+        sizingJob = null
+        _uiState.update { it.copy(confirming = false, deleteSize = null) }
     }
 
     private companion object {

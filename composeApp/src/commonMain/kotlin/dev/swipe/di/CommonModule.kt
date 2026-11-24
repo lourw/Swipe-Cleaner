@@ -1,6 +1,7 @@
 package dev.swipe.di
 
 import dev.swipe.data.DecisionStore
+import dev.swipe.data.MediaSizing
 import dev.swipe.data.SessionStore
 import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.data.db.SqlDecisionStore
@@ -95,11 +96,14 @@ val commonModule: Module =
 
         // The Review Queue (WP-3.1). No route parameters: the queue is global state
         // from DecisionStore.deleteQueue, and the Queue route carries no arguments.
+        // mediaSizing (WP-8.4, FR-34) feeds the confirm dialog's estimate line only —
+        // the delete path never consults it (NFR-5).
         viewModel {
             QueueViewModel(
                 commitDeletions = get(),
                 pruneQueue = get(),
                 restoreFromQueue = get(),
+                mediaSizing = get(),
                 decisions = get(),
                 mediaLibrary = get(),
                 haptics = get(),

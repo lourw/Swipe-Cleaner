@@ -38,6 +38,12 @@ fun ConfirmDialog(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
     message: String? = null,
+    /**
+     * A second message line in the same style (FR-34's size estimate): present
+     * only once the caller has something to say, so its absence while loading
+     * never shifts the buttons the user is about to press.
+     */
+    secondaryMessage: String? = null,
     cancelLabel: String = "Cancel",
 ) {
     val colors = SwipeTheme.colors
@@ -57,6 +63,12 @@ fun ConfirmDialog(
             if (message != null) {
                 BasicText(
                     text = message,
+                    style = SwipeTheme.typography.callout.copy(color = colors.textSecondary),
+                )
+            }
+            if (secondaryMessage != null) {
+                BasicText(
+                    text = secondaryMessage,
                     style = SwipeTheme.typography.callout.copy(color = colors.textSecondary),
                 )
             }

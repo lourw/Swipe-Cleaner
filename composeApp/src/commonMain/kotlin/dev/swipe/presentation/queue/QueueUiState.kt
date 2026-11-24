@@ -1,6 +1,7 @@
 package dev.swipe.presentation.queue
 
 import dev.swipe.domain.model.MediaType
+import dev.swipe.domain.model.StorageEstimate
 import kotlin.time.Instant
 
 /**
@@ -51,6 +52,16 @@ data class QueueUiState(
      * empty state is the feedback (§6.7).
      */
     val result: QueueDeleteResult? = null,
+    /**
+     * FR-34: the size estimate for the confirm dialog, measured over the queue as
+     * it stood when [confirming] was raised. Null until it lands — and stays
+     * null while no dialog is up — so the dialog renders with or without the
+     * line, exactly the same either way (R3: sizing gates nothing).
+     * [dev.swipe.domain.model.StorageEstimate.Complete] renders "About …",
+     * [dev.swipe.domain.model.StorageEstimate.Partial] "At least …",
+     * [dev.swipe.domain.model.StorageEstimate.Unavailable] nothing.
+     */
+    val deleteSize: StorageEstimate? = null,
 )
 
 /**

@@ -216,9 +216,13 @@ private fun BoxScope.QueueOverlays(
     if (state.confirming) {
         // NFR-5: this dialog is the gate. Cancel (or dismissing it) only
         // closes it; the Delete tap is the sole ConfirmDelete path.
+        // FR-34: the estimate line appears under the Recently-Deleted message
+        // when it has landed — while it loads, or if sizing failed, the dialog
+        // is exactly the pre-FR-34 dialog (R3: sizing gates nothing).
         ConfirmDialog(
             title = deleteItemsLabel(state.items.size) + "?",
             message = "They'll move to Recently Deleted for 30 days.",
+            secondaryMessage = deleteSizeLabel(state.deleteSize),
             confirmLabel = "Delete",
             onConfirm = { onIntent(QueueIntent.ConfirmDelete) },
             onCancel = { onIntent(QueueIntent.CancelConfirm) },

@@ -9,6 +9,7 @@ import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
+import dev.swipe.data.MediaSizing
 import dev.swipe.data.PerfTrace
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
@@ -24,6 +25,7 @@ import dev.swipe.platform.PhotoKitMediaHider
 import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.PhotoKitMediaLoader
 import dev.swipe.platform.PhotoKitMediaSharer
+import dev.swipe.platform.PhotoKitMediaSizing
 import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -84,4 +86,9 @@ val iosModule: Module =
         // Hide door (WP-8.11, FR-38): the only binding of MediaHider; the graph feeds
         // it to SwipeViewModel alone, and the §8.3 check-rules guard keeps it there.
         single<MediaHider> { PhotoKitMediaHider() }
+
+        // Storage sizing (WP-8.4, FR-34): read-only estimate for the delete
+        // confirmation line. Unlike the write doors it needs no guard — it can
+        // only read — but it stays Koin-bound like every other platform bridge.
+        single<MediaSizing> { PhotoKitMediaSizing() }
     }
