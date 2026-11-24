@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
  * [InAppDeleteConfirmation] is built — from the whole queue at tap time (FR-25) —
  * and the only path into [CommitDeletionsUseCase]. While the commit runs,
  * [QueueUiState.deleting] blocks re-confirmation, so one batch is one
- * `MediaLibrary.delete` call (FR-25). Outcomes: success fires the
+ * `MediaDeleter.delete` call (FR-25). Outcomes: success fires the
  * `notificationSuccess` haptic and emits [QueueEvent.ShowDeleteSuccess] (the UI
  * navigates; the ViewModel never does); failure emits
  * [QueueEvent.ShowDeleteError] and the queue stays as it was; a cancelled iOS

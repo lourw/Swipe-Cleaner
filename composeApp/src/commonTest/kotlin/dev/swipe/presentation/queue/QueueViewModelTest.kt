@@ -225,7 +225,7 @@ class QueueViewModelTest {
         }
 
     @Test
-    fun `FR-25 commit calls MediaLibrary delete exactly once with every queued id`() =
+    fun `FR-25 commit calls MediaDeleter delete exactly once with every queued id`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val f = Fixture(3).start()

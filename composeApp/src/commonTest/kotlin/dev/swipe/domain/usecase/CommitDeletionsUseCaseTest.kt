@@ -20,7 +20,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
- * The §6.7 commit core (WP-3.1): one `MediaLibrary.delete` per confirmed batch with
+ * The §6.7 commit core (WP-3.1): one `MediaDeleter.delete` per confirmed batch with
  * exactly the ids that are in both the [InAppDeleteConfirmation] and the current
  * queue, and the three outcome branches — Deleted marks DELETED (FR-26), Cancelled
  * and Failed touch no store (FR-27, §6.7).
@@ -38,7 +38,7 @@ class CommitDeletionsUseCaseTest {
     private val commit = CommitDeletionsUseCase(library, store)
 
     @Test
-    fun `FR-25 commit calls MediaLibrary delete exactly once with every queued id`() =
+    fun `FR-25 commit calls MediaDeleter delete exactly once with every queued id`() =
         runTest {
             queue("a", "b", "c") // queue order (newest first): c, b, a
 

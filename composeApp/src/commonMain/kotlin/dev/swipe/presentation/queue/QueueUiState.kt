@@ -38,7 +38,7 @@ data class QueueUiState(
     /**
      * A commit is in flight: the iOS system dialog is up or the store write is
      * running. Further ConfirmDelete taps are ignored, so one confirmed batch can
-     * never become two `MediaLibrary.delete` calls (FR-25).
+     * never become two `MediaDeleter.delete` calls (FR-25).
      */
     val deleting: Boolean = false,
     /**
