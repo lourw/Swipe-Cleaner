@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
+import dev.swipe.data.MediaDeleter
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.SessionStore
@@ -14,6 +15,7 @@ import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.DeleteResult
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
@@ -21,16 +23,26 @@ import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.VideoItemCache
+import dev.swipe.presentation.albums.AlbumsViewModel
+import dev.swipe.presentation.home.HomeViewModel
+import dev.swipe.presentation.months.MonthsViewModel
+import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueViewModel
+import dev.swipe.presentation.settings.SettingsViewModel
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
+import org.koin.core.module.Module
 import org.koin.core.parameter.parametersOf
+import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -54,16 +66,21 @@ class DiSmokeTest {
         koin.get<DecisionStore>()
         koin.get<SessionStore>()
         koin.get<MediaLibrary>()
+        koin.get<MediaDeleter>()
         koin.get<MediaLoader>()
         koin.get<SettingsStore>()
         koin.get<SystemActions>()
         koin.get<Haptics>()
+        // WP-9.1: the two typed views of the library are one PhotoKit bridge — the
+        // graph hands the same PhotoKitMediaLibrary out read-side and write-side.
+        assertSame<Any>(koin.get<MediaLibrary>(), koin.get<MediaDeleter>())
+        assertSame<Any>(koin.get<PhotoKitMediaLibrary>(), koin.get<MediaDeleter>())
         koin.get<BuildDeckUseCase>()
         koin.get<RecordDecisionUseCase>()
         koin.get<UndoDecisionUseCase>()
         // WP-3.1: the review-queue trio. CommitDeletionsUseCase resolving through the
-        // real graph is the NFR-5 wiring check — it is the only MediaLibrary.delete
-        // caller, so a missing binding would break the delete path at runtime.
+        // real graph is the NFR-5 wiring check — it is the only MediaDeleter consumer,
+        // so a missing binding would break the delete path at runtime.
         koin.get<CommitDeletionsUseCase>()
         koin.get<PruneQueueUseCase>()
         koin.get<RestoreFromQueueUseCase>()
@@ -114,10 +131,74 @@ class DiSmokeTest {
         }
         assertTrue(resolved != null)
     }
+
+    /**
+     * The graph half of the WP-9.1 compile-time guarantee: **no ViewModel is wired to
+     * a [MediaDeleter]** — every one of them reads through `MediaLibrary`, which has
+     * no delete. A counting stand-in replaces the real binding (later Koin modules
+     * win), and every ViewModel resolves through the production graph: only the
+     * Queue's pull of `CommitDeletionsUseCase` — the one consumer — may reach the
+     * write door, never a ViewModel itself. A ViewModel constructor that grew a
+     * `MediaDeleter` parameter would push the count past these ceilings even if the
+     * `scripts/check-rules.sh` allowlist were edited to let the type through.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Suppress("DEPRECATION") // v1 runComposeUiTest, consistent with the rest of the suite.
+    @Test
+    fun `NFR-5 no view model resolves MediaDeleter only CommitDeletionsUseCase does`() {
+        val counting = CountingMediaDeleter()
+        startKoin { modules(commonModule, iosModule, nfr5GuardModule(counting)) }
+        val koin = KoinPlatform.getKoin()
+        runComposeUiTest {
+            // Every ViewModel the app can open, with its route parameters. Resolution
+            // runs inside runComposeUiTest so the paused virtual clock keeps each
+            // ViewModel's init coroutines suspended — nothing reaches PhotoKit or the
+            // live SQLite driver.
+            //
+            // QueueViewModel last: it is the only ViewModel that touches the write
+            // door at all, and only transitively, through its CommitDeletionsUseCase
+            // dependency (the sole consumer). The six before it must add nothing.
+            koin.get<PermissionViewModel>()
+            koin.get<HomeViewModel>()
+            koin.get<AlbumsViewModel> { parametersOf(MediaTypeFilter.ALL) }
+            koin.get<MonthsViewModel> { parametersOf(MediaTypeFilter.ALL) }
+            koin.get<SettingsViewModel>()
+            koin.get<SwipeViewModel> { parametersOf(DeckSource.All, MediaTypeFilter.ALL) }
+            assertEquals(0, counting.resolutions)
+            koin.get<QueueViewModel>()
+            assertEquals(1, counting.resolutions)
+        }
+        // The delete path itself resolves, and the singleton means no second pull.
+        koin.get<CommitDeletionsUseCase>()
+        assertEquals(1, counting.resolutions)
+    }
 }
 
 /** Minimal owner so the definition under test builds outside any screen. */
 private val ThrowawayStoreOwner =
     object : androidx.lifecycle.ViewModelStoreOwner {
         override val viewModelStore = ViewModelStore()
+    }
+
+/**
+ * A [MediaDeleter] that counts how often the graph resolves it (WP-9.1). Bound over
+ * the real `MediaDeleter` definition by [nfr5GuardModule]; nothing in the graph may
+ * touch its [delete].
+ */
+private class CountingMediaDeleter : MediaDeleter {
+    var resolutions = 0
+
+    override suspend fun delete(ids: List<String>): DeleteResult = DeleteResult.Cancelled
+}
+
+/**
+ * The app graph with [MediaDeleter] swapped for a counting stand-in. Later-loaded
+ * Koin modules win, so this replaces `iosModule`'s PhotoKit binding for the test.
+ */
+private fun nfr5GuardModule(counting: CountingMediaDeleter): Module =
+    module {
+        single<MediaDeleter> {
+            counting.resolutions++
+            counting
+        }
     }
