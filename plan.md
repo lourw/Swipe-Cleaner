@@ -483,8 +483,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.6 | verify | `fr-8-list-states` | ses_df3cd9e80ffdcdUBDDmbgJ5Hgc | 2026-11-24 | Fresh review of the finished branch (impl sessions dead; code complete, report stub, §5.8 spec update missing — verifier to grade). Runs `--full` in worktree |
-| 2 | 8.11 | implement | `fr-38-hide-button` | ses_df3cd9e7fffe16srJfD6wm9rDn | 2026-11-24 | Cut from main `3140d31` (deps 8.1, 9.1, 9.2 all merged). Follows MediaSharer/MediaDeleter sibling pattern; check-rules + spec edits in-branch |
+| 1 | 9.6 | verify (fix-up review, independent) | `fr-8-list-states` | ses_df335dd2cffenTz1tnN5FuIvcJ | 2026-11-24 | Fixer DONE: `--full` PASSED (exit 0) at `d3995a8`, 509 tests / 0 failures, tree clean. Commits: `cd105c3` helper fix (root cause: `toRoute<Albums>()` decoded any entry — every route field has a default; production `navigateIfResumed` guard was fine), `445d1d8` B2 centering/inset + new bounds tests, `e8c7c2a` SafeAreaBoundsTest Ready, `d3995a8` report addendum. Verifier reviewing `b1f0080...HEAD` (10 commits); merge after its PASS |
+| 2 | 8.11 | implement (relaunch) | `fr-38-hide-button` | ses_df35718bcffe0VFSoj6ne2yVZf | 2026-11-24 | **Prior work LOST**: the first implementer never committed (claimed SHAs `79c329d`/`52d4986` don't exist; no dangling objects; worktree clean at `3140d31`). Relaunched with the same (alive, zero-changes) session; ordered to commit early and report only `git log`-verified SHAs |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -520,8 +520,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocked 8.9 (merged) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
 | 9.5 | Queue viewer safety | merged | `fr-24-queue-viewer` | Verified PASS (no blockers) 2026-11-24: verifier re-ran the suite fresh (465 tests) and confirmed the tap test fails against old code. Nits folded pre-merge (slot-convention comment, report SHA). Merged at adf3f75. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber + `autoplayVideos` setting (product call; 8.13 territory); scroll-block claim untested (behavior verified by hit-testing) |
-| 9.6 | Albums/Months states, double navigation | implementing | `fr-8-list-states` | Launched on `b1f0080` after 8.10 merged. Loading/empty/error + retry for Albums/Months, §5.8 update, resumed-entry-only navigation + double-tap test |
+| 9.6 | Albums/Months states, double navigation | fixing | `fr-8-list-states` | States + retry + navigate-only-from-resumed implemented; spec (§5.8 Albums/By month, §6.5) and report done at `3d03cf4`. Verifier FAIL was mostly false premises (B2/N2/N5/N7 unfounded). Open: `FR-8 events from a backgrounded screen…` test fails at tip (`Expected <0>, actual <3>`) + ListStateView centering in flight; fixer owns the worktree, must land green `--full` |
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
 | 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
-| 9.10 | Undo vs. fly-off window | queued | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report); needs 👤 UX decision (ignore vs. queue Undo) before implementing |
+| 9.10 | Undo vs. fly-off window | queued | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report). 👤 UX decision made 2026-11-24: **queue the Undo** — a tap during the 220 ms fly-off is remembered and fires once the commit lands (card returns). Implement per that, update §5.6/FR-15 in-branch. Conflicts with 8.11 (SwipeViewModel/UndoStack) — run after it merges |
