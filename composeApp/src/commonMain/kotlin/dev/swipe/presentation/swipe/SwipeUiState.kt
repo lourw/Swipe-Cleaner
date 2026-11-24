@@ -45,6 +45,18 @@ data class SwipeUiState(
      */
     val sharing: Boolean = false,
     /**
+     * A hide write is in flight (FR-38): from the Hide tap until PhotoKit answers.
+     * The Hide button is disabled while it is up, and Undo is held (like a decision
+     * write, WP-7.2) so the deck never rewinds under the completing write.
+     */
+    val hiding: Boolean = false,
+    /**
+     * A decision write is in flight (FR-38): mirrors the internal [decideInFlight]
+     * so the Hide button is disabled for the same reason Undo is — the deck never
+     * hides a card whose verdict is being stored.
+     */
+    val deciding: Boolean = false,
+    /**
      * The deck is still opening (FR-6, WP-8.3): from the first frame until the start
      * path settles — first card published, deck exhausted with a summary, or the
      * start failed. While it is up the screen shows a card placeholder instead of
@@ -62,6 +74,18 @@ sealed interface ToastMessage {
 
     /** FR-15: an undo succeeded; the card is coming back ("Undone"). */
     data object Undone : ToastMessage
+
+    /**
+     * FR-38: the current card was hidden in the Photos library and the deck advanced
+     * ("Hidden in Photos", 3 s). Undo unhides the asset again.
+     */
+    data object Hidden : ToastMessage
+
+    /**
+     * FR-38: the hide write failed (asset unfetchable, change request refused); the
+     * card stays exactly where it is ("Couldn't hide this item — try again").
+     */
+    data object HideFailed : ToastMessage
 
     /**
      * FR-22: the favorite-delete confirmation, raised whenever a DELETE is

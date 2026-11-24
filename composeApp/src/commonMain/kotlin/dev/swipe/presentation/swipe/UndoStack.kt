@@ -2,11 +2,19 @@ package dev.swipe.presentation.swipe
 
 import dev.swipe.domain.model.Decision
 
-/** One pushed step of the FR-15 undo stack: what to remove and where to return. */
+/**
+ * One pushed step of the FR-15 undo stack: what to remove and where to return.
+ *
+ * FR-38 extends a step to a **hide**: [verdict] is null when the step hides rather
+ * than decides, and undoing it unhides [id] instead of removing a decision row.
+ * [pendingFavorite] carries an FR-22 favorite confirm the hide cleared, so undo can
+ * restore it together with the returned card.
+ */
 data class UndoEntry(
     val id: String,
-    val verdict: Decision,
+    val verdict: Decision? = null,
     val index: Int,
+    val pendingFavorite: String? = null,
 )
 
 /**

@@ -3,12 +3,14 @@ package dev.swipe.presentation.swipe
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
+import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.domain.model.HideResult
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.Progress
 import dev.swipe.domain.usecase.FinishSessionUseCase
@@ -62,6 +64,14 @@ import kotlinx.coroutines.launch
  * [ToastMessage.ShareFailed] if it cannot. It never records a decision, moves the
  * index, or touches the undo stack; a deck move during the load abandons it.
  *
+ * **Hide** (FR-38): [SwipeIntent.Hide] flips the card's `hidden` flag through
+ * [MediaHider] — immediately, with no confirm and no decision row — while
+ * [SwipeUiState.hiding] is up; it is also held while a decision write is in flight
+ * ([decideInFlight]). Success pushes a verdict-less [UndoEntry], advances the deck
+ * like a decision, and toasts [ToastMessage.Hidden]; failure keeps the card and toasts
+ * [ToastMessage.HideFailed] (NFR-7). Undoing the entry unhides exactly the id stored
+ * in it and returns the card in place ([SwipeEvent.ReturnCardInPlace]).
+ *
  * **Prefetch** (§6.5 step 3): after every move the window of current + next 3 is
  * requested from [MediaLoader.prefetch] and ids that left the window are cancelled.
  *
@@ -83,6 +93,7 @@ class SwipeViewModel(
     private val mediaLoader: MediaLoader,
     private val videoPreloader: VideoPreloader,
     private val mediaSharer: MediaSharer,
+    private val mediaHider: MediaHider,
     private val decisions: DecisionStore,
     private val seedProvider: () -> Long,
 ) : ViewModel() {
@@ -135,6 +146,16 @@ class SwipeViewModel(
     private val decideInFlight = mutableSetOf<String>()
 
     /**
+     * FR-38: the single-flight hide. While it is up, further Hide taps are ignored
+     * (the button is disabled through [SwipeUiState.hiding]) and Undo is held — the
+     * same rewind-under-a-completing-write rule as [decideInFlight] (WP-7.2). A
+     * decision that lands during the hide write is *not* dropped: it records and
+     * advances, and the hide's stale-advance guard discards its own advance (the
+     * hide itself stays applied to the library).
+     */
+    private var hideInFlight = false
+
+    /**
      * FR-32: the single-flight share. Nothing here writes a decision or moves the
      * deck — the share sheet's outcome is not even reported back. A failed load
      * shows [ToastMessage.ShareFailed]; every deck move cancels a share still
@@ -167,6 +188,10 @@ class SwipeViewModel(
         when (intent) {
             is SwipeIntent.Decide -> {
                 decide(intent.id, intent.verdict)
+            }
+
+            is SwipeIntent.Hide -> {
+                hide(intent.id)
             }
 
             SwipeIntent.Undo -> {
@@ -284,7 +309,10 @@ class SwipeViewModel(
             eventChannel.trySend(SwipeEvent.ReturnCard(Decision.DELETE))
         } else {
             // FR-15: hold Undo for the duration of the write (WP-7.2).
+            // FR-38: mirror the write into `deciding` so the Hide button disables
+            // itself — the deck never hides a card whose verdict is being stored.
             decideInFlight += id
+            _uiState.update { if (it.deciding) it else it.copy(deciding = true) }
             viewModelScope.launch {
                 val saved =
                     try {
@@ -302,6 +330,7 @@ class SwipeViewModel(
                         // so an Undo tap can never slip in between the write and the
                         // index advance.
                         decideInFlight -= id
+                        _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
                     }
                 if (!saved) {
                     _uiState.update {
@@ -330,6 +359,65 @@ class SwipeViewModel(
     }
 
     /**
+     * The hide path (FR-38): flip the card's `hidden` flag through [MediaHider] —
+     * immediately, no in-app confirm, **no decision row** — and advance only after
+     * the write succeeds (NFR-7). Like a decision the intent names its card: a stale
+     * id is dropped, and a result that lands after the card left never advances the
+     * deck twice (the same stale-advance guard as [decide]). While the write is in
+     * flight ([hideInFlight]) further Hide taps are ignored, Undo is held, and a
+     * decision that lands meanwhile records and advances on its own.
+     *
+     * A pending FR-22 favorite confirm on the card is **cleared at tap time** — the
+     * confirm never survives a move, and the hide moves — and travels on the undo
+     * step ([UndoEntry.pendingFavorite]) so undo can restore it with the returned
+     * card. Success pushes that verdict-less step, advances, and toasts
+     * [ToastMessage.Hidden]; failure keeps the card and toasts
+     * [ToastMessage.HideFailed].
+     */
+    private fun hide(id: String) {
+        // The card must be on screen (FR-12/FR-13 rule) and nothing may be in flight:
+        // one hide at a time, and never a hide under a completing decision write.
+        if (cursor.currentId != id || hideInFlight || decideInFlight.isNotEmpty()) return
+        val pendingFavorite = _uiState.value.pendingFavoriteDelete.takeIf { it == id }
+        hideInFlight = true
+        // Clear the favorite confirm synchronously, like ConfirmFavoriteDelete does:
+        // the confirm card must not sit over a card that is on its way out.
+        _uiState.update {
+            it.copy(
+                hiding = true,
+                toast = if (it.pendingFavoriteDelete == id) null else it.toast,
+                pendingFavoriteDelete = if (it.pendingFavoriteDelete == id) null else it.pendingFavoriteDelete,
+            )
+        }
+        viewModelScope.launch {
+            val hidden =
+                try {
+                    mediaHider.setHidden(id, hidden = true) == HideResult.APPLIED
+                } catch (cancellation: CancellationException) {
+                    throw cancellation // ViewModel teardown, not a failed hide
+                } catch (_: Exception) {
+                    false
+                }
+            hideInFlight = false
+            _uiState.update { it.copy(hiding = false) }
+            if (!hidden) {
+                // The card stays exactly where it is (NFR-7); nothing was pushed.
+                _uiState.update { it.copy(toast = ToastMessage.HideFailed) }
+                return@launch
+            }
+            if (cursor.currentId == id) {
+                // Stale-advance guard, mirror of decide(): the hide is durable in the
+                // library either way, but only the current head advances.
+                undoStack.push(UndoEntry(id = id, verdict = null, index = cursor.index, pendingFavorite = pendingFavorite))
+                cursor.advance()
+                pageMetadataQuietly { cursor.ensureMetadataLoaded() }
+                if (cursor.isExhausted) finish() else publish(toast = ToastMessage.Hidden)
+                prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+            }
+        }
+    }
+
+    /**
      * Undo (FR-15), the mirror of [decide]: [UndoDecisionUseCase] removes the stored
      * verdict *first*; only after that write succeeds does the index move back and
      * the card return with the "Undone" toast. A failed removal puts the step back on
@@ -342,27 +430,44 @@ class SwipeViewModel(
      * entry's index is guaranteed to sit behind the deck head when the removal lands.
      *
      * A tap is likewise ignored while a [decide] write is in flight
-     * ([decideInFlight], WP-7.2): rewinding under a completing write re-shows
-     * the card being decided, so the tap drops rather than rewinds or queues.
+     * ([decideInFlight], WP-7.2) or a [hide] write is (FR-38): rewinding under a
+     * completing write re-shows the card being written for, so the tap drops rather
+     * than rewinds or queues.
+     *
+     * FR-38: a step whose [UndoEntry.verdict] is null is a hide — undo unhides the
+     * entry's exact id through [MediaHider] instead of removing a decision row, and
+     * the card returns in place ([SwipeEvent.ReturnCardInPlace]) with any favorite
+     * confirm the hide cleared.
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
         // FR-15: single-flight, no-op on an empty stack (§6.6 canUndo), and held
-        // while a decision write is in flight (WP-7.2).
-        val entry = if (decideInFlight.isEmpty()) undoStack.popForRemoval() else null
+        // while a decision write is in flight (WP-7.2), and while a hide write is
+        // (FR-38): the deck never rewinds under a completing write.
+        val entry =
+            if (decideInFlight.isEmpty() && !hideInFlight) undoStack.popForRemoval() else null
         entry ?: return
         viewModelScope.launch {
-            val removed =
+            val verdict = entry.verdict
+            val undone =
                 try {
-                    undoDecision(entry.id, sessionId)
-                    true
+                    if (verdict == null) {
+                        // FR-38: a hide step unhides exactly the id stored in the
+                        // entry — never a re-resolved "current" card, the deck may
+                        // have moved since — and removes no decision row.
+                        mediaHider.setHidden(entry.id, hidden = false) == HideResult.APPLIED
+                    } else {
+                        undoDecision(entry.id, sessionId)
+                        true
+                    }
                 } catch (cancellation: CancellationException) {
                     throw cancellation // ViewModel teardown, not a failed removal
                 } catch (_: Exception) {
                     false
                 }
-            if (!removed) {
-                // The removal failed, so the decision is still stored: the step goes
+            if (!undone) {
+                // The removal failed, so the decision is still stored (or the asset
+                // is still hidden): the step goes
                 // back on the stack — nothing else could have been popped while it
                 // was in flight (single-flight), so re-adding restores the exact
                 // order — and the deck does not move (FR-15, NFR-7 mirror).
@@ -375,7 +480,24 @@ class SwipeViewModel(
             // only moves back through undo, and no other undo is in flight.
             cursor.rewindTo(entry.index)
             publish(toast = ToastMessage.Undone)
-            eventChannel.trySend(SwipeEvent.ReturnCard(entry.verdict))
+            val pendingFavorite = entry.pendingFavorite
+            if (pendingFavorite != null) {
+                // FR-38/FR-22: the card returns with the favorite confirm the hide
+                // cleared — the deck renders it again (WP-8.9 shape).
+                _uiState.update {
+                    it.copy(
+                        toast = ToastMessage.FavoriteConfirm,
+                        pendingFavoriteDelete = pendingFavorite,
+                    )
+                }
+            }
+            eventChannel.trySend(
+                if (verdict == null) {
+                    SwipeEvent.ReturnCardInPlace
+                } else {
+                    SwipeEvent.ReturnCard(verdict)
+                },
+            )
             cursor.ensureMetadataLoaded()
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
         }
@@ -409,6 +531,8 @@ class SwipeViewModel(
                 toast = if (summary == null) ToastMessage.SaveFailed else null,
                 pendingFavoriteDelete = null,
                 sharing = false,
+                hiding = false,
+                deciding = false,
                 loading = false,
             )
         }
@@ -434,6 +558,8 @@ class SwipeViewModel(
                 toast = toast,
                 pendingFavoriteDelete = null,
                 sharing = false,
+                hiding = false,
+                deciding = false,
                 loading = false,
             )
         }

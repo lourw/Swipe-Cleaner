@@ -22,6 +22,16 @@ sealed interface SwipeIntent {
     ) : SwipeIntent
 
     /**
+     * FR-38: hide the card with [id] in the Photos library. Ignored when [id] is not
+     * the card on screen (the FR-12/FR-13 rule for decision-shaped intents), while a
+     * hide write is in flight, or while a decision write is in flight. Hides nothing
+     * when the deck is empty; writes no decision row.
+     */
+    data class Hide(
+        val id: String,
+    ) : SwipeIntent
+
+    /**
      * Undo button: pops the undo stack, removes the persisted decision, and moves the
      * card back (FR-15). A no-op when the stack is empty or the deck has finished.
      */

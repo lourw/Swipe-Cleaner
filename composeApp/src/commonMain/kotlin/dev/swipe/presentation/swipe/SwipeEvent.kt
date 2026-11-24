@@ -18,4 +18,11 @@ sealed interface SwipeEvent {
     data class ReturnCard(
         val decision: Decision,
     ) : SwipeEvent
+
+    /**
+     * FR-38: the card returns **in place** — fade in with scale 0.92 → 1.0, 260 ms
+     * (§5.6) — after an undo unhides the asset it was hidden by. There is no side to
+     * fly in from: the item never left through a verdict, the library simply hid it.
+     */
+    data object ReturnCardInPlace : SwipeEvent
 }
