@@ -12,9 +12,9 @@ the doc that says why it is manual-only. Audit date: 2026-11-05.
   layout (safe areas, stamps, full-bleed rendering) is bounds-checked as far as
   the semantics tree allows and pixel-checked by 👤 in manual-test.md.
 
-**Totals:** 31 FRs — 31 with automated tests; 0 test-less. 8 NFRs — 6 with
-automated tests for their testable core, NFR-2 manual-only (Instruments),
-NFR-6 guarded statically; NFR-1/3/4 timings are device gates in perf.md.
+**Totals:** 31 FRs — 31 with automated tests; 0 test-less. 8 NFRs — 7 with
+automated tests for their testable core, NFR-6 guarded statically;
+NFR-1/3/4 timings are device gates in perf.md.
 
 ## Functional requirements
 
@@ -57,8 +57,8 @@ NFR-6 guarded statically; NFR-1/3/4 timings are device gates in perf.md.
 | ID | Requirement | Test(s) | Gap / manual note |
 | -- | ------------- | ------- | ----------------- |
 | NFR-1 | Next card ≤ 100 ms, full ≤ 500 ms | `SwipePerfTraceTest :: NFR-1…` (4, signpost span wiring), `SwipeScreenTest :: NFR-1 current and next cards collect their images at the full target` | The ms numbers are an Instruments gate on device: [`perf.md`](perf.md) (spans `NEXT_CARD_DEGRADED` / `NEXT_CARD_FULL`) |
-| NFR-2 | Drag at refresh rate, no decode hitches | — | Manual-only by nature (frame timing on device): [`perf.md`](perf.md) "Animation Hitches" step; decode-off-main was programmatic in M1 (REQUIREMENTS §9 R1). 👤 carry-forward |
-| NFR-3 | < 300 MB resident, ≤ 5 full-screen bitmaps | `BitmapLruCacheTest :: NFR-3 cache never holds more than 5 bitmaps` (+2), `SwipeScreenTest :: NFR-3 recomposition does not add a second image collector per card`, `GridTileTest :: NFR-3…`, `QueueScreenTest :: NFR-3…` | Resident-memory number: [`perf.md`](perf.md) "Allocations" step |
+| NFR-2 | Drag at refresh rate, no decode hitches | `WarmItemCacheTest :: NFR-2 cancel while a mounted player awaits still delivers the item` (+1 — the prefetch races that stranded the visible card on its poster, WP-9.4); frame timing itself stays manual: [`perf.md`](perf.md) "Animation Hitches" step, decode-off-main was programmatic in M1 (REQUIREMENTS §9 R1). 👤 carry-forward |
+| NFR-3 | < 300 MB resident, ≤ 5 full-screen bitmaps | `BitmapLruCacheTest :: NFR-3 cache never holds more than 5 bitmaps` (+2), `WarmItemCacheTest :: NFR-3 the cache never holds more ids than the window` (+6 — the video cache is hard-bound to the 4-id prefetch window, WP-9.4), `SwipeScreenTest :: NFR-3 recomposition does not add a second image collector per card`, `GridTileTest :: NFR-3…`, `QueueScreenTest :: NFR-3…` | Resident-memory number: [`perf.md`](perf.md) "Allocations" step |
 | NFR-4 | Cold start < 1.5 s, lazy fetches | `HomeViewModelTest :: NFR-4 home state is emitted before counts finish loading` + `NFR-4 home never loads months`, `SourceCountsUseCaseTest :: FR-5 counts are final-or-placeholder never an estimate`, `HomeScreenTest :: NFR-4 loading counts render as em dash placeholders` | The 1.5 s number on a 50k library: [`perf.md`](perf.md) span `COLD_START_HOME` |
 | NFR-5 | Single delete path + in-app confirmation | `ConfirmDialogTest :: NFR-5…` (3), `QueueViewModelTest :: NFR-5 deleting with no in-app confirmation does nothing`, `QueueScreenTest :: NFR-5 delete button opens in-app confirm and does not delete`, `DiSmokeTest` | `check-rules.sh` guards the single-path rule statically (checks 4–5) |
 | NFR-6 | No network / analytics | — | Manual-only by nature: `check-rules.sh` check 6 fails the build on any networking or analytics import (REQUIREMENTS §8.3 static guard); no network code exists to unit-test |
