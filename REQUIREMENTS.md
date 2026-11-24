@@ -85,6 +85,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue. A deck that **opens** empty never runs out: the screen shows its §5.8 empty state instead of a summary, and the session row ends immediately — with no decisions and nothing to resume, the session is over as soon as it opened (WP-7.3).
 - **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left is asked about before it is queued: a compact confirm card anchored at the bottom of the deck stage above the action bar (§5.7 `FavoriteConfirmCard`), titled "Delete this favorite?" with a supporting line, and **Cancel** and **Delete** actions. The card never covers or resizes the photo, stays until the user acts or the deck moves on, and nothing is pre-selected or auto-accepted (NFR-5): the DELETE is recorded only when **Delete** is tapped. Starting a drag on the pending card while the card is up cancels the confirmation (same as **Cancel**) and records nothing; the gesture that follows is a fresh verdict — right/keep commits normally, and a completed left/delete swipe re-raises this confirmation rather than queueing, since a favorite's DELETE is written only on **Delete** (U3).
 - **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
+- **FR-38** A **Hide** button on the swipe screen hides the current item in the Photos library (the asset's `hidden` flag: it leaves the library grid and stays in the Hidden album). Hiding is **immediate** — no in-app confirmation and no queue; Undo is the safety net. It is not a decision: no decision row is written, the item counts toward none of the FR-21 kept / queued / skipped numbers, and the deck's kept/skip state is untouched — but it does advance the deck and the FR-19 progress like a decision would. The deck advances only after the hide write succeeds (NFR-7); on success a 3 s toast reads "Hidden in Photos", on failure the card stays and a toast reads "Couldn't hide this item — try again". The button is disabled while a hide or a decision write is in flight. **Undo** (FR-15) unhides exactly the asset the undo entry names and brings the card back in place (§5.6). Hiding a favorite whose FR-22 confirm is pending clears the confirm; Undo restores it with the returned card.
 
 ### Review and delete
 - **FR-23** The Review Queue shows queued items in a 3-column grid, newest decision first.
@@ -110,7 +111,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 | NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). Since WP-9.1 the single-path rule is structurally guaranteed: `delete` lives on `MediaDeleter`, not on `MediaLibrary` (compile-time), and the graph binds it only into the use case, guarded by a DI smoke test and check-rules (§6.4, §6.7). |
 | NFR-6 | Privacy | No network calls except PhotoKit's iCloud downloads. No analytics. All data stays on the device. |
 | NFR-7 | Durability | Decisions are written to SQLite before the UI advances. If that write fails, the swipe is reverted. |
-| NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. The swipe card also exposes Keep, Delete, Skip (and Undo when an undo is pending) as VoiceOver custom actions, and describes itself with its capture date, media type, duration, and favorite flag. Honours Reduce Motion (see §5.6). Dynamic Type is out of scope for v1: the layout targets the system default text size. |
+| NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. The swipe card also exposes Keep, Delete, Skip, and Hide (and Undo when an undo is pending) as VoiceOver custom actions, and describes itself with its capture date, media type, duration, and favorite flag. Honours Reduce Motion (see §5.6). Dynamic Type is out of scope for v1: the layout targets the system default text size. |
 
 ---
 
@@ -172,7 +173,7 @@ Numbers that change (counters, progress) use tabular figures (`fontFeatureSettin
 - **Corner radii:** card **24 dp**, sheet **20 dp**, grid tile **8 dp**, buttons fully round (pill or circle).
 - **Touch targets:** at least 44 × 44 dp.
 - **Elevation:** no shadows except on the top card, which gets a soft black shadow (blur 24 dp, 40% opacity). Layering uses `surface` / `surfaceRaised` steps instead.
-- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Settings = `settings`, Back / close = `arrow_back`. Icons render through `dev.vicart:compose-material-symbols` (Rounded style) from the bundled Google variable fonts. In the FR-24 queue viewer the close affordance is `arrow_back`, never `close`: × means Delete in this app, and it must not sit beside the Restore check (WP-9.5).
+- **Icons:** Material Symbols Rounded, 24 dp (28 dp in the swipe action bar). Mapping: Keep = `check`, Delete = `close`, Skip = `arrow_upward`, Undo = `undo`, Queue = `delete`, Hide = `visibility_off` (FR-38), Settings = `settings`, Back / close = `arrow_back`. Icons render through `dev.vicart:compose-material-symbols` (Rounded style) from the bundled Google variable fonts. In the FR-24 queue viewer the close affordance is `arrow_back`, never `close`: × means Delete in this app, and it must not sit beside the Restore check (WP-9.5).
 
 ### 5.6 Motion and gestures (swipe card)
 
@@ -190,9 +191,11 @@ The swipe card is the heart of the app. These numbers are the spec, not suggesti
 | Snap back (below threshold) | Spring, `dampingRatio = 0.7`, `stiffness = Spring.StiffnessMediumLow` |
 | Card underneath | Scale 0.94 → 1.0 and alpha 0.6 → 1.0, tied to the top card's drag progress |
 | Undo return | The card flies back in from the side it left, 260 ms, `FastOutSlowInEasing` |
+| Hide advance (FR-38) | No fly-off: the asset is already hidden in the library when the deck moves, so the card leaves with the plain card swap |
+| Hide undo return (FR-38) | The card returns **in place** where it stands — fade in with scale 0.92 → 1.0, 260 ms, `FastOutSlowInEasing` — not flying in from a side |
 | Button-triggered action | Same fly-off, with a synthetic 30 dp nudge first (80 ms) so the motion reads |
 | Haptics | `selection` when crossing the threshold in either direction. `impactLight` on Keep or Skip commit. `impactMedium` on Delete commit. `notificationSuccess` after a batch delete |
-| Reduce Motion | No rotation or fly-off. A 150 ms crossfade to the next card. Stamps still show. Screen transitions crossfade (150 ms) instead of sliding |
+| Reduce Motion | No rotation or fly-off. A 150 ms crossfade to the next card. Stamps still show. The Hide undo return keeps its fade without the scale (FR-38). Screen transitions crossfade (150 ms) instead of sliding |
 
 Other gestures on the card:
 
@@ -208,14 +211,14 @@ Other gestures on the card:
 | `SwipeCard` | Full width minus 2 × 8 dp, height = space between top bar and action bar. Radius 24, `bg` fill. Media is aspect-fit by default. The bottom 96 dp has a `scrim` gradient with date (`caption`, `textPrimary`) and badges. |
 | `VerdictStamp` | Bordered uppercase `stamp` text, 3 dp stroke, radius 8, 8/16 dp padding. |
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
-| `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: queue button with a red count badge. |
+| `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: a **Hide** button (40 dp, `visibility_off`, VoiceOver label "Hide from library", FR-38) immediately left of the queue button with a red count badge. The Hide button is disabled while a hide or a decision write is in flight. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
 | `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **Exclude from Shuffle** switch (FR-37) before the chevron: the iOS-shape `SwipeSwitch` in a touch box `max(minTouchTarget, switch track width)` = 51 × 44 dp owning `Role.Switch` semantics — the 51 dp track fits its box instead of spilling toward the count (WP-8.14). `s` gaps separate count → switch and switch → chevron; rows without a switch keep the `xs` chevron spacing, so Home and By month render unchanged. An excluded album shows a "Not in Shuffle" subtitle under its title in `caption textSecondary` — the row stays 64 dp — and the subtitle joins the row's VoiceOver description (NFR-8). The switch's tap toggles the exclusion and never opens the row. |
 | `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in `textPrimary`; unselected labels `textSecondary`. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
 | `Banner` | `surfaceRaised` row, 4 dp leading bar in `warning`, `callout` text, trailing action in `accent`. |
-| `Toast` | `surfaceRaised`, radius 12. One shared `ToastHost` renders at most one toast per screen, always bottom-anchored (§6.6): on the deck it **overlays** the card's bottom edge directly above the action bar — the card never resizes when a toast appears — elsewhere at the bottom of the screen clear of the Home Indicator. The host owns the 3 s auto-dismiss. Used for "Undone" and errors (save failed, share failed, delete failed, restore failed); errors show plain user copy, never raw PhotoKit text. A stay-until-acted-on confirmation is **not** a toast — the FR-22 favorite confirm is the `FavoriteConfirmCard` below. |
+| `Toast` | `surfaceRaised`, radius 12. One shared `ToastHost` renders at most one toast per screen, always bottom-anchored (§6.6): on the deck it **overlays** the card's bottom edge directly above the action bar — the card never resizes when a toast appears — elsewhere at the bottom of the screen clear of the Home Indicator. The host owns the 3 s auto-dismiss. Used for "Undone", "Hidden in Photos" (FR-38), and errors (save failed, share failed, delete failed, restore failed, hide failed); errors show plain user copy, never raw PhotoKit text. A stay-until-acted-on confirmation is **not** a toast — the FR-22 favorite confirm is the `FavoriteConfirmCard` below. |
 | `FavoriteConfirmCard` (FR-22, WP-8.9) | The favorite-delete confirmation — a compact card, not a toast. Anchored at the bottom of the deck stage directly above the action bar (the deck toast's anchor), overlaying it so the photo being confirmed never resizes. `surfaceRaised`, sheet radius, `m` padding: title `headline` and one supporting line `callout textSecondary`, both centered. Buttons side by side at equal width with a hairline between, each a ≥ 44 dp target (§5.5): **Cancel** left in `accent` (the secondary text style), **Delete** right — the only element in the card wearing the `delete` verdict color. Nothing pre-selected, nothing auto-dismisses (NFR-5). VoiceOver: the title is announced as the card appears (assertive live region), and the buttons read "Cancel, keep this photo" / "Delete favorite" (NFR-8). Entrance fade 150 ms, skipped under Reduce Motion. |
 
 ### 5.8 Screens
@@ -312,7 +315,7 @@ delivered; a failed refresh keeps them for the next `changes()` retry.
 
 ```
 ┌──────────────────────────────┐
-│ ×      128 / 2,340      🗑 18 │  TopBar
+│ ×      128 / 2,340     ⊘ 🗑 18 │  TopBar: hide (FR-38), queue
 │ ━━━━━━━━━━──────────────────  │  progress line
 │ ┌──────────────────────────┐ │
 │ │ KEEP                     │ │  stamp (fades in on drag)
@@ -472,7 +475,7 @@ interface MediaLibrary {                                    // read side only �
     suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey>  // id+date+size only, date-sorted (FR-6)
 }
 
-interface MediaDeleter {                                    // the write door (WP-9.1, NFR-5): deliberately NOT on MediaLibrary, so readers — every ViewModel — cannot name a delete. The Koin graph binds it only into CommitDeletionsUseCase; nothing else in production may even reference the type (§8.3 check-rules, AGENTS.md rule 1). A future second write path (FR-38 setHidden, WP-8.11) gets its own writer interface, never a method added here.
+interface MediaDeleter {                                    // the write door (WP-9.1, NFR-5): deliberately NOT on MediaLibrary, so readers — every ViewModel — cannot name a delete. The Koin graph binds it only into CommitDeletionsUseCase; nothing else in production may even reference the type (§8.3 check-rules, AGENTS.md rule 1). The second write path (FR-38 setHidden, WP-8.11) is `MediaHider` below, never a method added here.
     suspend fun delete(ids: List<String>): DeleteResult    // DELETED, CANCELLED, FAILED(msg) — one PhotoKit change request, one iOS system dialog (FR-25)
 }
 
@@ -542,6 +545,10 @@ interface MediaSharer {                                     // FR-32; iosMain im
     suspend fun share(id: String): ShareResult              // export originals to temp files on tap (networkAccessAllowed per includeCloudOnly), present UIActivityViewController; returns PRESENTED once the sheet is up or FAILED; temp files deleted when the sheet finishes
 }
 
+interface MediaHider {                                      // FR-38; iosMain impl PhotoKitMediaHider — the hide write door, sibling to MediaDeleter: on MediaLibrary's side it stays a reader. Koin binds it only into the swipe path (SwipeViewModel); §8.3 check-rules keep the type out of every other production file, and PhotoKitMediaHider's change block (PHAssetChangeRequest.hidden) is the only performChanges writer besides PhotoKitMediaLibrary's delete path
+    suspend fun setHidden(id: String, hidden: Boolean): HideResult  // APPLIED once the change request completes, FAILED when the asset cannot be fetched or the change fails; never queues, never confirms, never reaches deleteAssets
+}
+
 interface Haptics {                                         // §5.6; silent while SettingsStore.haptics is off
     fun selection()                                         // threshold crossed
     fun impactLight()                                       // keep / skip committed
@@ -601,18 +608,21 @@ data class SwipeUiState(
     val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
     val pendingFavoriteDelete: String?, // the favorite awaiting confirm, else null (FR-22)
     val sharing: Boolean,           // the current item's media is loading for the share sheet (FR-32)
+    val hiding: Boolean,            // a hide write is in flight; the Hide button is disabled (FR-38)
+    val deciding: Boolean,          // a decision write is in flight; the Hide button is disabled too (FR-38)
     val loading: Boolean,           // the deck is still opening; the placeholder card stands in (FR-6, WP-8.3)
 )
 sealed interface SwipeIntent {
     data class Decide(val id: String, val verdict: Decision) // Keep / Delete / Skip for card `id`
+    data class Hide(val id: String) // FR-38: hide card `id` in the library; ignored when `id` is not the card on screen
     data object Undo
     data object ToggleMute
     data class ConfirmFavoriteDelete(val id: String)
     data object DismissToast
     data object Share
 }
-sealed interface ToastMessage { SaveFailed; Undone; FavoriteConfirm; StartFailed; ShareFailed }
-sealed interface SwipeEvent { data class ReturnCard(val decision: Decision) }
+sealed interface ToastMessage { SaveFailed; Undone; Hidden; HideFailed; FavoriteConfirm; StartFailed; ShareFailed }
+sealed interface SwipeEvent { data class ReturnCard(val decision: Decision); data object ReturnCardInPlace }
 ```
 
 **Decisions name their card (FR-12, FR-13).** Every decision intent carries the id of the
@@ -632,8 +642,10 @@ the id, and `ConfirmFavoriteDelete(id)` records the DELETE that the first tap re
 record; starting a drag on the pending card is the U3 cancel — it clears the confirm
 through `DismissToast` and records nothing, and a swipe completed after it is an ordinary
 verdict), `StartFailed` (the session could not be opened or
-resumed; the screen stays empty instead of crashing), and `ShareFailed` (FR-32, the
-current item's media could not be loaded for the share sheet).
+resumed; the screen stays empty instead of crashing), `ShareFailed` (FR-32, the
+current item's media could not be loaded for the share sheet), `Hidden` (FR-38 —
+"Hidden in Photos", the 3 s toast after a successful hide advanced the deck), and
+`HideFailed` (FR-38 — "Couldn't hide this item — try again", the card stays).
 
 **One toast host (WP-9.3).** Every screen renders at most one toast through the shared
 `ToastHost` (`ui/components/`), always bottom-anchored: on the deck it overlays the card's
@@ -659,11 +671,23 @@ until the sheet is on screen or the load fails. It is single-flight (taps while
 `index` and the undo stack alone. Every deck move cancels a share that is still
 loading, so a sheet never opens for a card that has left.
 
+`Hide(id)` (FR-38) is a decision-shaped intent that writes no decision. It clears a pending
+FR-22 favorite confirm on that card (remembering it on the undo step), then runs
+`MediaHider.setHidden(id, true)` single-flight — taps while a hide or a decision write is in
+flight are ignored, and the button is disabled for the same reason (`hiding` / `deciding`).
+An id that is no longer the card on screen is dropped like any other stale intent, and a
+result that lands after the card has left never advances the deck twice. Success pushes an
+undo step (no verdict), advances the deck — a plain card swap, no fly-off (§5.6) — and
+shows `Hidden`; failure shows `HideFailed` and the card stays (NFR-7). Undoing that step
+unhides exactly the id stored in the undo entry — never a re-resolved current card — and
+sends `ReturnCardInPlace`; a failed unhide restores the entry and reports `SaveFailed`.
+
 One-shot ViewModel → UI events ride a `Channel` exposed as `Flow<SwipeEvent>`, so each
 event is delivered to exactly one collector and never replays on recomposition — unlike a
 state field a late collector would read as still-pending. `ReturnCard(decision)` commands
 the card to come back with [decision]'s exit animation (undo succeeding, FR-15, and a
-Delete on a favorite being refused for confirmation, FR-22). `revertToken` stays the one
+Delete on a favorite being refused for confirmation, FR-22); `ReturnCardInPlace` commands
+the in-place return after an FR-38 hide undo (§5.6). `revertToken` stays the one
 exception: it predates the channel (WP-1.8) and the card keeps watching its increment.
 `SwipeEvent` carries the domain `Decision`, not a UI type (layering, §6.1).
 
