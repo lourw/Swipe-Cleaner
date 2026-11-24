@@ -50,11 +50,19 @@ main_kt -not -path '*/ui/theme/*' -not -name 'SwipeSpec.kt' |
 main_kt -not -name 'PhotoKitMediaLibrary.kt' | grep_files '(deleteAssets|performChanges)' |
     report "Only PhotoKitMediaLibrary.kt may call deleteAssets/performChanges (NFR-5)"
 
-# 5. Deletion safety (NFR-5): only CommitDeletionsUseCase calls MediaLibrary.delete.
-main_kt -path "$SRC/commonMain/*" -not -name 'CommitDeletionsUseCase.kt' -not -name 'MediaLibrary.kt' |
-    xargs -0 grep -lE '\bMediaLibrary\b' /dev/null 2>/dev/null | grep -v '^/dev/null$' | tr '\n' '\0' |
-    grep_files '\.delete\(' |
-    report "Only CommitDeletionsUseCase may call MediaLibrary.delete (NFR-5)"
+# 5. Deletion safety (NFR-5, WP-9.1): MediaDeleter is the type-level delete door.
+#    MediaLibrary has no delete, so the compiler already keeps readers (every
+#    ViewModel, ui/, presentation/) from calling one; this guard keeps the writer
+#    type itself out of everything but its definition, its single consumer
+#    CommitDeletionsUseCase, the Koin module that binds it, and the PhotoKit
+#    implementation. Any other production class must name MediaDeleter to hold or
+#    receive it, so a second consumer trips here; adding one is a deliberate
+#    allowlist edit next to the hard-rule change. Comment-only mentions are
+#    stripped (lines whose code starts with //, *, or /*) — docs may explain the
+#    split; only code may depend on it.
+main_kt -not -name 'MediaDeleter.kt' -not -name 'CommitDeletionsUseCase.kt' -not -name 'IosModule.kt' -not -name 'PhotoKitMediaLibrary.kt' |
+    grep_files '\bMediaDeleter\b' | grep -vE ':[0-9]+: *[/*]' |
+    report "Only CommitDeletionsUseCase may name MediaDeleter (NFR-5, hard rule 1)"
 
 # 6. Privacy (NFR-6): no networking or analytics code.
 NETWORK='(^import (io\.ktor|okhttp3|platform\.Foundation\.NSURLSession|platform\.Foundation\.NSURLConnection))'
