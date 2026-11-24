@@ -469,6 +469,10 @@ Every ViewModel receives the whole `MediaLibrary`, `delete` included (`CommonMod
 - `PermissionViewModel.kt:111` lists every id just to count the limited selection. Use the fetch result's count.
 - The top-view-controller lookup is written twice and differs: `IosSystemActions.kt` doesn't follow `presentedViewController`, so the limited-library picker can fail to appear while a sheet is up; `PhotoKitMediaSharer.kt:172-183` does. Share one helper.
 
+### WP-9.10 Resolve Undo vs. the fly-off window
+
+**Branch:** `fr-15-undo-flyoff`. **Requirements:** FR-15, §5.6, NFR-7. Split out of WP-9.2 (2026-11-24): the implementer recorded a reasoned no-implement — only the composable sees the 220 ms fly-off window, so ignoring Undo until the commit lands needs a new UI→ViewModel protocol, which is a real behavior change deserving its own WP. `SwipeViewModelDecisionAuditTest` documents the current safe-but-imperfect behavior (Undo tapped mid-fly-off is silently dropped; the decision still persists). Decide the UX (ignore vs. queue the Undo) with the user, implement, and update §5.6/FR-15 in the same branch.
+
 ## Tracker
 
 The main agent keeps this section current so nobody loses track of running subagents, including after a restart or context compaction. Rules are in AGENTS.md "Working with subagents". Subagents never edit this section.
@@ -479,8 +483,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.2 | implement | `arch-swipe-session` | ses_df531c123ffeKCy0uZgDBkEksr | 2026-11-24 08:30 | Continued after crash-at-1-commit (3761fea UndoStack+PrefetchWindow). Remaining: Start/FinishSession, DeckCursor, param holders, session-row tidy + migration, fly-off-undo fix |
-| 2 | 9.6 | implement | `fr-8-list-states` | ses_df46cb139ffeOaLqlivukI8udI | 2026-11-24 | Launched on main `b1f0080` after 9.1 merged; clean vs 9.2 (Albums/Months ViewModels + HomeDestinations only). 8.2 held until 9.2 merges (prefetch/deck overlap) |
+| 1 | 9.2 | verify | `arch-swipe-session` | ses_df459cf67ffeqA7H1qFAf2iOyt | 2026-11-24 | Impl done: 6 commits, --full PASS at base, 524 tests (+34). **Rebased onto `68f89cf`** (only CommonModule conflict — kept both sides), compile green post-rebase, tip `d4b55c7`. Fly-off-Undo: reasoned no-implement accepted → WP-9.10 queued. Prior verifier session (old orchestrator's leftover) died before reporting — fresh review |
+| 2 | 9.6 | implement | `fr-8-list-states` | ses_df459cf68ffeDefiI8QhjxSYY3 | 2026-11-24 | Launched on main `b1f0080`; clean vs 9.2. Two prior sessions died at startup with zero output (worktree was untouched) — relaunched fresh, hardened brief. 8.2 held until 9.2 merges (prefetch/deck overlap) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -512,7 +516,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 8.13 | Video sound, mute button, default-sound setting | queued | | Reported by user 2026-11-10; reproduce on a device first. Setting defaults to off |
 | 8.14 | Albums switch spacing and explainer | merged | `fr-37-albums-switch-polish` | Verified PASS (no blockers) 2026-11-24: spacing math, Home rows pixel-identical, discriminating tests, spec=code, own validate rerun (469 tests). Nits accepted (chevron ~4 dp shift = pre-existing pattern, 👤 glance; explainer copy pinned via constant). Merged at 0501bba after clean rebase onto 8.3. Closes 8.10's §5.8 Albums wireframe follow-up. 👤: Albums glance on simulator. Deferred: 9.6 conflict noted |
 | 9.1 | MediaDeleter split | merged | `arch-media-deleter` | Verified PASS (no blockers, 6 nits) — nits folded pre-merge (guard 5b: only `MediaDeleter.kt`/`PhotoKitMediaLibrary.kt` may declare `fun delete(`; `di/` path anchored; §6.7/NFR-5 wording precision). Merged at `b1f0080` (490 tests). NFR-5 graph test lives in `iosTest/di/DiSmokeTest.kt` (`NFR-5 no view model resolves MediaDeleter…`, CountingMediaDeleter) — verifier report cited a filename that doesn't exist; content verified present. Accepted nits: N2 (test hardcodes 7 ViewModel names vs enumerating Koin registry), N5 (`single { PhotoKitMediaLibrary() }` keeps the concrete type Koin-resolvable) → 9.x cleanup candidates. Unblocks 8.11 (still waits on 9.2) |
-| 9.2 | Slim SwipeViewModel, tidy sessions | implementing | `arch-swipe-session` | Launched 2026-11-24 beside 9.1. After 7.5; before 8.6 and 8.11. From 7.5 verify: Undo tapped during the 220 ms fly-off silently drops that swipe — included in brief as a deliberate behavior-change candidate (ignore Undo until commit lands) |
+| 9.2 | Slim SwipeViewModel, tidy sessions | verifying | `arch-swipe-session` | Impl done: UndoStack/PrefetchWindow/DeckCursor extracted, Start/FinishSession use cases, session-row tidy (end-other-open, `position` column dropped via `2.sqm`, album-id-only resume, undecodable self-end confirmed from 8.10), CardStack 26→10 + DeckStage 16→13 params. 524 tests (+34), --full PASS at base. Fly-off-Undo: not implemented — reasoned no-implement (needs UI→VM protocol for the 220 ms window), queued as follow-up. 👤 migration `2.sqm` resume check on installed builds |
 | 9.3 | One toast host | merged | `arch-toast-host` | Verified PASS-with-nits 2026-11-23 (418 tests; nits 1–2+4 fixed pre-merge); merged at 31a9917 after `--full`. One ToastHost owns the only 3 s fuse + placement; deck toast is an overlay (card no longer jumps); Queue shows plain delete-error copy. Nits 3 (overlay over CTAs) + 5 (re-raise doesn't restart fuse) → 👤 device checkpoint / conscious choice. Unblocked 8.9 (merged) and 8.6 |
 | 9.4 | Race-free video preloading | queued | | |
 | 9.5 | Queue viewer safety | merged | `fr-24-queue-viewer` | Verified PASS (no blockers) 2026-11-24: verifier re-ran the suite fresh (465 tests) and confirmed the tap test fails against old code. Nits folded pre-merge (slot-convention comment, report SHA). Merged at adf3f75. 👤 VoiceOver + device checkpoints in report. Deferred: viewer mute control + scrubber + `autoplayVideos` setting (product call; 8.13 territory); scroll-block claim untested (behavior verified by hit-testing) |
@@ -520,3 +524,4 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
 | 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
+| 9.10 | Undo vs. fly-off window | queued | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report); needs 👤 UX decision (ignore vs. queue Undo) before implementing |
