@@ -81,10 +81,11 @@ import kotlin.time.Instant
  * network traffic (NFR-6).
  *
  * The write side ([delete], WP-3.2) and the change observer ([changes]) also live
- * here: AGENTS.md rule 1 and the §8.3 check-rules guard keep this file the only
- * place that can ever call `performChanges` / `deleteAssets`. One instance serves
- * both interfaces (bound in `di/IosModule.kt`), but only `CommitDeletionsUseCase`
- * is ever handed the [MediaDeleter] view of it (NFR-5, WP-9.1).
+ * here: AGENTS.md rule 1 and the §8.3 check-rules guards keep this file the only
+ * place that can ever call `deleteAssets`, and one of only two `performChanges`
+ * writers besides `PhotoKitMediaHider`'s FR-38 hidden-flag change (WP-8.11). One
+ * instance serves both interfaces (bound in `di/IosModule.kt`), but only
+ * `CommitDeletionsUseCase` is ever handed the [MediaDeleter] view of it (NFR-5, WP-9.1).
  */
 class PhotoKitMediaLibrary(
     private val fetchDispatcher: CoroutineDispatcher = Dispatchers.Default,

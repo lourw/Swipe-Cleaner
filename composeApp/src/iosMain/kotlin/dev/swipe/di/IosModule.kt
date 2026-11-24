@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.asSkiaBitmap
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaDeleter
+import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
@@ -19,6 +20,7 @@ import dev.swipe.platform.IosHaptics
 import dev.swipe.platform.IosPerfTrace
 import dev.swipe.platform.IosSystemActions
 import dev.swipe.platform.NSUserDefaultsSettingsStore
+import dev.swipe.platform.PhotoKitMediaHider
 import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.PhotoKitMediaLoader
 import dev.swipe.platform.PhotoKitMediaSharer
@@ -78,4 +80,8 @@ val iosModule: Module =
 
         // Share sheet (WP-8.1, FR-32): exports originals on tap, network per FR-29.
         single<MediaSharer> { PhotoKitMediaSharer(settings = get()) }
+
+        // Hide door (WP-8.11, FR-38): the only binding of MediaHider; the graph feeds
+        // it to SwipeViewModel alone, and the §8.3 check-rules guard keeps it there.
+        single<MediaHider> { PhotoKitMediaHider() }
     }

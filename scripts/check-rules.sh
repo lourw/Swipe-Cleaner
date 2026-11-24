@@ -47,8 +47,17 @@ main_kt -not -path '*/ui/theme/*' -not -name 'SwipeSpec.kt' |
     report "Raw dp/sp values belong in ui/theme/ or SwipeSpec.kt (REQUIREMENTS §5.5, §5.6)"
 
 # 4. Deletion safety (NFR-5): PhotoKit's delete APIs are only touched by PhotoKitMediaLibrary.
-main_kt -not -name 'PhotoKitMediaLibrary.kt' | grep_files '(deleteAssets|performChanges)' |
-    report "Only PhotoKitMediaLibrary.kt may call deleteAssets/performChanges (NFR-5)"
+#    Comment-only mentions are stripped like in guard 5 — docs may explain the doors.
+main_kt -not -name 'PhotoKitMediaLibrary.kt' | grep_files 'deleteAssets' | grep -vE ':[0-9]+: *[/*]' |
+    report "Only PhotoKitMediaLibrary.kt may call deleteAssets (NFR-5)"
+
+# 4b. Write doors (NFR-5, FR-38): performChanges belongs to the two writer
+#     implementations only — PhotoKitMediaLibrary's delete batch and
+#     PhotoKitMediaHider's hidden-flag change. A third call site would be a third
+#     write path outside the guarded doors.
+main_kt -not -name 'PhotoKitMediaLibrary.kt' -not -name 'PhotoKitMediaHider.kt' |
+    grep_files 'performChanges' | grep -vE ':[0-9]+: *[/*]' |
+    report "Only PhotoKitMediaLibrary.kt and PhotoKitMediaHider.kt may call performChanges (NFR-5, FR-38)"
 
 # 5. Deletion safety (NFR-5, WP-9.1): MediaDeleter is the type-level delete door.
 #    MediaLibrary has no delete, so the compiler already keeps readers (every
@@ -71,6 +80,14 @@ main_kt -not -name 'MediaDeleter.kt' -not -path '*/di/IosModule.kt' -not -name '
 main_kt -not -name 'MediaDeleter.kt' -not -name 'PhotoKitMediaLibrary.kt' |
     grep_files 'fun delete\(' |
     report "Only MediaDeleter and its implementation may declare fun delete (NFR-5, hard rule 1)"
+
+# 5c. Hide safety (FR-38, WP-8.11): MediaHider is the hide write door, the same
+#     shape as guard 5 — the type may be named only by its definition, its single
+#     consumer SwipeViewModel, the Koin module that binds it, and the PhotoKit
+#     implementation. Comment-only mentions are stripped like in guard 5.
+main_kt -not -name 'MediaHider.kt' -not -path '*/di/IosModule.kt' -not -name 'SwipeViewModel.kt' -not -name 'PhotoKitMediaHider.kt' |
+    grep_files '\bMediaHider\b' | grep -vE ':[0-9]+: *[/*]' |
+    report "Only SwipeViewModel may name MediaHider (FR-38, hard rule 1)"
 
 # 6. Privacy (NFR-6): no networking or analytics code.
 NETWORK='(^import (io\.ktor|okhttp3|platform\.Foundation\.NSURLSession|platform\.Foundation\.NSURLConnection))'
