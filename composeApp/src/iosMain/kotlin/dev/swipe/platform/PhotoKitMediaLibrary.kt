@@ -88,7 +88,8 @@ import kotlin.time.Instant
  */
 class PhotoKitMediaLibrary(
     private val fetchDispatcher: CoroutineDispatcher = Dispatchers.Default,
-) : MediaLibrary, MediaDeleter {
+) : MediaLibrary,
+    MediaDeleter {
     override suspend fun authorization(): LibraryAccess =
         withContext(fetchDispatcher) {
             photoKitLibraryAccess(PHPhotoLibrary.authorizationStatusForAccessLevel(PHAccessLevelReadWrite).toInt())
