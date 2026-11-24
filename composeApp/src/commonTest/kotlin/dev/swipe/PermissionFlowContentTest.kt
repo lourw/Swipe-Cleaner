@@ -32,7 +32,10 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.albumsViewModel
 import dev.swipe.fakes.homeViewModel
 import dev.swipe.fakes.monthsViewModel
+import dev.swipe.presentation.albums.AlbumsIntent
+import dev.swipe.presentation.home.HomeIntent
 import dev.swipe.presentation.home.HomeViewModel
+import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
 import dev.swipe.presentation.permission.PermissionUiState
@@ -509,7 +512,9 @@ class PermissionFlowContentTest {
             waitForIdle()
             // The double tap, at the level the row produces it: two intents,
             // no idle in between, so both reach the collector.
-            val row = albums.uiState.value.rows.single()
+            val row =
+                albums.uiState.value.rows
+                    .single()
             albums.onIntent(AlbumsIntent.OpenAlbum(row))
             albums.onIntent(AlbumsIntent.OpenAlbum(row))
             waitForIdle()
@@ -544,7 +549,10 @@ class PermissionFlowContentTest {
             waitForIdle()
             onNodeWithText("By month").performClick()
             waitForIdle()
-            val bucket = months.uiState.value.rows.single().bucket
+            val bucket =
+                months.uiState.value.rows
+                    .single()
+                    .bucket
             months.onIntent(MonthsIntent.OpenMonth(bucket))
             months.onIntent(MonthsIntent.OpenMonth(bucket))
             waitForIdle()
