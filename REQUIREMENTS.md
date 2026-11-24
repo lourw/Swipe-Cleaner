@@ -107,7 +107,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 | NFR-2 | Smoothness | Card drag runs at the display refresh rate (120 Hz on ProMotion) with no dropped frames from image decoding. |
 | NFR-3 | Memory | Under 300 MB resident. At most 5 decoded full-screen bitmaps in memory at once. |
 | NFR-4 | Startup | Cold start to an interactive Home in under 1.5 s with a library of 50k items. Use lazy fetches; never load the whole library into memory. |
-| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). |
+| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). Since WP-9.1 the single-path rule is also a compile-time guarantee: `delete` lives on `MediaDeleter`, not on `MediaLibrary`, and the graph binds it only into the use case (§6.4, §6.7). |
 | NFR-6 | Privacy | No network calls except PhotoKit's iCloud downloads. No analytics. All data stays on the device. |
 | NFR-7 | Durability | Decisions are written to SQLite before the UI advances. If that write fails, the swipe is reverted. |
 | NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. The swipe card also exposes Keep, Delete, Skip (and Undo when an undo is pending) as VoiceOver custom actions, and describes itself with its capture date, media type, duration, and favorite flag. Honours Reduce Motion (see §5.6). Dynamic Type is out of scope for v1: the layout targets the system default text size. |
@@ -441,7 +441,7 @@ Split into Gradle modules (`:core:domain`, `:core:data`, `:feature:*`) only if b
 ### 6.4 Key interfaces (commonMain)
 
 ```kotlin
-interface MediaLibrary {
+interface MediaLibrary {                                    // read side only — no delete (WP-9.1, NFR-5); the write door is MediaDeleter below
     suspend fun authorization(): LibraryAccess            // FULL, LIMITED, DENIED, NOT_DETERMINED
     suspend fun requestAuthorization(): LibraryAccess
     suspend fun albums(): List<AlbumSource>                      // user + main smart albums, cheap counts & cover (FR-8, NFR-4)
@@ -449,9 +449,12 @@ interface MediaLibrary {
     suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>  // per-filter counts (FR-6); no screen caller since WP-8.12 — every displayed count runs through DeckMembership (§6.5)
     suspend fun assetIds(source: DeckSource, type: MediaTypeFilter): List<String>  // ids only, cheap
     suspend fun items(ids: List<String>): List<MediaItem>  // metadata for a page
-    suspend fun delete(ids: List<String>): DeleteResult    // DELETED, CANCELLED, FAILED(msg)
     fun changes(): Flow<Unit>                              // PHPhotoLibraryChangeObserver
     suspend fun duplicateCandidates(type: MediaTypeFilter): List<DuplicateKey>  // id+date+size only, date-sorted (FR-6)
+}
+
+interface MediaDeleter {                                    // the write door (WP-9.1, NFR-5): deliberately NOT on MediaLibrary, so readers — every ViewModel — cannot name a delete. The Koin graph binds it only into CommitDeletionsUseCase; nothing else in production may even reference the type (§8.3 check-rules, AGENTS.md rule 1). A future second write path (FR-38 setHidden, WP-8.11) gets its own writer interface, never a method added here.
+    suspend fun delete(ids: List<String>): DeleteResult    // DELETED, CANCELLED, FAILED(msg) — one PhotoKit change request, one iOS system dialog (FR-25)
 }
 
 interface MediaLoader {
@@ -652,13 +655,18 @@ The drag offset and animation state stay inside the `SwipeCard` composable, as l
 ```
 Swipe left ──► DecisionStore.record(DELETE)  (queued, item still in library)
 Review queue ──► "Delete N" ──► in-app confirm dialog ──► CommitDeletionsUseCase
-     └─► MediaLibrary.delete(ids) ──► PHPhotoLibrary.performChanges { deleteAssets }
+     └─► MediaDeleter.delete(ids) ──► PHPhotoLibrary.performChanges { deleteAssets }
               ├─ success   ─► DecisionStore.markDeleted(resolved ids) ─► Success screen
               ├─ cancelled ─► no-op (queue unchanged)
               └─ error     ─► toast, queue unchanged
 ```
 
-`CommitDeletionsUseCase` is the only caller of `MediaLibrary.delete` (NFR-5).
+`CommitDeletionsUseCase` is the only consumer of `MediaDeleter`, and so the only caller
+of `MediaDeleter.delete` (NFR-5). Since WP-9.1 that is a compile-time fact, not a
+convention: `delete` is not on `MediaLibrary`, so no reader — every ViewModel included
+— can express a delete, `MediaDeleter` is bound in Koin only into the use case, and
+production code outside the use case, its Koin binding, and the PhotoKit implementation
+may not even name the type (§8.3 check-rules).
 
 The in-app confirmation is enforced by construction, not convention: the use case
 takes an `InAppDeleteConfirmation` token whose constructor is `internal` with no
@@ -793,7 +801,7 @@ Release metadata lives in `iosApp/iosApp/PrivacyInfo.xcprivacy`, which must decl
 
 - **Name tests after requirements.** Every FR or NFR that has logic behind it gets at least one test whose name starts with its ID, for example `FR-15 undo restores last card`. Searching the tests for an ID shows how it is covered.
 - **Safety rules have dedicated tests.** These must always exist and pass:
-  - NFR-5: deleting with no in-app confirmation does nothing, and `CommitDeletionsUseCase` is the only caller of `MediaLibrary.delete`.
+  - NFR-5: deleting with no in-app confirmation does nothing, and `CommitDeletionsUseCase` is the only consumer of `MediaDeleter` (WP-9.1: no ViewModel resolves it in the real graph — `DiSmokeTest`; no production class may name it — check-rules).
   - NFR-7: when `DecisionStore.record` fails, the index doesn't advance and the card comes back.
   - FR-27: when the iOS dialog is cancelled, the queue stays exactly as it was.
 - **Use fakes, not mocks.** `commonTest/kotlin/dev/swipe/fakes/` holds `FakeMediaLibrary`, `FakeMediaLoader`, `FakeDecisionStore`, `FakeSettingsStore` and `FakeClock`. Each fake records its calls and can be set up to fail, so tests can cover error paths. Don't use mocking libraries.
@@ -827,7 +835,7 @@ Seed the simulator by dragging photos and videos into the Photos app, or by usin
 | `Color(0x` outside `ui/theme/` | Design tokens only (§5.2) |
 | A raw `<number>.dp` or `<number>.sp` other than `0.dp`, outside `ui/theme/` and `ui/components/swipe/SwipeSpec.kt` | Design tokens only (§5.5) and gesture spec (§5.6) |
 | `deleteAssets` or `performChanges` outside `PhotoKitMediaLibrary.kt` | NFR-5 |
-| A `commonMain` file that references `MediaLibrary` and calls `.delete(` on it, other than `CommitDeletionsUseCase.kt` | NFR-5 |
+| `MediaDeleter` named in code of a production (`src/*Main`) file other than `MediaDeleter.kt`, `CommitDeletionsUseCase.kt`, `IosModule.kt`, or `PhotoKitMediaLibrary.kt` (comment-only mentions don't count; `MediaLibrary` has no `delete`, so readers cannot call one at all — WP-9.1) | NFR-5 |
 | Imports of `io.ktor`, `NSURLSession`, `NSURLConnection`, or any analytics or crash-reporting SDK | NFR-6 |
 | A `DEVELOPMENT_TEAM` value or a personal bundle ID in any file tracked by git | Signing stays local |
 

@@ -65,7 +65,7 @@ Run `scripts/validate.sh` before declaring a code change done, plus any extra ch
 
 ## Hard rules
 
-1. **Deletion safety.** `CommitDeletionsUseCase` is the only code that calls `MediaLibrary.delete`. Never add another call path, never delete on swipe, and never skip the in-app confirmation (NFR-5, FR-25).
+1. **Deletion safety.** The split is the guarantee: `delete` lives on `MediaDeleter`, not on `MediaLibrary`, so readers — every ViewModel — cannot express a delete at all (WP-9.1). `CommitDeletionsUseCase` is the type's only consumer, and `MediaDeleter` is bound in Koin only into it. Never bind or inject `MediaDeleter` anywhere else, never delete on swipe, and never skip the in-app confirmation (NFR-5, FR-25). `scripts/check-rules.sh` keeps `MediaDeleter` out of every other production file; add it to that guard's allowlist only together with a spec change.
 2. **Persist before advance.** A swipe decision is written to `DecisionStore` before the UI moves to the next card. If the write fails, the card goes back (NFR-7).
 3. **Design tokens only.** Screens and components use `SwipeTheme` tokens (colors, type, spacing, radii from REQUIREMENTS §5). No hex literals, raw `dp` / `sp` numbers, or new colors outside `ui/theme/`. Verdict colors (`keep`, `delete`, `skip`) are used only for those verdicts.
 4. **Gesture numbers are spec.** The thresholds, rotation, durations, and springs in REQUIREMENTS §5.6 live as named constants in `ui/components/swipe/SwipeSpec.kt`. Change them only together with the spec.
