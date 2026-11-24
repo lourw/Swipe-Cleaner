@@ -63,7 +63,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
   - Screenshots (`PHAssetMediaSubtype.photoScreenshot`)
   - Long videos (duration ≥ 60 s, longest first)
   - Bursts (assets that have a `burstIdentifier`)
-  - Likely duplicates: items taken within 2 s of each other with identical pixel dimensions, shown next to each other
+  - Likely duplicates: items taken within 2 s of each other with identical pixel dimensions, shown next to each other, each card labeled with its place in its set (FR-35)
   - Selfies (the smart album `smartAlbumSelfPortraits`)
 - **FR-7** **By month** lists year → month buckets with item counts, newest first.
 - **FR-8** **Albums** lists user albums and the main smart albums, with cover thumbnails and counts.
@@ -85,6 +85,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue. A deck that **opens** empty never runs out: the screen shows its §5.8 empty state instead of a summary, and the session row ends immediately — with no decisions and nothing to resume, the session is over as soon as it opened (WP-7.3).
 - **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left is asked about before it is queued: a compact confirm card anchored at the bottom of the deck stage above the action bar (§5.7 `FavoriteConfirmCard`), titled "Delete this favorite?" with a supporting line, and **Cancel** and **Delete** actions. The card never covers or resizes the photo, stays until the user acts or the deck moves on, and nothing is pre-selected or auto-accepted (NFR-5): the DELETE is recorded only when **Delete** is tapped. Starting a drag on the pending card while the card is up cancels the confirmation (same as **Cancel**) and records nothing; the gesture that follows is a fresh verdict — right/keep commits normally, and a completed left/delete swipe re-raises this confirmation rather than queueing, since a favorite's DELETE is written only on **Delete** (U3).
 - **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
+- **FR-35** In the Likely Duplicates deck every card is labeled with its place in its set — for example, "2 of 4 in this set". The count includes members that already have a decision: after a resume the label shows the set's real size, not the cards left in the deck. The label sits in the card scrim above the FR-18 metadata row in `caption textSecondary` (§5.7) and the card's VoiceOver description reads it (NFR-8). No other deck shows a label, and the label is additive: it changes no deck's contents or order and no Home count (FR-6, §6.5).
 - **FR-38** A **Hide** button on the swipe screen hides the current item in the Photos library (the asset's `hidden` flag: it leaves the library grid and stays in the Hidden album). Hiding is **immediate** — no in-app confirmation and no queue; Undo is the safety net. It is not a decision: no decision row is written, the item counts toward none of the FR-21 kept / queued / skipped numbers, and the deck's kept/skip state is untouched — but it does advance the deck and the FR-19 progress like a decision would. The deck advances only after the hide write succeeds (NFR-7); on success a 3 s toast reads "Hidden in Photos", on failure the card stays and a toast reads "Couldn't hide this item — try again". The button is disabled while a hide or a decision write is in flight. **Undo** (FR-15) unhides exactly the asset the undo entry names and brings the card back in place (§5.6). Hiding a favorite whose FR-22 confirm is pending clears the confirm; Undo restores it with the returned card.
 
 ### Review and delete
@@ -208,7 +209,7 @@ Other gestures on the card:
 
 | Component | Spec |
 | --- | --- |
-| `SwipeCard` | Full width minus 2 × 8 dp, height = space between top bar and action bar. Radius 24, `bg` fill. Media is aspect-fit by default. The bottom 96 dp has a `scrim` gradient with date (`caption`, `textPrimary`) and badges. |
+| `SwipeCard` | Full width minus 2 × 8 dp, height = space between top bar and action bar. Radius 24, `bg` fill. Media is aspect-fit by default. The bottom 96 dp has a `scrim` gradient with date (`caption`, `textPrimary`) and badges. On the Likely Duplicates deck a set-place label sits above the date line in `caption textSecondary` (FR-35). |
 | `VerdictStamp` | Bordered uppercase `stamp` text, 3 dp stroke, radius 8, 8/16 dp padding. |
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: a **Hide** button (default touch-target size like its neighbors, `visibility_off`, VoiceOver label "Hide from library", FR-38) immediately left of the queue button with a red count badge. The Hide button is disabled while a hide or a decision write is in flight. |
@@ -322,12 +323,15 @@ delivered; a failed refresh keeps them for the next `changes()` retry.
 │ │                          │ │
 │ │        [ media ]         │ │  SwipeCard
 │ │                          │ │
+│ │ 2 of 4 in this set         │ │  duplicate set label (FR-35)
 │ │ Mar 14, 2021 · 0:32  ☁ ◉ │ │  metadata on scrim
 │ └──────────────────────────┘ │
 │  ──●──────────── 0:12        │  video scrubber (videos only)
 │ ↶     ( ✕ )  (↑)  ( ✓ )    ⇪ │  ActionBar: undo, delete, skip, keep, share (FR-32)
 └──────────────────────────────┘
 ```
+
+**Swipe — duplicate set label (FR-35)**: in the Likely Duplicates deck each card shows its place in its set above the metadata row — "2 of 4 in this set", `caption textSecondary` on the scrim — and the card's VoiceOver line ends with it (NFR-8). The number counts every member of the set, decided ones included, so a resumed set still reads its full size (§6.5). No other deck shows the label.
 
 **Swipe — favorite confirm (FR-22)**: swiping a favorite left flies the card out and back,
 then `FavoriteConfirmCard` rides the deck stage above the action bar. The photo stays
@@ -576,7 +580,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
    - Shuffle: ordered by a **stable per-id key** — the splitmix64 hash of `(seed, id)` sorted ascending, with the id string itself breaking ties so the order is total and never depends on fetch order (the fetches are sorted by §6.5, but Shuffle must not rely on that). The seed is stored on the session row, so the order survives process death. Because the key is a property of `(seed, id)` alone, filtering commutes with ordering: subtracting decided ids (FR-9), subtracting FR-37 excluded-album ids, and items entering or leaving the library between sessions never move the survivors — a rebuild with the same seed reopens a resumed session on the same card (FR-20), where a positional `shuffled(Random(seed))` permutation would move every card after the first library edit. Resume recomputes everything from that rebuild; no per-card position is stored (the `session.position` column and its write path were dropped in WP-9.2 — resume never read it back).
    - Shuffle exclusions (FR-37): PhotoKit has no "not in album" predicate, so the deck subtracts the ids of every excluded album (each one ids-only fetch, NFR-4) after the ordering. An id whose album the user has since deleted matches nothing and is ignored. The subtraction applies only to `DeckSource.All`: opening an excluded album, By month, and the smart filters keep its items.
    - Long videos: duration descending. The library returns `Smart(LONG_VIDEOS)` ids **pre-sorted** duration-descending (a PhotoKit sort descriptor on `duration`), so the use case keeps the order it receives.
-   - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping.
+   - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping. The one candidate pass feeds both halves: the deck is the grouping of the filtered candidates, and the FR-35 set label is the grouping of the full, unfiltered list — decided members count, so a resumed set still reads its real size. The memberships feed the card label only, never the deck or the counts, and no second library scan runs (NFR-4).
    - Everything else: creation date descending (the library returns that order).
 2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20. An id whose page does not resolve is dropped from the deck rather than ending it or showing a blank card (FR-6, WP-8.3); drops sit at or beyond the loaded end, so undo entries behind the head are never disturbed.
 3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
@@ -624,6 +628,12 @@ sealed interface SwipeIntent {
 sealed interface ToastMessage { SaveFailed; Undone; Hidden; HideFailed; FavoriteConfirm; StartFailed; ShareFailed }
 sealed interface SwipeEvent { data class ReturnCard(val decision: Decision); data object ReturnCardInPlace }
 ```
+
+**CardState carries the FR-35 set place.** `current` and `next` hold a `duplicateSet`
+membership (the set's member ids and this item's position among them) in the Likely
+Duplicates deck and null in every other deck. It is settled once at deck build from the
+unfiltered candidate pass (§6.5), so decisions during the session never rewrite it — a
+resumed set labels "2 of 4" even when three members are already decided.
 
 **Decisions name their card (FR-12, FR-13).** Every decision intent carries the id of the
 card the action was performed on, and the ViewModel ignores a decision whose id is not the
