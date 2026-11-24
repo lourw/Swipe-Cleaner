@@ -19,7 +19,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
@@ -52,6 +51,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
+import kotlin.reflect.KClass
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -600,17 +600,28 @@ class PermissionFlowContentTest {
 
     // ---- helpers ----
 
-    /** How many [Swipe] entries sit on the back stack (WP-9.6 double-tap tests). */
-    private fun deckEntries(controller: NavHostController): Int =
+    /**
+     * How many entries belong to one serializable [route] class. Matching the
+     * destination's route pattern (its FQCN, plus the argument suffix) is the
+     * only truthful count: `entry.toRoute<T>()` decodes **any** entry whose
+     * arguments satisfy T, and every Albums field has a default, so it also
+     * "succeeds" for the start placeholder, Home, and even Swipe (whose extra
+     * `sourceJson` argument is ignored). WP-9.6 counted 3 Albums entries on a
+     * 3-entry stack with none before this switch.
+     */
+    private fun entriesFor(
+        controller: NavHostController,
+        route: KClass<*>,
+    ): Int =
         controller.currentBackStack.value.count { entry ->
-            runCatching { entry.toRoute<Swipe>() }.isSuccess
+            entry.destination.route?.startsWith(route.qualifiedName!!) == true
         }
 
+    /** How many [Swipe] entries sit on the back stack (WP-9.6 double-tap tests). */
+    private fun deckEntries(controller: NavHostController): Int = entriesFor(controller, Swipe::class)
+
     /** How many [Albums] entries sit on the back stack (WP-9.6 stale-event test). */
-    private fun albumsEntries(controller: NavHostController): Int =
-        controller.currentBackStack.value.count { entry ->
-            runCatching { entry.toRoute<Albums>() }.isSuccess
-        }
+    private fun albumsEntries(controller: NavHostController): Int = entriesFor(controller, Albums::class)
 
     private fun homePermissionState(): StateFlow<PermissionUiState> =
         MutableStateFlow(
