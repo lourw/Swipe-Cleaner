@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
@@ -27,7 +28,10 @@ import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
+import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.fakes.albumsViewModel
 import dev.swipe.fakes.homeViewModel
+import dev.swipe.fakes.monthsViewModel
 import dev.swipe.presentation.home.HomeViewModel
 import dev.swipe.presentation.permission.PermissionIntent
 import dev.swipe.presentation.permission.PermissionScreen
@@ -466,7 +470,92 @@ class PermissionFlowContentTest {
             onNodeWithText("Shuffle everything").assertExists()
         }
 
+    /**
+     * WP-9.6 (FR-8): a double tap on an album row pushes **exactly one** deck.
+     * The second tap lands before the first navigation settles, so both taps
+     * reach the Albums collector; navigation happens only while the Albums
+     * entry is resumed, and the second event is dropped instead of stacking
+     * a second Swipe on the same session.
+     */
+    @Test
+    fun `FR-8 double tap on an album row pushes exactly one deck route`() =
+        runComposeUiTest {
+            val library =
+                FakeMediaLibrary(
+                    photos(4),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2")),
+                    albumTitles = mapOf("a1" to "Trip"),
+                )
+            val home = HomeFixture()
+            val albums = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            lateinit var controller: NavHostController
+            val state = homePermissionState()
+            setContent {
+                controller = rememberNavController()
+                PermissionFlowContent(
+                    state = state,
+                    onIntent = {},
+                    navController = controller,
+                    homeDestination = { HomeDestination(controller, state, {}, homeViewModel = { home.viewModel }) },
+                    albumsDestination = { route ->
+                        AlbumsDestination(route, controller, mediaLoader = FakeMediaLoader(), albumsViewModel = { albums })
+                    },
+                    swipeDestination = { BasicText("deck-destination") },
+                )
+            }
+            waitForIdle()
+            onNodeWithText("Albums").performClick()
+            waitForIdle()
+            // Double tap: both taps land before the first navigation settles.
+            onNodeWithText("Trip").performClick()
+            onNodeWithText("Trip").performClick()
+            waitForIdle()
+
+            assertEquals(1, deckEntries(controller))
+            onNodeWithText("deck-destination").assertExists()
+        }
+
+    /** WP-9.6 (FR-7): the same double-tap guarantee for a month row. */
+    @Test
+    fun `FR-7 double tap on a month row pushes exactly one deck route`() =
+        runComposeUiTest {
+            // photos(4) all fall in January 1970, so the list has one row.
+            val library = FakeMediaLibrary(photos(4))
+            val home = HomeFixture()
+            val months = monthsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            lateinit var controller: NavHostController
+            val state = homePermissionState()
+            setContent {
+                controller = rememberNavController()
+                PermissionFlowContent(
+                    state = state,
+                    onIntent = {},
+                    navController = controller,
+                    homeDestination = { HomeDestination(controller, state, {}, homeViewModel = { home.viewModel }) },
+                    monthsDestination = { route ->
+                        MonthsDestination(route, controller, monthsViewModel = { months })
+                    },
+                    swipeDestination = { BasicText("deck-destination") },
+                )
+            }
+            waitForIdle()
+            onNodeWithText("By month").performClick()
+            waitForIdle()
+            onNodeWithText("January").performClick()
+            onNodeWithText("January").performClick()
+            waitForIdle()
+
+            assertEquals(1, deckEntries(controller))
+            onNodeWithText("deck-destination").assertExists()
+        }
+
     // ---- helpers ----
+
+    /** How many [Swipe] entries sit on the back stack (WP-9.6 double-tap tests). */
+    private fun deckEntries(controller: NavHostController): Int =
+        controller.currentBackStack.value.count { entry ->
+            runCatching { entry.toRoute<Swipe>() }.isSuccess
+        }
 
     private fun homePermissionState(): StateFlow<PermissionUiState> =
         MutableStateFlow(

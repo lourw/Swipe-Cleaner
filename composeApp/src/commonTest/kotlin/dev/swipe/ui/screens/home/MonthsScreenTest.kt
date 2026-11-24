@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.domain.model.MonthBucket
+import dev.swipe.presentation.ListStatus
 import dev.swipe.presentation.months.MonthRow
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsUiState
@@ -38,7 +39,7 @@ class MonthsScreenTest {
             setContent {
                 SwipeTheme {
                     MonthsScreen(
-                        state = MonthsUiState(rows = rows),
+                        state = MonthsUiState(status = ListStatus.Ready, rows = rows),
                         onIntent = {},
                         onBack = {},
                     )
@@ -65,7 +66,7 @@ class MonthsScreenTest {
             setContent {
                 SwipeTheme {
                     MonthsScreen(
-                        state = MonthsUiState(rows = rows),
+                        state = MonthsUiState(status = ListStatus.Ready, rows = rows),
                         onIntent = { intents.add(it) },
                         onBack = {},
                     )
@@ -82,7 +83,7 @@ class MonthsScreenTest {
             setContent {
                 SwipeTheme {
                     MonthsScreen(
-                        state = MonthsUiState(rows = listOf(MonthRow(march), MonthRow(december, 420))),
+                        state = MonthsUiState(status = ListStatus.Ready, rows = listOf(MonthRow(march), MonthRow(december, 420))),
                         onIntent = {},
                         onBack = {},
                     )
@@ -116,10 +117,51 @@ class MonthsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    MonthsScreen(state = MonthsUiState(rows = rows), onIntent = {}, onBack = {})
+                    MonthsScreen(state = MonthsUiState(status = ListStatus.Ready, rows = rows), onIntent = {}, onBack = {})
                 }
             }
             waitForIdle()
             assertAllClickablesLabeled()
+        }
+
+    @Test
+    fun `FR-7 NFR-4 the loading status shows the loading message while the scan runs`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(state = MonthsUiState(), onIntent = {}, onBack = {})
+                }
+            }
+            onNodeWithText(LIST_LOADING_MESSAGE).assertExists()
+        }
+
+    @Test
+    fun `FR-7 the empty status says there is nothing to show`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(state = MonthsUiState(status = ListStatus.Empty), onIntent = {}, onBack = {})
+                }
+            }
+            onNodeWithText(MONTHS_EMPTY_MESSAGE).assertExists()
+        }
+
+    @Test
+    fun `FR-7 the error status explains itself and Try again sends Retry`() =
+        runComposeUiTest {
+            val intents = mutableListOf<MonthsIntent>()
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(
+                        state = MonthsUiState(status = ListStatus.Error),
+                        onIntent = { intents.add(it) },
+                        onBack = {},
+                    )
+                }
+            }
+            onNodeWithText(MONTHS_ERROR_MESSAGE).assertExists()
+            onNodeWithText(LIST_RETRY_LABEL).performClick()
+            waitForIdle()
+            assertEquals(listOf<MonthsIntent>(MonthsIntent.Retry), intents)
         }
 }

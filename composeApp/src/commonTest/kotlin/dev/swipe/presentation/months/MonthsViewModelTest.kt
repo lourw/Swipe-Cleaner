@@ -13,6 +13,7 @@ import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.buildDeckUseCase
 import dev.swipe.fakes.monthsViewModel
+import dev.swipe.presentation.ListStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -170,6 +171,68 @@ class MonthsViewModelTest {
             testScheduler.advanceUntilIdle()
             assertEquals(settled, viewModel.uiState.value.rows)
             assertEquals(2, library.monthsCalls)
+        }
+
+    @Test
+    fun `FR-7 the screen opens in the loading state until the scan answers`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(listOf(photo("p-1", utc(2026, 3, 15))))
+
+            val viewModel = monthsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            // WP-9.6: the first state says "scanning", not "empty" (NFR-4).
+            assertEquals(ListStatus.Loading, viewModel.uiState.value.status)
+            assertTrue(viewModel.uiState.value.rows.isEmpty())
+
+            testScheduler.advanceUntilIdle()
+            assertEquals(ListStatus.Ready, viewModel.uiState.value.status)
+            assertTrue(viewModel.uiState.value.rows.isNotEmpty())
+        }
+
+    @Test
+    fun `FR-7 an empty scan answers with the empty state`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val viewModel =
+                monthsViewModel(MediaTypeFilter.ALL, FakeMediaLibrary(emptyList()), FakeDecisionStore())
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(ListStatus.Empty, viewModel.uiState.value.status)
+        }
+
+    @Test
+    fun `FR-7 a scan that fails with nothing on screen explains itself and Retry recovers`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(listOf(photo("p-1", utc(2026, 3, 15))))
+            library.failNextMonths = IllegalStateException("PhotoKit said no")
+
+            val viewModel = monthsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            testScheduler.advanceUntilIdle()
+            // WP-9.6 (FR-7): the failed scan is no longer a silent empty screen.
+            assertEquals(ListStatus.Error, viewModel.uiState.value.status)
+            assertTrue(viewModel.uiState.value.rows.isEmpty())
+
+            viewModel.onIntent(MonthsIntent.Retry)
+            testScheduler.advanceUntilIdle()
+            assertEquals(ListStatus.Ready, viewModel.uiState.value.status)
+            assertEquals(1, viewModel.uiState.value.rows.size)
+        }
+
+    @Test
+    fun `FR-7 a library change retries the failed scan`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(listOf(photo("p-1", utc(2026, 3, 15))))
+            library.failNextMonths = IllegalStateException("PhotoKit said no")
+
+            val viewModel = monthsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore())
+            testScheduler.advanceUntilIdle()
+            assertEquals(ListStatus.Error, viewModel.uiState.value.status)
+
+            library.notifyChange()
+            testScheduler.advanceUntilIdle()
+            assertEquals(ListStatus.Ready, viewModel.uiState.value.status)
         }
 
     // ---- helpers ----

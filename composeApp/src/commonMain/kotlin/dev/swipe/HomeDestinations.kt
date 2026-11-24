@@ -95,7 +95,10 @@ internal fun HomeDestination(
     LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is HomeEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
+                // The deck route describes the tapped row (WP-9.6): single-top
+                // so the double-tap race cannot stack a second copy.
+                is HomeEvent.OpenDeck ->
+                    navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
                 is HomeEvent.OpenAlbums -> navController.navigateIfResumed(lifecycle, Albums(event.typeFilter.name))
                 is HomeEvent.OpenMonths -> navController.navigateIfResumed(lifecycle, Months(event.typeFilter.name))
                 HomeEvent.OpenQueue -> navController.navigateIfResumed(lifecycle, Queue)
@@ -137,7 +140,8 @@ internal fun AlbumsDestination(
     LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is AlbumsEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
+                is AlbumsEvent.OpenDeck ->
+                    navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
             }
         }
     }
@@ -171,7 +175,8 @@ internal fun MonthsDestination(
     LaunchedEffect(viewModel, lifecycle) {
         viewModel.events.collect { event ->
             when (event) {
-                is MonthsEvent.OpenDeck -> navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter))
+                is MonthsEvent.OpenDeck ->
+                    navController.navigateIfResumed(lifecycle, swipeRoute(event.source, event.typeFilter), singleTop = true)
             }
         }
     }
@@ -191,13 +196,20 @@ internal fun MonthsDestination(
  * screen is not resumed is dropped, not queued: its row is behind whatever
  * screen is open now, so a queued navigation could only ever surprise the
  * user later.
+ *
+ * [singleTop] covers the race the lifecycle cannot: both taps land before
+ * the first navigation settles, so both events still see RESUMED. For a deck
+ * the route fully describes the tapped row, so a second identical
+ * navigation reuses the entry the first one pushed instead of stacking a
+ * copy of it.
  */
 private fun NavHostController.navigateIfResumed(
     owner: LifecycleOwner,
     route: Any,
+    singleTop: Boolean = false,
 ) {
     if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-        navigate(route)
+        navigate(route) { launchSingleTop = singleTop }
     }
 }
 

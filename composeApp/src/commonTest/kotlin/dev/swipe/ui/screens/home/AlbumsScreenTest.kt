@@ -16,6 +16,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import dev.swipe.data.MediaLoader
 import dev.swipe.fakes.FakeMediaLoader
+import dev.swipe.presentation.ListStatus
 import dev.swipe.presentation.albums.AlbumsIntent
 import dev.swipe.presentation.albums.AlbumsUiState
 import dev.swipe.presentation.home.HomeAlbumRow
@@ -51,7 +52,7 @@ class AlbumsScreenTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows),
                         onIntent = {},
                         mediaLoader = loader,
                         onBack = {},
@@ -81,7 +82,7 @@ class AlbumsScreenTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows),
                         onIntent = { intents.add(it) },
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
@@ -100,7 +101,7 @@ class AlbumsScreenTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows, excludedAlbumIds = setOf("a1")),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows, excludedAlbumIds = setOf("a1")),
                         onIntent = { intents.add(it) },
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
@@ -121,7 +122,7 @@ class AlbumsScreenTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows, excludedAlbumIds = setOf("a1")),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows, excludedAlbumIds = setOf("a1")),
                         onIntent = { intents.add(it) },
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
@@ -159,7 +160,7 @@ class AlbumsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    AlbumsScreen(state = AlbumsUiState(rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                    AlbumsScreen(state = AlbumsUiState(status = ListStatus.Ready, rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
                 }
             }
             waitForIdle()
@@ -181,6 +182,7 @@ class AlbumsScreenTest {
                     AlbumsScreen(
                         state =
                             AlbumsUiState(
+                                status = ListStatus.Ready,
                                 rows = listOf(HomeAlbumRow(id = "a1", title = longTitle, coverAssetId = null, count = 12345)),
                                 excludedAlbumIds = setOf("a1"),
                             ),
@@ -232,7 +234,7 @@ class AlbumsScreenTest {
             setContent {
                 SwipeTheme {
                     AlbumsScreen(
-                        state = AlbumsUiState(rows = rows, excludedAlbumIds = excluded),
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows, excludedAlbumIds = excluded),
                         onIntent = {},
                         mediaLoader = FakeMediaLoader(),
                         onBack = {},
@@ -279,7 +281,7 @@ class AlbumsScreenTest {
         runComposeUiTest {
             setContent {
                 SwipeTheme {
-                    AlbumsScreen(state = AlbumsUiState(rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                    AlbumsScreen(state = AlbumsUiState(status = ListStatus.Ready, rows = rows), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
                 }
             }
             waitForIdle()
@@ -302,5 +304,52 @@ class AlbumsScreenTest {
             }
             waitForIdle()
             onNodeWithText(SHUFFLE_EXPLAINER).assertExists()
+        }
+
+    @Test
+    fun `FR-8 the loading status shows the loading message while the scan runs`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(state = AlbumsUiState(), onIntent = {}, mediaLoader = FakeMediaLoader(), onBack = {})
+                }
+            }
+            onNodeWithText(LIST_LOADING_MESSAGE).assertExists()
+        }
+
+    @Test
+    fun `FR-8 the empty status says there are no albums`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state = AlbumsUiState(status = ListStatus.Empty),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            onNodeWithText(ALBUMS_EMPTY_MESSAGE).assertExists()
+        }
+
+    @Test
+    fun `FR-8 the error status explains itself and Try again sends Retry`() =
+        runComposeUiTest {
+            val intents = mutableListOf<AlbumsIntent>()
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state = AlbumsUiState(status = ListStatus.Error),
+                        onIntent = { intents.add(it) },
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            onNodeWithText(ALBUMS_ERROR_MESSAGE).assertExists()
+            onNodeWithText(LIST_RETRY_LABEL).performClick()
+            waitForIdle()
+            assertEquals(listOf<AlbumsIntent>(AlbumsIntent.Retry), intents)
         }
 }
