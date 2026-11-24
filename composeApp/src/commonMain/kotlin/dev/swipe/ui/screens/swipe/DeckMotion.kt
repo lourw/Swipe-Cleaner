@@ -94,6 +94,55 @@ internal fun CardMotionEffects(
 }
 
 /**
+ * The §5.6 display toggles of the deck, grouped into one [CardStack]
+ * parameter (WP-9.2): [reduceMotion] honors the OS motion setting,
+ * [chromeVisible] the photo-tap chrome (FR-16), [fillMode] the double-tap
+ * fill, and [autoplayVideos] the FR-16 autoplay setting.
+ */
+internal data class DeckDisplay(
+    val reduceMotion: Boolean,
+    val chromeVisible: Boolean,
+    val fillMode: Boolean,
+    val autoplayVideos: Boolean,
+)
+
+/**
+ * The top card's video state (FR-16, FR-17) as a value snapshot of the
+ * stage's per-card state (WP-9.2): the autoplay-off start, the mute flag,
+ * the FR-17 live-press, and the pending scrub seek.
+ */
+internal data class VideoUiState(
+    val started: Boolean,
+    val muted: Boolean,
+    val livePress: Boolean,
+    val seekTarget: SeekTarget?,
+)
+
+/**
+ * Every way the top card talks back, grouped into one [CardStack] parameter
+ * (WP-9.2): the gesture [DeckCallbacks.onDismiss] and the button
+ * [DeckCallbacks.onButtonCommit] verdict paths (§5.6), Undo (FR-15), the
+ * chrome, mute, and fill toggles, the threshold-crossed haptic, the video
+ * start and progress and Live Photo press callbacks (FR-16, FR-17), and the
+ * U3 (WP-8.9) drag-start dismissal — inert by default so a caller that has
+ * no FR-22 confirm to cancel stays untouched by it.
+ */
+internal class DeckCallbacks(
+    val onDismiss: (SwipeVerdict) -> Unit,
+    val onButtonCommit: (SwipeVerdict) -> Unit,
+    val onUndo: () -> Unit,
+    val onToggleChrome: () -> Unit,
+    val onToggleMute: () -> Unit,
+    val onToggleFill: () -> Unit,
+    val onThresholdCrossed: () -> Unit,
+    val onVideoStart: () -> Unit,
+    val onVideoProgress: (Float) -> Unit,
+    val onLivePressStart: () -> Unit,
+    val onPressUp: () -> Unit,
+    val onDragStart: () -> Unit = {},
+)
+
+/**
  * The card stack (FR-11): [UnderDeckCard] under the top [SwipeCard], growing
  * 0.94 → 1.0 and 0.6 → 1.0 alpha with the drag progress (§5.6); the one §5.5
  * shadow belongs to the top card only. The §5.6 taps: a video tap toggles
@@ -107,9 +156,9 @@ internal fun CardMotionEffects(
  *
  * NFR-8: the card node carries [cardAccessibilityDescription] plus one
  * custom action per decision — Keep/Delete/Skip run the same
- * [onButtonCommit] the ActionBar buttons take, and Undo (only while
- * [canUndo]) the same [onUndo] — so VoiceOver users decide without
- * gestures and with identical behavior.
+ * [DeckCallbacks.onButtonCommit] the ActionBar buttons take, and Undo (only
+ * while [canUndo]) the same [DeckCallbacks.onUndo] — so VoiceOver users
+ * decide without gestures and with identical behavior.
  */
 @Composable
 internal fun ColumnScope.CardStack(
@@ -118,29 +167,10 @@ internal fun ColumnScope.CardStack(
     cardState: SwipeCardState,
     mediaLoader: MediaLoader,
     latency: CommitLatencyTrace,
-    reduceMotion: Boolean,
-    chromeVisible: Boolean,
-    fillMode: Boolean,
-    autoplayVideos: Boolean,
-    videoStarted: Boolean,
-    muted: Boolean,
-    livePress: Boolean,
-    seekTarget: SeekTarget?,
-    onDismiss: (SwipeVerdict) -> Unit,
-    onButtonCommit: (SwipeVerdict) -> Unit,
+    display: DeckDisplay,
+    video: VideoUiState,
     canUndo: Boolean,
-    onUndo: () -> Unit,
-    onToggleChrome: () -> Unit,
-    onToggleMute: () -> Unit,
-    onToggleFill: () -> Unit,
-    onThresholdCrossed: () -> Unit,
-    onVideoStart: () -> Unit,
-    onVideoProgress: (Float) -> Unit,
-    onLivePressStart: () -> Unit,
-    onPressUp: () -> Unit,
-    // U3 (WP-8.9): fires when a live drag begins; the deck cancels an open
-    // FR-22 favorite confirm on it. Default keeps every other caller inert.
-    onDragStart: () -> Unit = {},
+    callbacks: DeckCallbacks,
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var deckSize by remember { mutableStateOf(Size.Zero) }
@@ -161,35 +191,35 @@ internal fun ColumnScope.CardStack(
             )
         }
         SwipeCard(
-            onDismiss = onDismiss,
+            onDismiss = callbacks.onDismiss,
             state = cardState,
-            reduceMotion = reduceMotion,
+            reduceMotion = display.reduceMotion,
             accessibilityDescription = cardAccessibilityDescription(card),
-            accessibilityActions = decisionAccessibilityActions(onButtonCommit, canUndo, onUndo),
-            onTap = cardTapAction(card.type, autoplayVideos, videoStarted, onToggleChrome, onVideoStart, onToggleMute),
-            onDoubleTap = onToggleFill,
+            accessibilityActions = decisionAccessibilityActions(callbacks.onButtonCommit, canUndo, callbacks.onUndo),
+            onTap = cardTapAction(card, display, video, callbacks),
+            onDoubleTap = callbacks.onToggleFill,
             onLongPress = {
                 // FR-17: hold a Live Photo to play its paired video.
-                if (card.type == MediaType.LIVE_PHOTO) onLivePressStart()
+                if (card.type == MediaType.LIVE_PHOTO) callbacks.onLivePressStart()
             },
-            onPressUp = onPressUp,
-            onThresholdCrossed = onThresholdCrossed,
-            onDragStart = onDragStart,
+            onPressUp = callbacks.onPressUp,
+            onThresholdCrossed = callbacks.onThresholdCrossed,
+            onDragStart = callbacks.onDragStart,
             modifier = Modifier.matchParentSize().testTag(SWIPE_CARD_TEST_TAG),
         ) {
-            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = fillMode, latency = latency)
+            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = display.fillMode, latency = latency)
             TopCardPlayback(
                 card = card,
                 cardState = cardState,
-                autoplayVideos = autoplayVideos,
-                videoStarted = videoStarted,
-                muted = muted,
-                livePress = livePress,
-                seekTarget = seekTarget,
-                onVideoProgress = onVideoProgress,
+                autoplayVideos = display.autoplayVideos,
+                videoStarted = video.started,
+                muted = video.muted,
+                livePress = video.livePress,
+                seekTarget = video.seekTarget,
+                onVideoProgress = callbacks.onVideoProgress,
                 videoSlot = videoSlot,
             )
-            if (chromeVisible) {
+            if (display.chromeVisible) {
                 CardMetadata(
                     card = card,
                     // R6: either signal lights the badge — the deck-time flag
@@ -226,18 +256,16 @@ private fun decisionAccessibilityActions(
  * (the poster + affordance state), later taps toggle mute.
  */
 private fun cardTapAction(
-    type: MediaType,
-    autoplayVideos: Boolean,
-    videoStarted: Boolean,
-    onToggleChrome: () -> Unit,
-    onVideoStart: () -> Unit,
-    onToggleMute: () -> Unit,
+    card: CardState,
+    display: DeckDisplay,
+    video: VideoUiState,
+    callbacks: DeckCallbacks,
 ): () -> Unit =
     {
         when {
-            type != MediaType.VIDEO -> onToggleChrome()
-            !autoplayVideos && !videoStarted -> onVideoStart()
-            else -> onToggleMute()
+            card.type != MediaType.VIDEO -> callbacks.onToggleChrome()
+            !display.autoplayVideos && !video.started -> callbacks.onVideoStart()
+            else -> callbacks.onToggleMute()
         }
     }
 

@@ -292,10 +292,7 @@ private fun DeckContent(
                     mediaLoader = mediaLoader,
                     latency = latency,
                     haptics = haptics,
-                    reduceMotion = reduceMotion,
-                    chromeVisible = chromeVisible,
-                    fillMode = fillMode,
-                    autoplayVideos = autoplayVideos,
+                    display = DeckDisplay(reduceMotion, chromeVisible, fillMode, autoplayVideos),
                     onIntent = onIntent,
                     onDismiss = commit,
                     onButtonCommit = buttonCommit,
@@ -370,7 +367,9 @@ private fun BoxScope.DeckToastOverlay(
  * and the pending seek). A new instance per card id, so the next card
  * starts at rest. R2 remounts the player fresh on every settle, so a video
  * restarts from 0 after a drag, an undo, or a swipe-away-and-back — the
- * watched position is deliberately not carried across unmounts.
+ * watched position is deliberately not carried across unmounts. Each
+ * composition it is snapshotted into an immutable [VideoUiState] for
+ * [CardStack] (WP-9.2); the scrubbing state stays here, on the scrubber side.
  */
 private class DeckVideoState {
     var started by mutableStateOf(false)
@@ -419,10 +418,7 @@ private fun BoxScope.DeckStage(
     mediaLoader: MediaLoader,
     latency: CommitLatencyTrace,
     haptics: Haptics,
-    reduceMotion: Boolean,
-    chromeVisible: Boolean,
-    fillMode: Boolean,
-    autoplayVideos: Boolean,
+    display: DeckDisplay,
     onIntent: (SwipeIntent) -> Unit,
     onDismiss: (SwipeVerdict) -> Unit,
     onButtonCommit: (SwipeVerdict) -> Unit,
@@ -432,24 +428,13 @@ private fun BoxScope.DeckStage(
 ) {
     // All video state is per-card (kept fresh by the current id's key).
     val video = remember(current.id) { DeckVideoState() }
-    Column(modifier = Modifier.fillMaxSize()) {
-        CardStack(
-            card = current,
-            next = state.next,
-            cardState = cardState,
-            mediaLoader = mediaLoader,
-            latency = latency,
-            reduceMotion = reduceMotion,
-            chromeVisible = chromeVisible,
-            fillMode = fillMode,
-            autoplayVideos = autoplayVideos,
-            videoStarted = video.started,
-            muted = state.muted,
-            livePress = video.livePress,
-            seekTarget = video.seekTarget,
+    // WP-9.2: the card's whole interaction surface, assembled here from the
+    // stage's intents and the per-card video state and handed to the stack
+    // as one holder.
+    val callbacks =
+        DeckCallbacks(
             onDismiss = onDismiss,
             onButtonCommit = onButtonCommit,
-            canUndo = state.canUndo,
             onUndo = { onIntent(SwipeIntent.Undo) },
             onToggleChrome = onToggleChrome,
             onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
@@ -466,6 +451,24 @@ private fun BoxScope.DeckStage(
             onVideoProgress = video::onProgress,
             onLivePressStart = { video.livePress = true },
             onPressUp = { video.livePress = false },
+        )
+    Column(modifier = Modifier.fillMaxSize()) {
+        CardStack(
+            card = current,
+            next = state.next,
+            cardState = cardState,
+            mediaLoader = mediaLoader,
+            latency = latency,
+            display = display,
+            video =
+                VideoUiState(
+                    started = video.started,
+                    muted = state.muted,
+                    livePress = video.livePress,
+                    seekTarget = video.seekTarget,
+                ),
+            canUndo = state.canUndo,
+            callbacks = callbacks,
             videoSlot = videoSlot,
         )
         // WP-9.3: the scrubber row's height is reserved on every card, so
