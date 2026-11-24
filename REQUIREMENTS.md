@@ -107,7 +107,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 | NFR-2 | Smoothness | Card drag runs at the display refresh rate (120 Hz on ProMotion) with no dropped frames from image decoding. |
 | NFR-3 | Memory | Under 300 MB resident. At most 5 decoded full-screen bitmaps in memory at once. |
 | NFR-4 | Startup | Cold start to an interactive Home in under 1.5 s with a library of 50k items. Use lazy fetches; never load the whole library into memory. |
-| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). Since WP-9.1 the single-path rule is also a compile-time guarantee: `delete` lives on `MediaDeleter`, not on `MediaLibrary`, and the graph binds it only into the use case (§6.4, §6.7). |
+| NFR-5 | Safety | The only code path that deletes assets is `CommitDeletionsUseCase`, and it requires the in-app confirmation: the use case only accepts an `InAppDeleteConfirmation` token that only the confirm dialog's Delete tap can construct (§6.7). Since WP-9.1 the single-path rule is structurally guaranteed: `delete` lives on `MediaDeleter`, not on `MediaLibrary` (compile-time), and the graph binds it only into the use case, guarded by a DI smoke test and check-rules (§6.4, §6.7). |
 | NFR-6 | Privacy | No network calls except PhotoKit's iCloud downloads. No analytics. All data stays on the device. |
 | NFR-7 | Durability | Decisions are written to SQLite before the UI advances. If that write fails, the swipe is reverted. |
 | NFR-8 | Accessibility | Every swipe action is also available as a button. VoiceOver labels on all controls. The swipe card also exposes Keep, Delete, Skip (and Undo when an undo is pending) as VoiceOver custom actions, and describes itself with its capture date, media type, duration, and favorite flag. Honours Reduce Motion (see §5.6). Dynamic Type is out of scope for v1: the layout targets the system default text size. |
@@ -662,11 +662,12 @@ Review queue ──► "Delete N" ──► in-app confirm dialog ──► Comm
 ```
 
 `CommitDeletionsUseCase` is the only consumer of `MediaDeleter`, and so the only caller
-of `MediaDeleter.delete` (NFR-5). Since WP-9.1 that is a compile-time fact, not a
-convention: `delete` is not on `MediaLibrary`, so no reader — every ViewModel included
-— can express a delete, `MediaDeleter` is bound in Koin only into the use case, and
+of `MediaDeleter.delete` (NFR-5). Since WP-9.1 that is no longer a convention: `delete`
+is not on `MediaLibrary` — a compile-time fact, so no reader, every ViewModel included,
+can express a delete — and `MediaDeleter` is bound in Koin only into the use case, with
 production code outside the use case, its Koin binding, and the PhotoKit implementation
-may not even name the type (§8.3 check-rules).
+barred from even naming the type; those two are guarded by tests and the §8.3
+check-rules.
 
 The in-app confirmation is enforced by construction, not convention: the use case
 takes an `InAppDeleteConfirmation` token whose constructor is `internal` with no

@@ -60,9 +60,17 @@ main_kt -not -name 'PhotoKitMediaLibrary.kt' | grep_files '(deleteAssets|perform
 #    allowlist edit next to the hard-rule change. Comment-only mentions are
 #    stripped (lines whose code starts with //, *, or /*) — docs may explain the
 #    split; only code may depend on it.
-main_kt -not -name 'MediaDeleter.kt' -not -name 'CommitDeletionsUseCase.kt' -not -name 'IosModule.kt' -not -name 'PhotoKitMediaLibrary.kt' |
+main_kt -not -name 'MediaDeleter.kt' -not -path '*/di/IosModule.kt' -not -name 'CommitDeletionsUseCase.kt' -not -name 'PhotoKitMediaLibrary.kt' |
     grep_files '\bMediaDeleter\b' | grep -vE ':[0-9]+: *[/*]' |
     report "Only CommitDeletionsUseCase may name MediaDeleter (NFR-5, hard rule 1)"
+
+# 5b. Deletion safety (NFR-5, WP-9.1): the seam itself is guarded — a re-added
+#     `delete` on MediaLibrary (or any other production type) would silently
+#     reopen the second-door path the split closed, so only the seam interface
+#     and its implementation may declare `fun delete(`.
+main_kt -not -name 'MediaDeleter.kt' -not -name 'PhotoKitMediaLibrary.kt' |
+    grep_files 'fun delete\(' |
+    report "Only MediaDeleter and its implementation may declare fun delete (NFR-5, hard rule 1)"
 
 # 6. Privacy (NFR-6): no networking or analytics code.
 NETWORK='(^import (io\.ktor|okhttp3|platform\.Foundation\.NSURLSession|platform\.Foundation\.NSURLConnection))'
