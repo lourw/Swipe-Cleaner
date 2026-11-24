@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaDeleter
+import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.SessionStore
@@ -16,6 +17,7 @@ import dev.swipe.data.SystemActions
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.DeleteResult
+import dev.swipe.domain.model.HideResult
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
@@ -67,6 +69,10 @@ class DiSmokeTest {
         koin.get<SessionStore>()
         koin.get<MediaLibrary>()
         koin.get<MediaDeleter>()
+        // FR-38: the hide door resolves through the real graph, too. Unlike the
+        // delete door it is not a view of PhotoKitMediaLibrary — PhotoKitMediaHider
+        // is its own implementation — so there is no assertSame to draw here.
+        koin.get<MediaHider>()
         koin.get<MediaLoader>()
         koin.get<SettingsStore>()
         koin.get<SystemActions>()
@@ -172,6 +178,38 @@ class DiSmokeTest {
         koin.get<CommitDeletionsUseCase>()
         assertEquals(1, counting.resolutions)
     }
+
+    /**
+     * The FR-38 half of the same graph guarantee: **SwipeViewModel is the only
+     * consumer of [MediaHider]**. A counting stand-in replaces the real binding
+     * (later Koin modules win) and every ViewModel resolves through the
+     * production graph — the five readers and the Queue add nothing, the deck's
+     * ViewModel pulls the hide door exactly once. A ViewModel constructor that
+     * grew a `MediaHider` parameter would trip this even if the
+     * `scripts/check-rules.sh` allowlist were edited to let the type through.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Suppress("DEPRECATION") // v1 runComposeUiTest, consistent with the rest of the suite.
+    @Test
+    fun `FR-38 only the swipe view model resolves MediaHider`() {
+        val counting = CountingMediaHider()
+        startKoin { modules(commonModule, iosModule, fr38GuardModule(counting)) }
+        val koin = KoinPlatform.getKoin()
+        runComposeUiTest {
+            koin.get<PermissionViewModel>()
+            koin.get<HomeViewModel>()
+            koin.get<AlbumsViewModel> { parametersOf(MediaTypeFilter.ALL) }
+            koin.get<MonthsViewModel> { parametersOf(MediaTypeFilter.ALL) }
+            koin.get<SettingsViewModel>()
+            koin.get<QueueViewModel>()
+            assertEquals(0, counting.resolutions)
+            koin.get<SwipeViewModel> { parametersOf(DeckSource.All, MediaTypeFilter.ALL) }
+            assertEquals(1, counting.resolutions)
+        }
+        // The singleton means resolving the door again does not count twice.
+        koin.get<MediaHider>()
+        assertEquals(1, counting.resolutions)
+    }
 }
 
 /** Minimal owner so the definition under test builds outside any screen. */
@@ -198,6 +236,32 @@ private class CountingMediaDeleter : MediaDeleter {
 private fun nfr5GuardModule(counting: CountingMediaDeleter): Module =
     module {
         single<MediaDeleter> {
+            counting.resolutions++
+            counting
+        }
+    }
+
+/**
+ * A [MediaHider] that counts how often the graph resolves it (FR-38). Bound over
+ * the real binding by [fr38GuardModule]; its [setHidden] never applies anything —
+ * resolving is all this guard measures.
+ */
+private class CountingMediaHider : MediaHider {
+    var resolutions = 0
+
+    override suspend fun setHidden(
+        id: String,
+        hidden: Boolean,
+    ): HideResult = HideResult.FAILED
+}
+
+/**
+ * The app graph with [MediaHider] swapped for a counting stand-in. Later-loaded
+ * Koin modules win, so this replaces `iosModule`'s PhotoKit binding for the test.
+ */
+private fun fr38GuardModule(counting: CountingMediaHider): Module =
+    module {
+        single<MediaHider> {
             counting.resolutions++
             counting
         }

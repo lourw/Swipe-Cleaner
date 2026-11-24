@@ -205,6 +205,78 @@ class SwipeScreenTest {
         }
 
     @Test
+    fun `FR-38 the Hide button hides the card on screen`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(deckState(), onIntent = { intents.add(it) })
+            }
+            onNodeWithContentDescription("Hide from library").assertIsEnabled()
+            onNodeWithContentDescription("Hide from library").performClick()
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Hide("current-id")), intents)
+        }
+
+    @Test
+    fun `FR-38 the Hide button is disabled while a hide write is in flight`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(
+                    deckState().copy(hiding = true),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            onNodeWithContentDescription("Hide from library").assertIsNotEnabled()
+            onNodeWithContentDescription("Hide from library").performClick()
+            waitForIdle()
+            assertEquals(emptyList(), intents)
+        }
+
+    @Test
+    fun `FR-38 the Hide button is disabled while a decision write is in flight`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(
+                    deckState().copy(deciding = true),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            onNodeWithContentDescription("Hide from library").assertIsNotEnabled()
+            onNodeWithContentDescription("Hide from library").performClick()
+            waitForIdle()
+            assertEquals(emptyList(), intents)
+        }
+
+    @Test
+    fun `FR-38 the Hidden toast renders and rides the host's fuse`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            setContent {
+                TestScreen(
+                    deckState().copy(toast = ToastMessage.Hidden),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            onNodeWithContentDescription("Hidden in Photos").assertExists()
+            mainClock.advanceTimeBy(3100L) // the §5.7 3 s auto-dismiss
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.DismissToast), intents)
+        }
+
+    @Test
+    fun `FR-38 the hide failure toast shows the plain user copy`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(
+                    deckState().copy(toast = ToastMessage.HideFailed),
+                )
+            }
+            onNodeWithContentDescription("Couldn't hide this item — try again").assertExists()
+        }
+
+    @Test
     fun `FR-15 undone toast rides the screen and dismisses through the intent`() =
         runComposeUiTest {
             val intents = mutableListOf<SwipeIntent>()
@@ -544,7 +616,7 @@ class SwipeScreenTest {
                 onNodeWithContentDescription(cardAccessibilityDescription(card("current-id")))
                     .fetchSemanticsNode()
             assertEquals(
-                listOf("Keep", "Delete", "Skip"),
+                listOf("Keep", "Delete", "Skip", "Hide"),
                 card.config[SemanticsActions.CustomActions].map { it.label },
             )
             // Firing the VoiceOver action takes the SAME commit path as the
@@ -554,6 +626,16 @@ class SwipeScreenTest {
             mainClock.advanceTimeBy((NUDGE_MS + FLY_OFF_MS).toLong() + 50L)
             waitForIdle()
             assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.DELETE)), intents)
+            // FR-38: the Hide custom action is the TopBar button's intent, no flight.
+            card.config[SemanticsActions.CustomActions].first { it.label == "Hide" }.action()
+            waitForIdle()
+            assertEquals(
+                listOf(
+                    SwipeIntent.Decide("current-id", Decision.DELETE),
+                    SwipeIntent.Hide("current-id"),
+                ),
+                intents,
+            )
         }
 
     @Test
@@ -567,7 +649,7 @@ class SwipeScreenTest {
                 onNodeWithContentDescription(cardAccessibilityDescription(card("current-id")))
                     .fetchSemanticsNode()
             assertEquals(
-                listOf("Keep", "Delete", "Skip", "Undo"),
+                listOf("Keep", "Delete", "Skip", "Hide", "Undo"),
                 card.config[SemanticsActions.CustomActions].map { it.label },
             )
         }
