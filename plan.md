@@ -517,8 +517,8 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.10 | verify | `fr-15-undo-flyoff` | ses_df0e2d309ffeuh8AQjor5T0rBz | 2026-11-24 | Re-review of fix commits `4309f8c` + `3e4a97e` (hold window = release→dispatch via `flightToken`; 604/604). `--full` gate **PASSED** at `3e4a97e` (wp910-gate3.log). Merge on PASS |
-| 2 | — | — | — | — | — | (empty. ⚠️ An agent outside this session is actively committing to `fr-36-last-copy-warning` (WP-8.6) — 3 commits at 14:57–15:29, worktree dirty until it goes quiet. Do not touch that worktree; verify independently once quiet) |
+| 1 | 8.6 | — | `fr-36-last-copy-warning` | — | — | ⚠️ Writer outside this session still active (uncommitted: `SwipeViewModel.kt`, `SqlStoresTest.kt`, 2 new last-copy test files). When quiet: launch independent verifier, then fix/rebase/gate/merge. Do not touch the worktree |
+| 2 | — | — | — | — | — | (empty — WP-9.7 and 9.8 both overlap 8.6's files (`SwipeScreen.kt`, `QueueScreen.kt`, `App.kt`) and each other (`DeckMotion.kt`, `App.kt`); run sequentially after 8.6 merges) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
@@ -560,4 +560,4 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | 9.7 | Layering exceptions | queued | | |
 | 9.8 | Gesture, accessibility, cleanup polish | queued | | |
 | 9.9 | Redundant library scans | queued | | Low; only if perf numbers call for it |
-| 9.10 | Undo vs. fly-off window | verifying | `fr-15-undo-flyoff` | Split from 9.2 (deliberate no-implement, see report). 👤 UX decision 2026-11-24: **queue the Undo**. Verifier REVISE (2 blocking: stale held-Undo across aborts; unforwarded hold) fixed: hold window is release→dispatch, keyed per flight via `SwipeCardState.flightToken` (`4309f8c`, `3e4a97e`), 3 new UI regression tests, 604/604, `--full` gate PASSED. 👤 device-check candidates in report |
+| 9.10 | Undo vs. fly-off window | merged | `fr-15-undo-flyoff` | Merged 2026-11-24 at `ee7363c`. Verifier round 2 **PASS** (both blocking findings resolved + discriminating tests; rationale audit verified). `--full` gate **PASSED** on the rebased tree (wp910-gate4.log, 604/0). 👤 device-check candidates in report (fly-off Undo window on real device) |
