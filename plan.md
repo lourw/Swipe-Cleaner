@@ -480,7 +480,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 9.2 | implement | `arch-swipe-session` | ses_df531c123ffeKCy0uZgDBkEksr | 2026-11-24 06:10 | StartSession/FinishSession use cases, DeckCursor/PrefetchWindow/UndoStack extraction, CardStack/DeckStage param holders, session-row tidy (end other opens, drop updatePosition column+migration, album-id-only resume, undecodable row self-end), + 7.5 fly-off-undo follow-up. Guarded away from 9.1's files |
-| 2 | 9.1 | implement | `arch-media-deleter` | ses_df531c122ffeBG2KczVkhqVbka | 2026-11-24 06:10 | MediaDeleter interface bound only into CommitDeletionsUseCase; §6.4 + AGENTS.md hard rule 1 + check-rules binding check; DiSmokeTest + no-ViewModel-takes-MediaDeleter tests. Type split only, no behavior change. Guarded away from 9.2's files |
+| 2 | 9.1 | implement | `arch-media-deleter` | ses_df531c122ffeBG2KczVkhqVbka | 2026-11-24 07:00 | Continued: 6 building commits in, now finishing --full + report. MediaDeleter bound only into CommitDeletionsUseCase; §6.4 + AGENTS.md rule 1 + check-rules binding check; DiSmokeTest + no-ViewModel-takes-MediaDeleter tests |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
