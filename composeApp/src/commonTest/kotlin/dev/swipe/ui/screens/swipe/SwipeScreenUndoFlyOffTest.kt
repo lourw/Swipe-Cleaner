@@ -4,6 +4,7 @@
 package dev.swipe.ui.screens.swipe
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -27,6 +28,7 @@ import dev.swipe.ui.components.swipe.FLY_OFF_MS
 import dev.swipe.ui.components.swipe.NUDGE_MS
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -114,6 +116,102 @@ class SwipeScreenUndoFlyOffTest {
                 listOf<SwipeIntent>(
                     SwipeIntent.Decide("current-id", Decision.DELETE),
                     SwipeIntent.Undo,
+                ),
+                intents,
+            )
+        }
+
+    @Test
+    fun `FR-15 an Undo tapped after its Decide goes out is sent straight through`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            mainClock.autoAdvance = false
+            setContent {
+                TestScreen(
+                    deckState().copy(canUndo = true),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            waitForIdle()
+            val size = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            // Let the flight land first: its Decide is out, so the UI's hold
+            // window (release → dispatch) has closed. A tap now belongs to the
+            // ViewModel's queue, not to the gate — it must arrive immediately.
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.KEEP)), intents)
+            onNodeWithContentDescription("Undo").performClick()
+            assertEquals(
+                listOf<SwipeIntent>(SwipeIntent.Decide("current-id", Decision.KEEP), SwipeIntent.Undo),
+                intents,
+            )
+        }
+
+    @Test
+    fun `FR-15 a held Undo cannot leak into the next card`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            // Dynamic deck: the first card's commit is followed by a real card
+            // change, the way the ViewModel answers a landed write.
+            val states = MutableStateFlow(deckState().copy(canUndo = true))
+            mainClock.autoAdvance = false
+            setContent {
+                SwipeTheme {
+                    SwipeScreen(
+                        state = states.collectAsState().value,
+                        events = flowOf(),
+                        onIntent = { intents.add(it) },
+                        mediaLoader = FakeMediaLoader(),
+                        haptics = FakeHaptics(),
+                        reduceMotion = false,
+                        onClose = {},
+                        onOpenQueue = {},
+                    )
+                }
+            }
+            waitForIdle()
+            val size = onNodeWithTag(SWIPE_CARD_TEST_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performTouchInput {
+                down(start)
+                moveTo(Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y))
+                up()
+            }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() / 2L)
+            // Held mid-flight (WP-9.10).
+            onNodeWithContentDescription("Undo").performClick()
+            assertEquals(emptyList(), intents)
+            // The flight lands: Decide, then the forwarded Undo.
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                ),
+                intents,
+            )
+            // The deck moves on, as a landed write does — and the second card
+            // makes its own fly-off (button path, §5.6).
+            states.value = SwipeUiState(current = card("next-id"), next = card("third-id"), canUndo = true)
+            waitForIdle()
+            onNodeWithContentDescription("Delete").performClick()
+            mainClock.advanceTimeBy(NUDGE_MS.toLong() + FLY_OFF_MS.toLong() + 50L)
+            waitForIdle()
+            // The next card commits its own verdict with NO second Undo riding
+            // behind it: the held tap was consumed by its own flight, and a
+            // stale one rewinding this decision is the leak this pins out.
+            assertEquals(
+                listOf<SwipeIntent>(
+                    SwipeIntent.Decide("current-id", Decision.KEEP),
+                    SwipeIntent.Undo,
+                    SwipeIntent.Decide("next-id", Decision.DELETE),
                 ),
                 intents,
             )
