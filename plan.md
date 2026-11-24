@@ -479,7 +479,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.2 | implement | `arch-swipe-session` | ses_df531c123ffeKCy0uZgDBkEksr | 2026-11-24 06:10 | StartSession/FinishSession use cases, DeckCursor/PrefetchWindow/UndoStack extraction, CardStack/DeckStage param holders, session-row tidy (end other opens, drop updatePosition column+migration, album-id-only resume, undecodable row self-end), + 7.5 fly-off-undo follow-up. Guarded away from 9.1's files |
+| 1 | 9.2 | implement | `arch-swipe-session` | ses_df531c123ffeKCy0uZgDBkEksr | 2026-11-24 08:30 | Continued after crash-at-1-commit (3761fea UndoStack+PrefetchWindow). Remaining: Start/FinishSession, DeckCursor, param holders, session-row tidy + migration, fly-off-undo fix |
 | 2 | 9.1 | verify | `arch-media-deleter` | ses_df4d36adcffeXdAYt9gwRRWy5G | 2026-11-24 08:10 | Impl done: 7 commits, --full PASS, 490 tests (+~3). Verifier: seam purity, Koin single-instance identity, check-rules guard defeat attempts (throwaway copy), delete body byte-identical, NFR-5 graph test real, spec wording, own --full rerun. Report → T/opencode/wp-reports/wp-9.1-verify.md |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
