@@ -7,7 +7,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.domain.model.MonthBucket
@@ -18,8 +20,10 @@ import dev.swipe.presentation.months.MonthsUiState
 import dev.swipe.ui.assertAllClickablesLabeled
 import dev.swipe.ui.components.COUNT_PLACEHOLDER
 import dev.swipe.ui.theme.SwipeTheme
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The By month screen (WP-5.3, §5.8, FR-7): the newest-first buckets grouped
@@ -163,5 +167,36 @@ class MonthsScreenTest {
             onNodeWithText(LIST_RETRY_LABEL).performClick()
             waitForIdle()
             assertEquals(listOf<MonthsIntent>(MonthsIntent.Retry), intents)
+        }
+
+    /**
+     * WP-9.6 (FR-7, §5.1): the state block fills the space the screen gives
+     * it — its bottom reaches the window's bottom edge, so on device the
+     * block spans exactly down to the Home-Indicator inset the host applies
+     * (headless test windows report zero insets) — and the message centers
+     * inside that space, never stranded under the cutout.
+     */
+    @Test
+    fun `FR-7 the state block fills the remaining space and centers its message`() =
+        runComposeUiTest {
+            setContent {
+                SwipeTheme {
+                    MonthsScreen(state = MonthsUiState(status = ListStatus.Empty), onIntent = {}, onBack = {})
+                }
+            }
+            waitForIdle()
+            val window = onRoot().fetchSemanticsNode().boundsInWindow
+            val block = onNodeWithTag(LIST_STATE_TEST_TAG).fetchSemanticsNode().boundsInWindow
+            val message = onNodeWithText(MONTHS_EMPTY_MESSAGE).fetchSemanticsNode().boundsInWindow
+            assertTrue(
+                abs(block.bottom - window.bottom) <= 0.5f,
+                "the block fills the remaining space to the window bottom: $block vs $window",
+            )
+            val blockCenter = (block.top + block.bottom) / 2f
+            val messageCenter = (message.top + message.bottom) / 2f
+            assertTrue(
+                abs(messageCenter - blockCenter) <= 0.5f,
+                "the message centers in the inset-aware block: $messageCenter vs $blockCenter",
+            )
         }
 }

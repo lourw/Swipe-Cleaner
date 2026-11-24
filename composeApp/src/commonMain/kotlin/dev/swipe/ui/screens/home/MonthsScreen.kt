@@ -62,19 +62,30 @@ fun MonthsScreen(
     ) {
         ScreenHeader(title = "By month", onBack = onBack)
         // WP-9.6 (FR-7, NFR-4, §5.8): the scan's four states each render
-        // their own body under the header.
+        // their own body under the header. The status block takes the
+        // remaining height (weight) and the Home-Indicator inset — the
+        // screen's full-bleed bg stays untouched, only the content is
+        // inset, exactly like the Ready-state LazyColumn below.
+        val stateModifier = Modifier.weight(1f).navigationBarsPadding()
         when (state.status) {
             ListStatus.Loading -> {
-                ListStateMessage(LIST_LOADING_MESSAGE)
+                ListStateMessage(
+                    message = LIST_LOADING_MESSAGE,
+                    modifier = stateModifier,
+                )
             }
 
             ListStatus.Empty -> {
-                ListStateMessage(MONTHS_EMPTY_MESSAGE)
+                ListStateMessage(
+                    message = MONTHS_EMPTY_MESSAGE,
+                    modifier = stateModifier,
+                )
             }
 
             ListStatus.Error -> {
                 ListStateMessage(
                     message = MONTHS_ERROR_MESSAGE,
+                    modifier = stateModifier,
                     onRetry = { onIntent(MonthsIntent.Retry) },
                 )
             }

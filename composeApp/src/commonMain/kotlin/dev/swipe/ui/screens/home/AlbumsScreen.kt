@@ -82,41 +82,62 @@ fun AlbumsScreen(
                 ),
         )
         // WP-9.6 (FR-8, §5.8): the scan's four states each render their own
-        // body under the header and explainer.
+        // body under the header and explainer. The status block takes the
+        // remaining height (weight) and the Home-Indicator inset — the
+        // screen's full-bleed bg stays untouched, only the content is
+        // inset, exactly like the Ready-state LazyColumn below.
+        val stateModifier = Modifier.weight(1f).navigationBarsPadding()
         when (state.status) {
             ListStatus.Loading -> {
-                ListStateMessage(LIST_LOADING_MESSAGE)
+                ListStateMessage(
+                    message = LIST_LOADING_MESSAGE,
+                    modifier = stateModifier,
+                )
             }
 
             ListStatus.Empty -> {
-                ListStateMessage(ALBUMS_EMPTY_MESSAGE)
+                ListStateMessage(
+                    message = ALBUMS_EMPTY_MESSAGE,
+                    modifier = stateModifier,
+                )
             }
 
             ListStatus.Error -> {
                 ListStateMessage(
                     message = ALBUMS_ERROR_MESSAGE,
+                    modifier = stateModifier,
                     onRetry = { onIntent(AlbumsIntent.Retry) },
                 )
             }
 
             ListStatus.Ready -> {
-                LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
-                    items(state.rows, key = { it.id }) { row ->
-                        val excluded = row.id in state.excludedAlbumIds
-                        SourceRow(
-                            title = row.title,
-                            count = formatCount(row.count),
-                            subtitle = if (excluded) EXCLUDED_SUBTITLE else null,
-                            coverAssetId = row.coverAssetId,
-                            mediaLoader = mediaLoader,
-                            onClick = { onIntent(AlbumsIntent.OpenAlbum(row)) },
-                            switchChecked = excluded,
-                            onSwitchToggle = { onIntent(AlbumsIntent.ToggleShuffleExclusion(row)) },
-                            switchContentDescription = "Exclude ${row.title} from Shuffle",
-                        )
-                    }
-                }
+                AlbumsRows(state = state, mediaLoader = mediaLoader, onIntent = onIntent)
             }
+        }
+    }
+}
+
+/** The Ready-state list (WP-9.6): one [SourceRow] per album, Home Indicator clear. */
+@Composable
+private fun AlbumsRows(
+    state: AlbumsUiState,
+    mediaLoader: MediaLoader,
+    onIntent: (AlbumsIntent) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+        items(state.rows, key = { it.id }) { row ->
+            val excluded = row.id in state.excludedAlbumIds
+            SourceRow(
+                title = row.title,
+                count = formatCount(row.count),
+                subtitle = if (excluded) EXCLUDED_SUBTITLE else null,
+                coverAssetId = row.coverAssetId,
+                mediaLoader = mediaLoader,
+                onClick = { onIntent(AlbumsIntent.OpenAlbum(row)) },
+                switchChecked = excluded,
+                onSwitchToggle = { onIntent(AlbumsIntent.ToggleShuffleExclusion(row)) },
+                switchContentDescription = "Exclude ${row.title} from Shuffle",
+            )
         }
     }
 }
