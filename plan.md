@@ -483,7 +483,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 9.4 | implement | `nfr-3-video-cache-order` | ses_df3077a31ffePXEdDNGGmDxmGr | 2026-11-24 | WP-9.4 video preload race fix, worktree created at `a46ccbe`. Chosen over 8.5 (no file overlap with running 8.11; 8.5 waits — it edits the swipe card + ViewModel too) |
+| 1 | 9.4 | verify (independent) | `nfr-3-video-cache-order` | ses_df246928affe60L0d17ybtl40w | 2026-11-24 | Implementer DONE (verified): 4 commits `83a5055..fb7c974`, `--full` PASSED, 553 tests / 0 failures. Notable: defect was real (shared `Deferred` cancelled under mounted player → stranded poster); `limitedParallelism(1)` rejected as unordered (measured) — FIFO-channel actors used; K/N eviction CME found+fixed. Verifier told to check lease accounting, structural window bound, non-tautological ordering tests, fresh XMLs |
 | 2 | 8.11 | verify (independent) | `fr-38-hide-button` | ses_df257d5edfferCgijNXeVC2uXJ | 2026-11-24 | Implementer DONE (verified): 10 commits `ee882fe..3a4016d`, `--full` PASSED, 544 tests / 0 failures (fresh XMLs required from verifier — last run UP-TO-DATE), tree clean. Verifier checklist includes F1–F4 + fresh-test-evidence + check-rules door audit. 👤 from report: on-device Hide permission prompt check (Limited vs Full) |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
