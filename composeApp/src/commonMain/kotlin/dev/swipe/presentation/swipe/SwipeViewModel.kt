@@ -49,9 +49,10 @@ import kotlinx.coroutines.launch
  * **Undo** (FR-15) is the mirror image: the removal goes through
  * [UndoDecisionUseCase] *before* the index moves back — a failed removal leaves the
  * state untouched and shows the same error toast — and each successful decision
- * pushes an [UndoEntry] onto a 50-deep stack (oldest dropped). Undo is ignored
- * while a decision write is in flight ([decideInFlight]), the mirror of the
- * single-flight removal: the deck never rewinds under a completing write.
+ * pushes an [UndoEntry] onto a 50-deep stack (oldest dropped). An Undo that lands
+ * while a decision write is in flight — the write half of the card's fly-off
+ * window — is *queued* ([pendingUndo]) and fires once the write settles: the deck
+ * still never rewinds under a completing write, but the tap is not lost (WP-9.10).
  *
  * **Summary** (FR-21): running out of deck sets [SwipeUiState.finished] from this
  * session's stored counts and ends the session row. A deck that opens empty shows no
@@ -140,18 +141,33 @@ class SwipeViewModel(
 
     /**
      * FR-15: cards whose decision write is in flight. While non-empty, [undo]
-     * is ignored — the mirror of the undo stack's single-flight removal holding
-     * further Undo taps. Rewinding
+     * **queues** the tap instead of acting on it ([pendingUndo], WP-9.10) —
+     * the deck never rewinds under a completing write, but the tap is not
+     * lost: it fires when the write settles. Rewinding
      * under a completing write would re-show the card being decided, and that write's
      * stale-advance guard would discard the advance, leaving a stored verdict behind a
-     * card the user then decides a second time; ignoring the tap keeps the deck and
-     * the stored rows in step (NFR-7).
+     * card the user then decides a second time; queueing keeps the deck and
+     * the stored rows in step (NFR-7) without dropping the gesture.
      *
      * FR-13: a decision naming a card already in this set is dropped too — the UI
      * sends each decision exactly once (its button path refuses a second fly-off),
      * so a repeat is a duplicate delivery and one write per verdict is all it needs.
      */
     private val decideInFlight = mutableSetOf<String>()
+
+    /**
+     * FR-15 (WP-9.10): a single queued Undo, set when an [undo] tap lands while a
+     * decision write is in flight — the write half of the fly-off window the card
+     * is still animating through (the UI holds the same tap for the animation half
+     * and forwards it here, see `DeckContent`). The completing [decide] consumes
+     * it exactly once: after a successful write it runs the undo as if the tap
+     * arrived after the animation (the card comes back), and after a failed write
+     * it drops it — the card is already restored by the failure path (NFR-7), so
+     * there is nothing to revert and a rewind there would eat an older step.
+     * Single slot: extra taps while one is queued are ignored, like extra taps
+     * during a single-flight removal.
+     */
+    private var pendingUndo = false
 
     /**
      * FR-38: the single-flight hide. While it is up, further Hide taps are ignored
@@ -344,6 +360,10 @@ class SwipeViewModel(
                         decideInFlight -= id
                     }
                 if (!saved) {
+                    // FR-15 (WP-9.10): the queued Undo dies with the failed write —
+                    // this revert is bringing the card back, and the decision was
+                    // never stored, so there is nothing left to undo.
+                    pendingUndo = false
                     _uiState.update {
                         it.copy(
                             toast = ToastMessage.SaveFailed,
@@ -365,10 +385,21 @@ class SwipeViewModel(
                     pageMetadataQuietly { cursor.ensureMetadataLoaded() }
                     if (cursor.isExhausted) finish() else publish()
                     prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+                    // FR-15 (WP-9.10): the tap queued during this write fires now —
+                    // after the advance, so it rewinds exactly this decision and the
+                    // card comes back. On an exhausted deck it is a no-op: finish()
+                    // cleared the stack with the run.
+                    if (pendingUndo) {
+                        pendingUndo = false
+                        undo()
+                    }
                 } else {
                     // Race loser: the write is durable but the deck already moved, so
                     // no deck state follows — clear the FR-38 `deciding` flag here so
-                    // the Hide button does not stay disabled.
+                    // the Hide button does not stay disabled. The queued Undo goes
+                    // too (WP-9.10): the deck moved under the tap, and rewinding now
+                    // would rewind whatever card the race put up, not this one.
+                    pendingUndo = false
                     _uiState.update { if (it.deciding) it.copy(deciding = false) else it }
                 }
             }
@@ -452,10 +483,11 @@ class SwipeViewModel(
      * failed removal can always restore stack order with a plain re-add, and the
      * entry's index is guaranteed to sit behind the deck head when the removal lands.
      *
-     * A tap is likewise ignored while a [decide] write is in flight
-     * ([decideInFlight], WP-7.2) or a [hide] write is (FR-38): rewinding under a
-     * completing write re-shows the card being written for, so the tap drops rather
-     * than rewinds or queues.
+     * A tap is likewise **queued** while a [decide] write is in flight
+     * ([pendingUndo], WP-9.10): the completing write fires it, so the fly-off
+     * window never swallows the gesture. A tap during a [hide] write is still
+     * dropped (FR-38): there is no fly-off to return a hidden card from, and the
+     * Hide button is disabled while either write is up.
      *
      * FR-38: a step whose [UndoEntry.verdict] is null is a hide — undo unhides the
      * entry's exact id through [MediaHider] instead of removing a decision row, and
@@ -464,12 +496,19 @@ class SwipeViewModel(
      */
     private fun undo() {
         val sessionId = sessionId ?: return // init has not finished; nothing to undo
-        // FR-15: single-flight, no-op on an empty stack (§6.6 canUndo), and held
-        // while a decision write is in flight (WP-7.2), and while a hide write is
-        // (FR-38): the deck never rewinds under a completing write.
-        val entry =
-            if (decideInFlight.isEmpty() && !hideInFlight) undoStack.popForRemoval() else null
-        entry ?: return
+        if (pendingUndo) return // single slot (WP-9.10): a queued Undo waits alone
+        if (decideInFlight.isNotEmpty()) {
+            // FR-15 (WP-9.10): the tap lands during the fly-off's write window.
+            // Remember it — the completing decide fires it after the advance (or
+            // drops it if the write failed); rewinding under the write is still
+            // off-limits, but the tap is no longer dropped.
+            pendingUndo = true
+            return
+        }
+        // FR-15 single-flight (no-op on empty, §6.6 canUndo); still held outright
+        // during a hide write (FR-38): a hide has no fly-off window to queue for.
+        if (hideInFlight) return
+        val entry = undoStack.popForRemoval() ?: return
         viewModelScope.launch {
             val verdict = entry.verdict
             val undone =

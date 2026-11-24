@@ -24,9 +24,9 @@ data class UndoEntry(
  * stays on top of every later push and a failed removal can restore stack
  * order with a plain [restore] re-add.
  *
- * The single-flight here only covers Undo taps. The mirror guard — ignoring
- * Undo while a decision *write* is in flight — belongs to the caller driving
- * the writes, so it lives in `SwipeViewModel`.
+ * The single-flight here only covers Undo taps. The mirror guard — queueing
+ * Undo while a decision *write* is in flight (WP-9.10) — belongs to the caller
+ * driving the writes, so it lives in `SwipeViewModel`.
  */
 class UndoStack {
     private val entries = ArrayDeque<UndoEntry>()

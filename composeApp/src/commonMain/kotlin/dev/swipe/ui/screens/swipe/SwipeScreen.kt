@@ -252,8 +252,32 @@ private fun DeckContent(
     var chromeVisible by remember(state.current?.id) { mutableStateOf(true) }
     var fillMode by remember(state.current?.id) { mutableStateOf(false) }
 
+    // FR-15 (WP-9.10): the animation half of the queued-Undo window. The Decide
+    // intent only goes out when the fly-off ends, so an Undo tapped mid-flight
+    // belongs to the swipe in flight, not to any older step: hold it here (one
+    // slot; extra taps are ignored) and forward it right after the Decide, where
+    // the ViewModel's queue fires it once the commit lands — or drops it if the
+    // write fails and the failure path returns the card anyway (NFR-7).
+    var undoHeldForFlight by remember { mutableStateOf(false) }
+
     // NFR-1 spans and the shared commit: see [rememberCommit].
-    val (latency, commit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
+    val (latency, sendCommit) = rememberCommit(perfTrace, haptics, state.current?.id, onIntent)
+    val commit: (SwipeVerdict) -> Unit = { verdict ->
+        sendCommit(verdict)
+        if (undoHeldForFlight) {
+            undoHeldForFlight = false
+            onIntent(SwipeIntent.Undo)
+        }
+    }
+    // The single Undo affordance for the bar and the card's custom action: sent
+    // straight when the card is at rest, held while one is committed and flying.
+    val undo: () -> Unit = {
+        if (cardState.committedVerdict != null) {
+            undoHeldForFlight = true
+        } else {
+            onIntent(SwipeIntent.Undo)
+        }
+    }
     // §5.6 button path: nudge + fly-off first so the motion reads, then the
     // same commit a gesture makes. A card that is not at rest (a flight, a
     // snap-back, a finger on it) refuses the fly-off, and nothing is
@@ -298,6 +322,7 @@ private fun DeckContent(
                     haptics = haptics,
                     display = DeckDisplay(reduceMotion, chromeVisible, fillMode, autoplayVideos),
                     onIntent = onIntent,
+                    onUndo = undo,
                     onDismiss = commit,
                     onButtonCommit = buttonCommit,
                     onToggleChrome = { chromeVisible = !chromeVisible },
@@ -312,7 +337,7 @@ private fun DeckContent(
             onKeep = { buttonCommit(SwipeVerdict.KEEP) },
             onDelete = { buttonCommit(SwipeVerdict.DELETE) },
             onSkip = { buttonCommit(SwipeVerdict.SKIP) },
-            onUndo = { onIntent(SwipeIntent.Undo) },
+            onUndo = undo,
             // FR-32: straight to the intent — no fly-off, no haptic, no verdict.
             onShare = { onIntent(SwipeIntent.Share) },
             sharing = state.sharing,
@@ -424,6 +449,7 @@ private fun BoxScope.DeckStage(
     haptics: Haptics,
     display: DeckDisplay,
     onIntent: (SwipeIntent) -> Unit,
+    onUndo: () -> Unit,
     onDismiss: (SwipeVerdict) -> Unit,
     onButtonCommit: (SwipeVerdict) -> Unit,
     onToggleChrome: () -> Unit,
@@ -439,7 +465,9 @@ private fun BoxScope.DeckStage(
         DeckCallbacks(
             onDismiss = onDismiss,
             onButtonCommit = onButtonCommit,
-            onUndo = { onIntent(SwipeIntent.Undo) },
+            // FR-15 (WP-9.10): the card's Undo custom action rides the same
+            // fly-off-window gate as the action-bar button.
+            onUndo = onUndo,
             onToggleChrome = onToggleChrome,
             onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
             onToggleFill = onToggleFill,
