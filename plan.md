@@ -484,7 +484,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 9.4 | implement | `nfr-3-video-cache-order` | ses_df3077a31ffePXEdDNGGmDxmGr | 2026-11-24 | WP-9.4 video preload race fix, worktree created at `a46ccbe`. Chosen over 8.5 (no file overlap with running 8.11; 8.5 waits — it edits the swipe card + ViewModel too) |
-| 2 | 8.11 | implement (relaunch) | `fr-38-hide-button` | ses_df35718bcffe0VFSoj6ne2yVZf | 2026-11-24 | **Prior work LOST**: the first implementer never committed (claimed SHAs `79c329d`/`52d4986` don't exist; no dangling objects; worktree clean at `3140d31`). Relaunched with the same (alive, zero-changes) session; ordered to commit early and report only `git log`-verified SHAs |
+| 2 | 8.11 | implement (rewrite) | `fr-38-hide-button` | ses_df35718bcffe0VFSoj6ne2yVZf | 2026-11-24 | Real progress verified: 9 commits `ee882fe..1f25e3c` (spec, `MediaHider` write door + PhotoKit impl + check-rules doors, ViewModel single-flight hide, TopBar button + toasts + custom action + in-place return, detekt refactors, e2e tests). 544 tests green pre-gate; session died before final `--full` — resumed to finish gate + commit report. Then: independent verifier (checklist F1–F4), rebase onto main, merge |
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
