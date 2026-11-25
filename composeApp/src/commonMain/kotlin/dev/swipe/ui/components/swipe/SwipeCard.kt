@@ -392,7 +392,13 @@ private suspend fun PointerInputScope.swipeDragGestures(
                 dragTotal += dragAmount
                 scope.launch { state.snapTo(dragTotal) }
                 val now = previewVerdict(dragTotal, cardSize())
-                if (now != null && now != crossed) {
+                // Clear the flag as soon as the pointer leaves the zone, so
+                // every re-entry fires again: §5.6 promises "a selection when
+                // crossing the threshold in either direction", and pulling in
+                // and back out then crossing once more is a new crossing.
+                if (now == null) {
+                    crossed = null
+                } else if (now != crossed) {
                     crossed = now
                     onThresholdCrossed()
                 }

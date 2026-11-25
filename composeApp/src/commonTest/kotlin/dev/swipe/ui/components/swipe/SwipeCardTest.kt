@@ -150,6 +150,45 @@ class SwipeCardTest {
         }
 
     @Test
+    fun `5-6 re-crossing the threshold fires the selection haptic again`() =
+        runComposeUiTest {
+            var dismissed: SwipeVerdict? = null
+            var crossings = 0
+            mainClock.autoAdvance = false
+            setContent {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    SwipeCard(
+                        onDismiss = { dismissed = it },
+                        onThresholdCrossed = { crossings += 1 },
+                        modifier = Modifier.fillMaxSize().testTag(CARD_TAG),
+                        content = {},
+                    )
+                }
+            }
+            val size = onNodeWithTag(CARD_TAG).fetchSemanticsNode().size
+            val start = Offset(size.width / 2f, size.height / 2f)
+            val past = Offset(start.x + size.width * (COMMIT_FRACTION_HORIZONTAL + 0.1f), start.y)
+            val below = Offset(start.x + size.width * COMMIT_FRACTION_HORIZONTAL / 2f, start.y)
+            // One continuous drag: past the threshold (1), back inside, then
+            // past it again (2). §5.6 promises "a selection when crossing the
+            // threshold in either direction", so leaving the zone arms it
+            // again and the third crossing ticks. Each move gets its own
+            // clock slice, and the release waits long enough for the velocity
+            // tracker to age out, so the commit is decided by the offset.
+            onNodeWithTag(CARD_TAG).performTouchInput { down(start) }
+            onNodeWithTag(CARD_TAG).performTouchInput { moveTo(past) }
+            mainClock.advanceTimeBy(50)
+            onNodeWithTag(CARD_TAG).performTouchInput { moveTo(below) }
+            mainClock.advanceTimeBy(50)
+            onNodeWithTag(CARD_TAG).performTouchInput { moveTo(past) }
+            mainClock.advanceTimeBy(200)
+            assertEquals(2, crossings)
+            onNodeWithTag(CARD_TAG).performTouchInput { up() }
+            mainClock.advanceTimeBy(FLY_OFF_MS.toLong() + 100L)
+            assertEquals(SwipeVerdict.KEEP, dismissed)
+        }
+
+    @Test
     fun `5-6 button fly-off nudges then commits`() =
         runComposeUiTest {
             var cardState: SwipeCardState? = null
