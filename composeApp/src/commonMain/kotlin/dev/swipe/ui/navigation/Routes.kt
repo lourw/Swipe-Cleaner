@@ -5,7 +5,9 @@
 
 package dev.swipe.ui.navigation
 
+import dev.swipe.domain.model.DeckSource
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** Blocking screen when photo access is denied; offers Open Settings (FR-3). */
 @Serializable
@@ -44,6 +46,13 @@ data class Swipe(
     val sourceJson: String,
     val typeFilter: String = "ALL",
 )
+
+/**
+ * Decode a [Swipe] route's [DeckSource] or return null when the JSON is from
+ * an incompatible older build (state restoration), so the destination can
+ * degrade to Home instead of throwing.
+ */
+fun decodeDeckSource(json: String): DeckSource? = runCatching { Json.decodeFromString(DeckSource.serializer(), json) }.getOrNull()
 
 /**
  * Session summary when the deck runs out (FR-21, WP-2.3). The counts ride the

@@ -38,6 +38,7 @@ import dev.swipe.ui.components.ComponentGallery
 import dev.swipe.ui.navigation.Albums
 import dev.swipe.ui.navigation.DeleteSuccess
 import dev.swipe.ui.navigation.Denied
+import dev.swipe.ui.navigation.decodeDeckSource
 import dev.swipe.ui.navigation.Home
 import dev.swipe.ui.navigation.Months
 import dev.swipe.ui.navigation.Queue
@@ -281,13 +282,6 @@ private fun SwipeDestination(
         onOpenQueue = { navController.navigate(Queue) },
     )
 }
-
-/**
- * Decode a [Swipe] route's [DeckSource] or return null when the JSON is from
- * an incompatible older build (state restoration), so the destination can
- * degrade to Home instead of throwing.
- */
-internal fun decodeDeckSource(json: String): DeckSource? = runCatching { Json.decodeFromString(DeckSource.serializer(), json) }.getOrNull()
 
 /**
  * Wires [SwipeViewModel] (resolved with the route's source and filter) and the

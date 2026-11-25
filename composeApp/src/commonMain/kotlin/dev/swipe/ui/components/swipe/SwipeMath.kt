@@ -2,6 +2,7 @@ package dev.swipe.ui.components.swipe
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.ContentScale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -180,3 +181,11 @@ fun underCardAlpha(
     offset: Offset,
     cardSize: Size,
 ): Float = UNDER_ALPHA_FROM + dragProgress(offset, cardSize) * (1f - UNDER_ALPHA_FROM)
+
+/**
+ * The §5.6 double-tap mapping: aspect-fit (default) ↔ aspect-fill. Fill is
+ * [ContentScale.Crop] — fill the frame and clip the overflow, keeping the
+ * aspect ratio; `FillBounds` would stretch the photo, which no reading of
+ * "aspect-fill" allows (WP-9.8).
+ */
+fun cardContentScale(fillMode: Boolean): ContentScale = if (fillMode) ContentScale.Crop else ContentScale.Fit

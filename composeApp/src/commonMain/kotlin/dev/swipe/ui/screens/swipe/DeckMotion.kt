@@ -11,10 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +42,7 @@ import dev.swipe.ui.components.swipe.CardAccessibilityAction
 import dev.swipe.ui.components.swipe.SwipeCard
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
+import dev.swipe.ui.components.swipe.cardContentScale
 import dev.swipe.ui.components.swipe.underCardAlpha
 import dev.swipe.ui.components.swipe.underCardScale
 import dev.swipe.ui.theme.SwipeTheme
@@ -101,27 +100,6 @@ internal fun CardMotionEffects(
     LaunchedEffect(currentId) {
         if (!pendingReturn) {
             cardState.resetForNext()
-        }
-    }
-}
-
-/**
- * The NFR-7 revert one-shot: returns a predicate that reports `true` only
- * for a token higher than every token seen before, and remembers the highest
- * across recomposition, disposal, and state restoration ([rememberSaveable]).
- * Without the saved high-water mark, `LaunchedEffect(revertToken)` restarts
- * on re-entry and replays the return animation for a revert the user already
- * watched (or for one from a previous app session).
- */
-@Composable
-internal fun rememberRevertGuard(): (Long) -> Boolean {
-    val highestSeen = rememberSaveable { mutableLongStateOf(0L) }
-    return { token ->
-        if (token > highestSeen.longValue) {
-            highestSeen.longValue = token
-            true
-        } else {
-            false
         }
     }
 }
@@ -347,14 +325,6 @@ private fun BoxScope.TopCardPlayback(
         videoSlot(card.id, true, true, {}, Modifier.matchParentSize(), true, null)
     }
 }
-
-/**
- * The §5.6 double-tap mapping: aspect-fit (default) ↔ aspect-fill. Fill is
- * [ContentScale.Crop] — fill the frame and clip the overflow, keeping the
- * aspect ratio; `FillBounds` would stretch the photo, which no reading of
- * "aspect-fill" allows (WP-9.8).
- */
-internal fun cardContentScale(fillMode: Boolean): ContentScale = if (fillMode) ContentScale.Crop else ContentScale.Fit
 
 /**
  * The top card's media: aspect-fit by default, fill after a double-tap (§5.6),

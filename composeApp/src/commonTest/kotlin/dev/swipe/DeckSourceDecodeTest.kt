@@ -1,6 +1,7 @@
 package dev.swipe
 
 import dev.swipe.domain.model.DeckSource
+import dev.swipe.ui.navigation.decodeDeckSource
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals

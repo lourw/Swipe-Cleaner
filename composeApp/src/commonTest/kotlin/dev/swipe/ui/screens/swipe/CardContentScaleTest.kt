@@ -1,6 +1,7 @@
 package dev.swipe.ui.screens.swipe
 
 import androidx.compose.ui.layout.ContentScale
+import dev.swipe.ui.components.swipe.cardContentScale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
