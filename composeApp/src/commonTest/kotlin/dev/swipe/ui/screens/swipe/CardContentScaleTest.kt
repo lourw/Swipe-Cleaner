@@ -11,7 +11,7 @@ import kotlin.test.assertEquals
  */
 class CardContentScaleTest {
     @Test
-    fun `5-6 double-tap fill is aspect-fill, not a stretched frame`() {
+    fun `5-6 double-tap fill is aspect-fill not a stretched frame`() {
         assertEquals(ContentScale.Crop, cardContentScale(fillMode = true))
     }
 
