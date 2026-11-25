@@ -138,7 +138,8 @@ safe_area_violations() {
         case "$(basename "$file")" in
             # StorageFormatting (FR-34) is the dialog's byte-formatting helper,
             # not UI at all — like CommitLatencyTrace it renders nothing.
-            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt | StorageFormatting.kt)
+            # RevertGuard.kt is the NFR-7 saved-token helper, likewise no UI.
+            CardMetadata.kt | DeckMotion.kt | VideoScrubber.kt | ScreenHeader.kt | CommitLatencyTrace.kt | SwipeScreen.kt | StorageFormatting.kt | RevertGuard.kt)
                 continue ;;
             # ListStateView (WP-9.6) is the loading/empty/error block hosted *inside*
             # AlbumsScreen and MonthsScreen, so like ScreenHeader it takes its
