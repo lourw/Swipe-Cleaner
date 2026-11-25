@@ -18,11 +18,11 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
 import dev.swipe.ui.components.swipe.rememberSwipeCardState
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * NFR-7: the failed-write revert animates on the bump that caused it and on

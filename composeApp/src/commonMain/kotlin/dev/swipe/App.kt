@@ -287,8 +287,7 @@ private fun SwipeDestination(
  * an incompatible older build (state restoration), so the destination can
  * degrade to Home instead of throwing.
  */
-internal fun decodeDeckSource(json: String): DeckSource? =
-    runCatching { Json.decodeFromString(DeckSource.serializer(), json) }.getOrNull()
+internal fun decodeDeckSource(json: String): DeckSource? = runCatching { Json.decodeFromString(DeckSource.serializer(), json) }.getOrNull()
 
 /**
  * Wires [SwipeViewModel] (resolved with the route's source and filter) and the

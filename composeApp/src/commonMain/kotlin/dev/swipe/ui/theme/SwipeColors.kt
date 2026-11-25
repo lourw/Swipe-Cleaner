@@ -22,7 +22,6 @@ data class SwipeColors(
     val delete: Color,
     val skip: Color,
     val warning: Color,
-
     /**
      * §5.5's one shadow: soft black at 40 % ([CARD_SHADOW_ALPHA]), applied as
      * the top card's ambient and spot color. A token so no screen names a

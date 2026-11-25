@@ -19,8 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.TABULAR_FIGURES
 

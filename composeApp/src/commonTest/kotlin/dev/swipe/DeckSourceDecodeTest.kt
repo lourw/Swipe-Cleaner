@@ -1,10 +1,10 @@
 package dev.swipe
 
 import dev.swipe.domain.model.DeckSource
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlinx.serialization.json.Json
 
 /**
  * The [decodeDeckSource] contract behind the Swipe route: a source encoded by
