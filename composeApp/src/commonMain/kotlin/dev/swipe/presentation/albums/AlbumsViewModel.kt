@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
  * counts (NFR-4). Final-or-placeholder: the rows arrive with placeholders
  * first, then each number lands exactly once; no estimate is ever displayed.
  *
- * **Exclude from Shuffle (FR-37):** every row carries a switch backed by
+ * **Exclude from Shuffle (FR-37):** every row carries an **In Shuffle**
+ * switch (WP-8.15: it shows the inverse of the store) backed by
  * [ShuffleExclusionStore]; [AlbumsUiState.excludedAlbumIds] is driven by the
  * store's Flow, so a write that fails leaves the switch exactly where it was
  * (NFR-7). Exclusion reaches only the Shuffle source — tapping a row still

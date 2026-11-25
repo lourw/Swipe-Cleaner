@@ -31,7 +31,8 @@ import kotlin.test.assertTrue
  * counts*): rows arriving with the placeholder and settling at the exact FR-9
  * count (WP-8.12 — the estimate is never displayed), the `changes()` reload,
  * the failed fetch keeping the rows, the deck event carrying the screen's
- * fixed filter, and the FR-37 exclude-from-Shuffle switches.
+ * fixed filter, and the FR-37 **In Shuffle** switches (WP-8.15 flips the
+ * display only — the ViewModel still stores excluded album ids).
  */
 class AlbumsViewModelTest {
     @AfterTest
@@ -211,8 +212,13 @@ class AlbumsViewModelTest {
             assertEquals(ListStatus.Ready, viewModel.uiState.value.status)
         }
 
+    /**
+     * WP-8.15 (FR-37): the switch means *in Shuffle*. Turning it off writes
+     * the album's id into the exclusion store; turning it back on removes it.
+     * The store side is exactly what it was before the flip.
+     */
     @Test
-    fun `FR-37 toggling a row excludes the album and marks the switch`() =
+    fun `FR-37 switching an album off adds it to the exclusion store and switching it on removes it`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
             val library =
@@ -223,22 +229,46 @@ class AlbumsViewModelTest {
             val exclusions = FakeShuffleExclusionStore()
             val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore(), exclusions)
             testScheduler.advanceUntilIdle()
+            // Nothing excluded: every In Shuffle switch is on (WP-8.15).
             assertEquals(emptySet(), viewModel.uiState.value.excludedAlbumIds)
 
             val row =
                 viewModel.uiState.value.rows
                     .single()
+            // Switch off → the id lands in the store.
             viewModel.onIntent(AlbumsIntent.ToggleShuffleExclusion(row))
             testScheduler.advanceUntilIdle()
 
             assertEquals(listOf("a1" to true), exclusions.setExcludedCalls)
             assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
 
-            // Toggling again includes it (FR-37).
+            // Switch back on → the id comes out of the store (FR-37).
             viewModel.onIntent(AlbumsIntent.ToggleShuffleExclusion(row))
             testScheduler.advanceUntilIdle()
             assertEquals(listOf("a1" to true, "a1" to false), exclusions.setExcludedCalls)
             assertEquals(emptySet(), viewModel.uiState.value.excludedAlbumIds)
+        }
+
+    /**
+     * WP-8.15 (FR-37): an album excluded before the switch was flipped keeps
+     * working — its id arrives from the store, so its In Shuffle switch reads
+     * off (the screen's test asserts the display).
+     */
+    @Test
+    fun `FR-37 a stored exclusion arrives from the store so its switch reads off`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photos(2),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2")),
+                )
+            val exclusions = FakeShuffleExclusionStore(excluded = setOf("a1"))
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, FakeDecisionStore(), exclusions)
+            testScheduler.advanceUntilIdle()
+
+            // The id is excluded, so the screen shows the switch off.
+            assertEquals(setOf("a1"), viewModel.uiState.value.excludedAlbumIds)
         }
 
     @Test

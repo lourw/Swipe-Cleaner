@@ -23,8 +23,9 @@ data class AlbumsUiState(
     /** The album rows (FR-8): user albums first, then the main smart albums. */
     val rows: List<HomeAlbumRow> = emptyList(),
     /**
-     * The ids of the albums excluded from Shuffle (FR-37); drives each row's
-     * switch. Empty by default — nothing is excluded until the user says so.
+     * The ids of the albums excluded from Shuffle (FR-37); each row's **In
+     * Shuffle** switch shows their inverse (WP-8.15). Empty by default — every
+     * switch is on until the user turns one off.
      */
     val excludedAlbumIds: Set<String> = emptySet(),
 )

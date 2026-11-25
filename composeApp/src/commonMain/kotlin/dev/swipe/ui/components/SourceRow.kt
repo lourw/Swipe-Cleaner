@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.IntSize
 import dev.swipe.data.MediaLoader
 import dev.swipe.ui.components.media.rememberMediaImage
@@ -40,16 +41,22 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * (FR-8); the tap opens the row's destination.
  *
  * With [onSwitchToggle] the row grows a trailing [SwipeSwitch] before the
- * chevron — the FR-37 **Exclude from Shuffle** control, the same iOS-shape
- * switch and `Role.Switch` semantics the Settings rows use. The switch is its
- * own touch target and consumes its taps, so the row tap still navigates.
- * Its touch box is as wide as the track (WP-8.14), and `s` gaps separate
- * count → switch → chevron; rows without the switch keep their original
- * spacing, so Home and By month render exactly as before.
+ * chevron — the FR-37 **In Shuffle** control (WP-8.15: on means the album's
+ * items are in Shuffle; the app still stores *exclusions*, so the caller
+ * passes `checked = id !in excludedAlbumIds`), the same iOS-shape switch and
+ * `Role.Switch` semantics the Settings rows use. The switch is its own touch
+ * target and consumes its taps, so the row tap still navigates. Its touch box
+ * is as wide as the track (WP-8.14), and `s` gaps separate count → switch →
+ * chevron; rows without the switch keep their original spacing, so Home and
+ * By month render exactly as before.
  *
- * [subtitle] (FR-37: "Not in Shuffle") sits under the title in `caption
- * textSecondary`; the row keeps its fixed height. When present it joins the
- * row's VoiceOver description (NFR-8).
+ * [subtitle] (FR-37: "Not in Shuffle", on a row whose switch is off) sits
+ * under the title in `caption textSecondary`; the row keeps its fixed height.
+ * When present it joins the row's VoiceOver description (NFR-8).
+ *
+ * The title column may shrink below its text's intrinsic width (WP-8.15), so
+ * a long title can never push the switch or the chevron out of the gutter —
+ * the chevron always sits fully inside the row's end padding.
  *
  * The cover is a *small-target* request (the 40 dp slot's pixels, never the
  * full-screen target), so row lists can't evict card bitmaps from the
@@ -72,8 +79,8 @@ fun SourceRow(
 ) {
     val colors = SwipeTheme.colors
     val tokens = SwipeTheme.componentSizes
-    // NFR-8: the description carries the subtitle too, so an excluded album
-    // reads "…, Not in Shuffle" (WP-8.14).
+    // NFR-8: the description carries the subtitle too, so an album whose
+    // switch is off reads "…, Not in Shuffle" (WP-8.14, WP-8.15).
     val description = listOfNotNull(title, count, subtitle).joinToString(separator = ", ")
     val checked = switchChecked
     val toggle = onSwitchToggle
@@ -116,21 +123,43 @@ fun SourceRow(
             }
             SourceRowSwitch(
                 checked = checked,
-                contentDescription = switchContentDescription ?: "Exclude from Shuffle, $title",
+                contentDescription = switchContentDescription ?: "Include $title in Shuffle",
                 onToggle = toggle,
             )
         }
-        SwipeIcon(
-            symbol = SwipeIcons.CHEVRON_RIGHT,
-            tint = colors.textSecondary,
-            modifier =
-                Modifier
-                    .size(SwipeTheme.sizes.icon)
-                    .padding(
-                        start = if (hasSwitch) SwipeTheme.spacing.s else SwipeTheme.spacing.xs,
-                    ),
-        )
+        SourceRowChevron(hasSwitch)
     }
+}
+
+/** Test tag on every [SourceRow]'s chevron (the WP-8.15 clipping layout test). */
+const val SOURCE_ROW_CHEVRON_TEST_TAG = "source-row-chevron"
+
+/**
+ * The trailing chevron of a [SourceRow]. WP-8.15 (FR-37): on a switch row the
+ * gap lives *outside* the icon — a padding inside size() squeezes the glyph
+ * into `size − gap`, which cut the chevron off (seen on the simulator). Rows
+ * without a switch keep their original modifier chain, so Home and By month
+ * render exactly as before. The semantics node is innermost so the layout
+ * test measures the glyph's own box: full icon width, right edge inside the
+ * row's end gutter.
+ */
+@Composable
+private fun SourceRowChevron(hasSwitch: Boolean) {
+    val chain =
+        if (hasSwitch) {
+            Modifier
+                .padding(start = SwipeTheme.spacing.s)
+                .size(SwipeTheme.sizes.icon)
+        } else {
+            Modifier
+                .size(SwipeTheme.sizes.icon)
+                .padding(start = SwipeTheme.spacing.xs)
+        }
+    SwipeIcon(
+        symbol = SwipeIcons.CHEVRON_RIGHT,
+        tint = SwipeTheme.colors.textSecondary,
+        modifier = chain.semantics { testTag = SOURCE_ROW_CHEVRON_TEST_TAG },
+    )
 }
 
 /**

@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -23,6 +25,7 @@ import dev.swipe.presentation.albums.AlbumsIntent
 import dev.swipe.presentation.albums.AlbumsUiState
 import dev.swipe.presentation.home.HomeAlbumRow
 import dev.swipe.ui.assertAllClickablesLabeled
+import dev.swipe.ui.components.SOURCE_ROW_CHEVRON_TEST_TAG
 import dev.swipe.ui.theme.SwipeComponentSizes
 import dev.swipe.ui.theme.SwipeSizes
 import dev.swipe.ui.theme.SwipeSpacing
@@ -111,7 +114,7 @@ class AlbumsScreenTest {
                 }
             }
             waitForIdle()
-            onNodeWithContentDescription("Exclude Trip from Shuffle").performClick()
+            onNodeWithContentDescription("Include Trip in Shuffle").performClick()
             waitForIdle()
             // The switch owns its tap: a toggle, never an OpenAlbum.
             assertEquals(listOf<AlbumsIntent>(AlbumsIntent.ToggleShuffleExclusion(rows.first())), intents)
@@ -205,7 +208,7 @@ class AlbumsScreenTest {
             // unmerged tree — in the merged tree their text rides on the row.
             val count = onNodeWithText("12,345", useUnmergedTree = true).fetchSemanticsNode()
             val switch =
-                onNodeWithContentDescription("Exclude $longTitle from Shuffle", useUnmergedTree = true)
+                onNodeWithContentDescription("Include $longTitle in Shuffle", useUnmergedTree = true)
                     .fetchSemanticsNode()
             val gap = switch.boundsInWindow.left - count.boundsInWindow.right
             val minGap = with(density) { SwipeSpacing().s.toPx() }
@@ -280,6 +283,122 @@ class AlbumsScreenTest {
                 onAllNodesWithText(EXCLUDED_SUBTITLE, useUnmergedTree = true).fetchSemanticsNodes().size,
             )
             onNodeWithContentDescription("Trip, 1,204").assertExists()
+        }
+
+    /**
+     * WP-8.15 (FR-37, NFR-8): the switch means *in Shuffle* — a row is on
+     * while its album is not in the exclusion store and off once it is, and
+     * VoiceOver's selected state follows the same new meaning.
+     */
+    @Test
+    fun `FR-37 the switch is on for included albums and off for stored exclusions`() =
+        runComposeUiTest {
+            // Family carries a stored exclusion: it shows off from the start,
+            // exactly like an album excluded before the switch was flipped.
+            var excluded by mutableStateOf(setOf("a2"))
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state = AlbumsUiState(status = ListStatus.Ready, rows = rows, excludedAlbumIds = excluded),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            waitForIdle()
+            val trip =
+                onNodeWithContentDescription("Include Trip in Shuffle", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+            val family =
+                onNodeWithContentDescription("Include Family in Shuffle", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+            assertTrue(
+                trip.config.getOrNull(SemanticsProperties.Selected) == true,
+                "an album that is not excluded shows on",
+            )
+            assertTrue(
+                family.config.getOrNull(SemanticsProperties.Selected) != true,
+                "a stored exclusion shows off",
+            )
+            // The stored exclusion's row carries the "Not in Shuffle" subtitle.
+            assertEquals(
+                1,
+                onAllNodesWithText(EXCLUDED_SUBTITLE, useUnmergedTree = true).fetchSemanticsNodes().size,
+            )
+            onNodeWithContentDescription("Family, —, $EXCLUDED_SUBTITLE").assertExists()
+            onNodeWithContentDescription("Trip, 1,204").assertExists()
+
+            // Excluding Trip flips its switch off — the store drives the screen.
+            excluded = setOf("a1", "a2")
+            waitForIdle()
+            val tripNow =
+                onNodeWithContentDescription("Include Trip in Shuffle", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+            assertTrue(
+                tripNow.config.getOrNull(SemanticsProperties.Selected) != true,
+                "excluding an album turns its switch off",
+            )
+        }
+
+    /**
+     * WP-8.15 (FR-37): the chevron at the right of an Albums row sits fully
+     * inside the row's end padding even when a long title presses in — the
+     * WP-8.14 regression where the wider switch box and the new gaps left the
+     * chevron clipped at the screen edge.
+     */
+    @Test
+    fun `FR-37 the chevron sits fully inside the row end padding with a long title`() =
+        runComposeUiTest {
+            // One long word: its intrinsic width exceeds any phone row, which
+            // is what pushed the switch and the chevron past the gutter
+            // before the WP-8.15 fix (the title now shrinks and ellipsizes).
+            val hugeTitle = "supercalifragilisticexpialidocious".repeat(20)
+            setContent {
+                SwipeTheme {
+                    AlbumsScreen(
+                        state =
+                            AlbumsUiState(
+                                status = ListStatus.Ready,
+                                rows =
+                                    listOf(
+                                        HomeAlbumRow(id = "a1", title = hugeTitle, coverAssetId = null, count = 12345),
+                                    ),
+                                excludedAlbumIds = setOf("a1"),
+                            ),
+                        onIntent = {},
+                        mediaLoader = FakeMediaLoader(),
+                        onBack = {},
+                    )
+                }
+            }
+            waitForIdle()
+            // The row merges its children (NFR-8 description), and this row's
+            // switch is off, so its description carries the subtitle too.
+            val row =
+                onNodeWithContentDescription("$hugeTitle, 12,345, $EXCLUDED_SUBTITLE")
+                    .fetchSemanticsNode()
+            val chevron =
+                onNodeWithTag(SOURCE_ROW_CHEVRON_TEST_TAG, useUnmergedTree = true)
+                    .fetchSemanticsNode()
+            val gutter = with(density) { SwipeSpacing().gutter.toPx() }
+            assertTrue(
+                chevron.boundsInWindow.right <= row.boundsInWindow.right - gutter + 0.5f,
+                "the chevron sits inside the gutter: chevron=${chevron.boundsInWindow} row=${row.boundsInWindow}",
+            )
+            assertTrue(
+                chevron.boundsInWindow.left >= row.boundsInWindow.left,
+                "the chevron stays on screen: ${chevron.boundsInWindow} vs ${row.boundsInWindow}",
+            )
+            // The tag rides the glyph's own box, so this also catches the
+            // WP-8.14 squeeze: a gap padding inside size() measured the inner
+            // box at `icon − gap` wide, cutting the glyph off.
+            val iconSize = with(density) { SwipeSizes().icon.toPx() }
+            val chevronWidth = chevron.boundsInWindow.right - chevron.boundsInWindow.left
+            assertTrue(
+                abs(chevronWidth - iconSize) <= 1f,
+                "the chevron keeps its full $iconSize px width, got $chevronWidth px",
+            )
         }
 
     /** WP-8.14 (FR-37, NFR-8): the explainer reads as normal text before the first row. */

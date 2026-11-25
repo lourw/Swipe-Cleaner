@@ -10,8 +10,10 @@ sealed interface AlbumsIntent {
     ) : AlbumsIntent
 
     /**
-     * Flip one album's **Exclude from Shuffle** switch (FR-37). The exclusion
-     * applies to the next Shuffle deck; it never affects the album's own deck.
+     * Flip one album's **In Shuffle** switch (FR-37, WP-8.15): switching off
+     * adds the album's id to the exclusion store, switching on removes it —
+     * the intent is named for what the app stores. The exclusion applies to
+     * the next Shuffle deck; it never affects the album's own deck.
      */
     data class ToggleShuffleExclusion(
         val row: HomeAlbumRow,

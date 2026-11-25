@@ -19,11 +19,11 @@ import dev.swipe.ui.components.SourceRow
 import dev.swipe.ui.components.formatCount
 import dev.swipe.ui.theme.SwipeTheme
 
-/** The explainer under the header, shown every time (§5.8, WP-8.14). */
+/** The explainer under the header, shown every time (§5.8, WP-8.14, copy flipped with WP-8.15). */
 internal const val SHUFFLE_EXPLAINER =
-    "Turn an album on to leave its photos out of Shuffle everything."
+    "Turn an album off to leave its photos out of Shuffle everything."
 
-/** The [SourceRow] subtitle of an excluded album (FR-37, WP-8.14). */
+/** The [SourceRow] subtitle of an album whose In Shuffle switch is off (FR-37, WP-8.14/8.15). */
 internal const val EXCLUDED_SUBTITLE = "Not in Shuffle"
 
 /** The empty-state message: the scan answered and there are no albums (WP-9.6, FR-8). */
@@ -33,16 +33,19 @@ internal const val ALBUMS_EMPTY_MESSAGE = "No albums"
 internal const val ALBUMS_ERROR_MESSAGE = "Couldn't load albums"
 
 /**
- * The Albums screen (§5.8, FR-8, FR-37): a back header, a one-line explainer of
- * the switch (WP-8.14), and one [SourceRow] per album — user albums first, then
- * the main smart albums — each with its cover thumbnail (40 dp, `MediaLoader.image`
- * at the row's own pixel size, never the full-screen target, NFR-3), its
- * converging count (FR-9), and an **Exclude from Shuffle** switch (FR-37).
- * An excluded row also shows a "Not in Shuffle" subtitle, so the state reads
- * without interpreting the switch. The scan's states (WP-9.6, §5.8): while it
- * runs the screen shows its loading message, an answered empty list and a
- * failed scan each say so under the explainer, and a failed *refresh* keeps
- * the rows shown (§6.8).
+ * The Albums screen (§5.8, FR-8, FR-37): a back header, a one-line explainer
+ * of the switch (WP-8.14), and one [SourceRow] per album — user albums first,
+ * then the main smart albums — each with its cover thumbnail (40 dp,
+ * `MediaLoader.image` at the row's own pixel size, never the full-screen
+ * target, NFR-3), its converging count (FR-9), and an **In Shuffle** switch
+ * (FR-37, WP-8.15): on by default, because nothing is excluded by default.
+ * The flip is display only — the store keeps excluded album ids — so a row
+ * shows `checked = id !in excludedAlbumIds`, and an album excluded before the
+ * flip shows as off. A row whose switch is off also shows a "Not in Shuffle"
+ * subtitle, so the state reads without interpreting the switch. The scan's
+ * states (WP-9.6, §5.8): while it runs the screen shows its loading message,
+ * an answered empty list and a failed scan each say so under the explainer,
+ * and a failed *refresh* keeps the rows shown (§6.8).
  *
  * Taps leave as [AlbumsIntent]s; the App host collects the ViewModel's
  * [dev.swipe.presentation.albums.AlbumsEvent]s and navigates to the deck
@@ -126,6 +129,8 @@ private fun AlbumsRows(
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         items(state.rows, key = { it.id }) { row ->
+            // WP-8.15 (FR-37): display-only flip — the store keeps *exclusions*,
+            // the switch shows their inverse. On means the album is in Shuffle.
             val excluded = row.id in state.excludedAlbumIds
             SourceRow(
                 title = row.title,
@@ -134,9 +139,9 @@ private fun AlbumsRows(
                 coverAssetId = row.coverAssetId,
                 mediaLoader = mediaLoader,
                 onClick = { onIntent(AlbumsIntent.OpenAlbum(row)) },
-                switchChecked = excluded,
+                switchChecked = !excluded,
                 onSwitchToggle = { onIntent(AlbumsIntent.ToggleShuffleExclusion(row)) },
-                switchContentDescription = "Exclude ${row.title} from Shuffle",
+                switchContentDescription = "Include ${row.title} in Shuffle",
             )
         }
     }
