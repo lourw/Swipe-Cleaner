@@ -126,7 +126,15 @@ fun SwipeCard(
     val clickInteractionSource = pressUpInteractionSource(onPressUp)
 
     val shape = RoundedCornerShape(SwipeTheme.radii.card)
-    val activeVerdict = state.committedVerdict ?: if (state.dragging) previewVerdict(state.offset, cardSize) else null
+    val activeVerdict =
+        state.committedVerdict ?: if (state.dragging) {
+            // §5.6: the glow ramps with the drag toward its 30 % maximum at
+            // the threshold, so it follows the direction from the first move;
+            // the stamps below keep waiting for the threshold preview.
+            glowDirection(state.offset, cardSize)
+        } else {
+            null
+        }
     // §5.6: rotation is motion; Reduce Motion keeps the card square while it
     // crossfades out. Hoisted so the semantics hook below publishes exactly
     // what the layer applies.

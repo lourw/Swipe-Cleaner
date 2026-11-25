@@ -142,6 +142,23 @@ class SwipeMathTest {
     }
 
     @Test
+    fun `5-6 glow direction follows the drag from the first move`() {
+        // §5.6: the edge glow ramps toward its maximum at the threshold, so
+        // it needs a direction long before previewVerdict commits to one.
+        val edge = cardSize.width * COMMIT_FRACTION_HORIZONTAL
+        assertEquals(SwipeVerdict.KEEP, glowDirection(Offset(edge / 2f, 0f), cardSize))
+        assertEquals(SwipeVerdict.DELETE, glowDirection(Offset(-edge / 2f, 0f), cardSize))
+        assertEquals(SwipeVerdict.SKIP, glowDirection(Offset(0f, -cardSize.height * COMMIT_FRACTION_UP / 2f), cardSize))
+        // At and past the threshold it still names the direction.
+        assertEquals(SwipeVerdict.KEEP, glowDirection(Offset(edge, 0f), cardSize))
+        // At rest, and pulling away from every verdict edge, no glow.
+        assertNull(glowDirection(Offset.Zero, cardSize))
+        assertNull(glowDirection(Offset(0f, 100f), cardSize))
+        // A diagonal pull toward two edges names one of them.
+        assertEquals(SwipeVerdict.KEEP, glowDirection(Offset(edge, -cardSize.height * COMMIT_FRACTION_UP / 4f), cardSize))
+    }
+
+    @Test
     fun `5-6 under card scale tracks drag progress`() {
         val edge = cardSize.width * COMMIT_FRACTION_HORIZONTAL
         // At rest the underneath card sits back at 0.94 / UNDER_ALPHA_FROM.

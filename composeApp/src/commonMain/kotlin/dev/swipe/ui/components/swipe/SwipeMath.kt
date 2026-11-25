@@ -73,9 +73,9 @@ private fun flingVerdict(
 
 /**
  * The verdict a release at [offset] alone would commit (no fling), or null
- * below all thresholds. Also what the stamps and edge glow preview while
- * dragging. §5.6: offset past or exactly at the direction threshold
- * commits, so the boundary counts.
+ * below all thresholds. Also what the stamps preview while dragging. §5.6:
+ * offset past or exactly at the direction threshold commits, so the boundary
+ * counts.
  */
 fun previewVerdict(
     offset: Offset,
@@ -85,6 +85,25 @@ fun previewVerdict(
         offset.x >= cardSize.width * COMMIT_FRACTION_HORIZONTAL -> SwipeVerdict.KEEP
         offset.x <= -(cardSize.width * COMMIT_FRACTION_HORIZONTAL) -> SwipeVerdict.DELETE
         offset.y <= -(cardSize.height * COMMIT_FRACTION_UP) -> SwipeVerdict.SKIP
+        else -> null
+    }
+
+/**
+ * The edge the card is being pulled toward, for the edge glow (§5.6), or
+ * null while the card sits at rest. Non-null as soon as the matching stamp
+ * begins to fade in, i.e. its alpha > 0: the glow ramps up linearly with the
+ * drag and reaches its 30 % maximum exactly at the commit threshold, where
+ * the stamp is fully on and the selection haptic fires. The stamps and the
+ * commit decision keep using [previewVerdict], which waits for the threshold.
+ */
+fun glowDirection(
+    offset: Offset,
+    cardSize: Size,
+): SwipeVerdict? =
+    when {
+        stampAlpha(SwipeVerdict.KEEP, offset, cardSize) > 0f -> SwipeVerdict.KEEP
+        stampAlpha(SwipeVerdict.SKIP, offset, cardSize) > 0f -> SwipeVerdict.SKIP
+        stampAlpha(SwipeVerdict.DELETE, offset, cardSize) > 0f -> SwipeVerdict.DELETE
         else -> null
     }
 
