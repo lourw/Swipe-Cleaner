@@ -518,7 +518,7 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 8.6 | verify (recheck) | `fr-36-last-copy-warning` | ses_df00da8a2ffecMp3ChfdmZxIS7 | 2026-11-24 17:35 | Read-only recheck of findings vs REBASED tip `9987c22`: hazard B (`pendingUndo` not cleared in warn branch — trace confirmed/refute), finding 1 race re-derivation (may be unreachable post-merge), finding 2 guard, plus audit the conflict resolution for anything dropped from either side. Fix agent launches after, with the merged list |
-| 2 | 9.8 | implement | `polish-2026-11` | ses_dee6bf240ffeFpFJk4r7Kqloln | 2026-11-25 00:45 | Gesture/a11y/cleanup polish from `70a0fa1`; file-quarantined from 8.6's diff (no SwipeViewModel/SwipeScreen/FavoriteConfirmCard/DecisionStore edits) |
+| 2 | 9.8 | verify | `polish-2026-11` | ses_dee0daf54ffeZWafACVDFV1J4c | 2026-11-25 01:35 | Impl reported done: all 9 items, d652e93, validate.sh PASSED; verifier vs §5.6/§5.7/NFR-8/FR-16 + hard rules; watch: item 4 Albums-switch semantics vs 8.15 (`70a0fa1`), item 8 revert-guard saveable, quarantine check vs 8.6 files |
 
 Rebase status: done at `9987c22` (5 commits over `29e55e9`; 8.6's `commitDecision`-extraction commit dropped empty — main already has it). Tests 624/624 (gradle UP-TO-DATE at 17:21 run). **detekt FAILS** (post-merge `SwipeViewModel` 12 fn > 11; `isLastCopyOfItsSet` 4 returns > 2) — mechanical, in the fix agent's queue. ⚠️ The implementer session (`ses_df0eb7c3cffe…`) delivered a stale "standing down, another agent is writing" report mid-rebase while actually finishing it — treat its messages as suspect, trust git.
 
