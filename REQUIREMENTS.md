@@ -69,7 +69,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-8** **Albums** lists user albums and the main smart albums, with cover thumbnails and counts.
 - **FR-9** Every source excludes items that already have a **Keep** or a pending **Delete** decision.
 - **FR-10** Home shows lifetime stats (reviewed, kept, deleted) and the size of the current To Delete queue, with a button to review it.
-- **FR-37** Every row on the Albums screen carries an **Exclude from Shuffle** switch, off by default. Items in any excluded album leave the **Shuffle everything** deck — even items that are also in a non-excluded album. Nothing else is affected: opening an excluded album, By month, and the smart filters still include its items, and the album's own row keeps its full count. Exclusions persist locally as album ids only; an album the user has since deleted is ignored. The Shuffle count on Home always equals the deck its row opens (FR-9) and refreshes when an exclusion changes. Toggling mid-session affects the next deck or rebuild only — never the card on screen. Exclusion never removes anything from the deletion path: a Shuffle item deleted still leaves the library and every album.
+- **FR-37** Every row on the Albums screen carries an **In Shuffle** switch, on by default; off leaves the album's items out of **Shuffle everything** (WP-8.15 flipped the original **Exclude from Shuffle** switch — an album's row shows *on* while its items are in the deck). Items in any excluded album leave the **Shuffle everything** deck — even items that are also in a non-excluded album. Nothing else is affected: opening an excluded album, By month, and the smart filters still include its items, and the album's own row keeps its full count. Exclusions persist locally as album ids only; an album the user has since deleted is ignored. The Shuffle count on Home always equals the deck its row opens (FR-9) and refreshes when an exclusion changes. Toggling mid-session affects the next deck or rebuild only — never the card on screen. Exclusion never removes anything from the deletion path: a Shuffle item deleted still leaves the library and every album.
 
 ### Swiping
 - **FR-11** The deck shows one item full-bleed, with the next item rendered underneath it.
@@ -216,7 +216,7 @@ Other gestures on the card:
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: a **Hide** button (default touch-target size like its neighbors, `visibility_off`, VoiceOver label "Hide from library", FR-38) immediately left of the queue button with a red count badge. The Hide button is disabled while a hide or a decision write is in flight. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
-| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **Exclude from Shuffle** switch (FR-37) before the chevron: the iOS-shape `SwipeSwitch` in a touch box `max(minTouchTarget, switch track width)` = 51 × 44 dp owning `Role.Switch` semantics — the 51 dp track fits its box instead of spilling toward the count (WP-8.14). `s` gaps separate count → switch and switch → chevron; rows without a switch keep the `xs` chevron spacing, so Home and By month render unchanged. An excluded album shows a "Not in Shuffle" subtitle under its title in `caption textSecondary` — the row stays 64 dp — and the subtitle joins the row's VoiceOver description (NFR-8). The switch's tap toggles the exclusion and never opens the row. |
+| `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **In Shuffle** switch (FR-37, on by default — WP-8.15) before the chevron: the iOS-shape `SwipeSwitch` in a touch box `max(minTouchTarget, switch track width)` = 51 × 44 dp owning `Role.Switch` semantics — the 51 dp track fits its box instead of spilling toward the count (WP-8.14), and its selected state means *in Shuffle*: `checked` when the album is **not** in the exclusion store. `s` gaps separate count → switch and switch → chevron; rows without a switch keep the `xs` chevron spacing, so Home and By month render unchanged. The title column shrinks below its content's intrinsic width when the row runs out of room, so the switch and the chevron always sit fully inside the gutter — the chevron is never clipped (WP-8.15). An album whose switch is off shows a "Not in Shuffle" subtitle under its title in `caption textSecondary` — the row stays 64 dp — and the subtitle joins the row's VoiceOver description (NFR-8). The switch's tap toggles the exclusion and never opens the row. |
 | `SegmentedControl` (Home) | Full-width `surface` pill track; the All / Photos / Videos segments wrap their labels and sit **centered in the track** (FR-5), each a tab with a ≥ 44 dp touch target (§5.5). Selected segment fills `accent` with the label in `textPrimary`; unselected labels `textSecondary`. |
 | `PrimaryButton` | 52 dp pill, full width minus gutters, `accent` fill, `headline` white (text: `textPrimary` — near-white token; no separate white token in v1). The destructive variant uses a `delete` fill. |
 | `GridTile` | Square, radius 8, 2 dp gap. Video duration at the bottom-right in `caption`. When selected for restore: 3 dp `keep` ring. |
@@ -272,17 +272,20 @@ denied screen (Open-Settings); every other answer stays on Home.
 **Albums**
 
 One `SourceRow` per album (FR-8), user albums first. Each row also carries the
-**Exclude from Shuffle** switch described in §5.7 (FR-37): toggling it takes the
-album's items out of the Shuffle deck and refreshes Home's Shuffle count, but
-never changes the album's own row count or what tapping the row opens.
+**In Shuffle** switch described in §5.7 (FR-37, WP-8.15): on by default, since
+nothing is excluded by default. Toggling it off takes the album's items out of
+the Shuffle deck and refreshes Home's Shuffle count, but never changes the
+album's own row count or what tapping the row opens. The switch is display
+only: the app keeps storing excluded album ids, so an album excluded before
+the flip shows as off.
 
 Under the header, above the list, a `caption textSecondary` explainer shows
-every time the screen opens (WP-8.14) — "Turn an album on to leave its photos
-out of Shuffle everything." — because a switch that means *excluded* needs
-saying, and the app has no onboarding to explain it. VoiceOver reads it as
-normal text before the first row (NFR-8). An excluded row shows
-"Not in Shuffle" under its title in `caption textSecondary`; the row stays
-64 dp.
+every time the screen opens (WP-8.14, copy flipped with WP-8.15) — "Turn an
+album off to leave its photos out of Shuffle everything." — because the switch
+should explain itself even though its meaning now matches what people expect,
+and the app has no onboarding. VoiceOver reads it as normal text before the
+first row (NFR-8). A row whose switch is off shows "Not in Shuffle" under its
+title in `caption textSecondary`; the row stays 64 dp.
 
 The scan's states (WP-9.6, FR-8, §6.8): while the first scan runs the screen
 shows "Loading…" under the explainer — it opens at once and never shows a
@@ -295,11 +298,11 @@ the rows on screen for the next `changes()` retry.
 ```
 ┌──────────────────────────────────┐
 │ ‹ Albums                         │  header
-│ Turn an album on to leave its    │  explainer, caption textSecondary
+│ Turn an album off to leave its   │  explainer, caption textSecondary
 │ photos out of Shuffle everything.│  (FR-37, shown every time)
-│ ▣ Trip           1,204  [—●]  ›  │  excluded: switch on, s gaps around it
+│ ▣ Trip           1,204  [—●]  ›  │  off: switch left, s gaps around it
 │    Not in Shuffle                │  caption textSecondary (FR-37)
-│ ▣ Family        12,345  [●—]  ›  │  not excluded: no subtitle
+│ ▣ Family        12,345  [●—]  ›  │  on by default: no subtitle
 └──────────────────────────────────┘
 ```
 
