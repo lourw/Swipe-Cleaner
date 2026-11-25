@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeComponentSizes
@@ -19,13 +20,24 @@ import dev.swipe.ui.theme.TABULAR_FIGURES
  * The §5.7 `QueueBadge`: a `delete` pill, at least 20 dp, `caption`-sized
  * count text in the card-foreground color. Shows `99+` when the count is
  * higher than [SwipeComponentSizes.badgeMaxShown].
+ *
+ * NFR-8: [description] defaults to "N queued". Pass `null` where a parent
+ * already announces the count (the TopBar queue button's label embeds it) so
+ * VoiceOver reads the number once, not twice.
  */
 @Composable
 fun QueueBadge(
     count: Int,
     modifier: Modifier = Modifier,
+    description: String? = badgeDescription(count),
 ) {
     val tokens = SwipeTheme.componentSizes
+    val a11y =
+        if (description == null) {
+            Modifier.clearAndSetSemantics { }
+        } else {
+            Modifier.semantics { contentDescription = description }
+        }
     Box(
         contentAlignment = Alignment.Center,
         modifier =
@@ -33,7 +45,7 @@ fun QueueBadge(
                 .heightIn(min = tokens.badgeMinSize)
                 .background(SwipeTheme.colors.delete, CircleShape)
                 .padding(horizontal = SwipeTheme.spacing.xxs)
-                .semantics { contentDescription = badgeDescription(count) },
+                .then(a11y),
     ) {
         BasicText(
             text = badgeLabel(count, tokens.badgeMaxShown),

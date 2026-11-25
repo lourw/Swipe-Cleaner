@@ -88,6 +88,9 @@ fun TopBar(
                         if (queueCount > 0) {
                             QueueBadge(
                                 count = queueCount,
+                                // NFR-8: the button label above already says
+                                // "N queued", so the pill is decoration here.
+                                description = null,
                                 modifier = Modifier.align(Alignment.TopEnd),
                             )
                         }
