@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -26,9 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import dev.swipe.presentation.settings.SettingsEvent
 import dev.swipe.presentation.settings.SettingsIntent
@@ -205,11 +203,16 @@ private fun ToggleRow(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = SwipeTheme.sizes.minTouchTarget)
-                .clickable(role = Role.Switch, onClick = onCheckedChange)
-                .semantics {
-                    contentDescription = title
-                    selected = checked
-                }.testTag(testTag)
+                // A real switch for VoiceOver (NFR-8): toggleable publishes
+                // the on/off state and the "double-tap to turn off" hint,
+                // where clickable + selected read as "selected" instead. The
+                // row's own title and caption texts label it, so no content
+                // description is needed.
+                .toggleable(
+                    value = checked,
+                    role = Role.Switch,
+                    onValueChange = { onCheckedChange() },
+                ).testTag(testTag)
                 .padding(horizontal = spacing.gutter, vertical = spacing.s),
     ) {
         Column(modifier = Modifier.weight(1f)) {

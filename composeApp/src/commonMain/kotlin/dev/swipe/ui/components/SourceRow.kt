@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -22,7 +23,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.IntSize
@@ -251,7 +251,7 @@ private fun SourceRowCover(
 /**
  * The FR-37 trailing switch of a [SourceRow]: the visual [SwipeSwitch] inside a
  * touch box that owns the `Role.Switch` semantics, mirroring the Settings
- * `ToggleRow` (WP-6.1). Its clickable consumes the tap, so toggling never
+ * `ToggleRow` (WP-6.1). Its toggleable consumes the tap, so toggling never
  * opens the row.
  *
  * The box is `max(minTouchTarget, switchTrackWidth)` wide and at least 44 dp
@@ -272,11 +272,15 @@ private fun SourceRowSwitch(
                 .size(
                     width = trackWidth.coerceAtLeast(SwipeTheme.sizes.minTouchTarget),
                     height = SwipeTheme.sizes.minTouchTarget,
-                ).clickable(role = Role.Switch, onClick = onToggle)
-                .semantics {
-                    this.contentDescription = contentDescription
-                    selected = checked
-                },
+                )
+                // A real switch for VoiceOver (NFR-8): toggleable publishes
+                // the on/off state, where clickable + selected read as
+                // "selected" instead.
+                .toggleable(
+                    value = checked,
+                    role = Role.Switch,
+                    onValueChange = { onToggle() },
+                ).semantics { this.contentDescription = contentDescription },
     ) {
         SwipeSwitch(checked = checked)
     }

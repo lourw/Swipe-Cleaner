@@ -11,8 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -70,13 +70,15 @@ class SettingsScreenTest {
                     onIntent = { intents.add(it) },
                 )
             }
-            // Titles on screen, switch semantics on the rows (FR-29, NFR-8).
+            // Titles on screen, switch semantics on the rows (FR-29, NFR-8):
+            // a toggleable on/off state VoiceOver reads as "on"/"off", not
+            // "selected".
             onNodeWithText("Haptics").assertExists()
             onNodeWithText("Include iCloud-only items").assertExists()
             onNodeWithText("Autoplay videos").assertExists()
-            onNodeWithTag(SWITCH_HAPTICS_TEST_TAG).assertIsSelected()
-            onNodeWithTag(SWITCH_CLOUD_TEST_TAG).assertIsNotSelected()
-            onNodeWithTag(SWITCH_AUTOPLAY_TEST_TAG).assertIsSelected()
+            onNodeWithTag(SWITCH_HAPTICS_TEST_TAG).assertIsOn()
+            onNodeWithTag(SWITCH_CLOUD_TEST_TAG).assertIsOff()
+            onNodeWithTag(SWITCH_AUTOPLAY_TEST_TAG).assertIsOn()
 
             // Tapping a row flips the value it reports (the VM flips the store).
             onNodeWithTag(SWITCH_HAPTICS_TEST_TAG).performClick()

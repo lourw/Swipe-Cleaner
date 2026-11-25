@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -33,6 +34,7 @@ import dev.swipe.ui.theme.SwipeTheme
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -288,7 +290,7 @@ class AlbumsScreenTest {
     /**
      * WP-8.15 (FR-37, NFR-8): the switch means *in Shuffle* — a row is on
      * while its album is not in the exclusion store and off once it is, and
-     * VoiceOver's selected state follows the same new meaning.
+     * VoiceOver's toggleable state follows the same new meaning.
      */
     @Test
     fun `FR-37 the switch is on for included albums and off for stored exclusions`() =
@@ -313,14 +315,11 @@ class AlbumsScreenTest {
             val family =
                 onNodeWithContentDescription("Include Family in Shuffle", useUnmergedTree = true)
                     .fetchSemanticsNode()
-            assertTrue(
-                trip.config.getOrNull(SemanticsProperties.Selected) == true,
-                "an album that is not excluded shows on",
-            )
-            assertTrue(
-                family.config.getOrNull(SemanticsProperties.Selected) != true,
-                "a stored exclusion shows off",
-            )
+            // The switch publishes the toggleable on/off state VoiceOver
+            // reads as "on"/"off", never a selected state.
+            assertEquals(ToggleableState.On, trip.config[SemanticsProperties.ToggleableState])
+            assertEquals(ToggleableState.Off, family.config[SemanticsProperties.ToggleableState])
+            assertNull(trip.config.getOrNull(SemanticsProperties.Selected))
             // The stored exclusion's row carries the "Not in Shuffle" subtitle.
             assertEquals(
                 1,
@@ -335,10 +334,7 @@ class AlbumsScreenTest {
             val tripNow =
                 onNodeWithContentDescription("Include Trip in Shuffle", useUnmergedTree = true)
                     .fetchSemanticsNode()
-            assertTrue(
-                tripNow.config.getOrNull(SemanticsProperties.Selected) != true,
-                "excluding an album turns its switch off",
-            )
+            assertEquals(ToggleableState.Off, tripNow.config[SemanticsProperties.ToggleableState])
         }
 
     /**

@@ -17,7 +17,8 @@ import dev.swipe.ui.theme.SwipeTheme
  * The Settings switch (FR-29, WP-6.1): the iOS-shape track-and-thumb toggle in
  * the §5.3 tokens — `accent` when on, `border` when off, a `textPrimary` thumb.
  * Purely visual: the settings row owns the touch target and the switch
- * semantics (`Role.Switch` + `selected`), so VoiceOver reads one control.
+ * semantics (`Modifier.toggleable` with `Role.Switch`, publishing the
+ * on/off state), so VoiceOver reads one control.
  */
 @Composable
 fun SwipeSwitch(
