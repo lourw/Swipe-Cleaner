@@ -14,8 +14,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import dev.swipe.ui.theme.FILL_TINT_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 
 /**
  * The §5.7 `PrimaryButton`: a 52 dp full-round pill, `accent` fill, `headline`
@@ -49,7 +49,7 @@ fun PrimaryButton(
                     if (enabled) {
                         container
                     } else {
-                        container.copy(alpha = VERDICT_TINT_ALPHA)
+                        container.copy(alpha = FILL_TINT_ALPHA)
                     },
                     CircleShape,
                 ).clickable(enabled = enabled, onClick = onClick)

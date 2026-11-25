@@ -11,8 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.swipe.ui.components.CircleIconButton
 import dev.swipe.ui.components.SwipeIcons
+import dev.swipe.ui.theme.FILL_TINT_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 
 /**
  * The §5.7 `ActionBar`: Delete (64 dp, `delete @ 16%`), Skip (48 dp,
@@ -60,7 +60,7 @@ fun ActionBar(
                 label = "Delete",
                 onClick = onDelete,
                 size = sizes.actionButtonLarge,
-                container = colors.delete.copy(alpha = VERDICT_TINT_ALPHA),
+                container = colors.delete.copy(alpha = FILL_TINT_ALPHA),
                 contentColor = colors.delete,
                 iconSize = SwipeTheme.sizes.actionBarIcon,
             )
@@ -78,7 +78,7 @@ fun ActionBar(
                 label = "Keep",
                 onClick = onKeep,
                 size = sizes.actionButtonLarge,
-                container = colors.keep.copy(alpha = VERDICT_TINT_ALPHA),
+                container = colors.keep.copy(alpha = FILL_TINT_ALPHA),
                 contentColor = colors.keep,
                 iconSize = SwipeTheme.sizes.actionBarIcon,
             )

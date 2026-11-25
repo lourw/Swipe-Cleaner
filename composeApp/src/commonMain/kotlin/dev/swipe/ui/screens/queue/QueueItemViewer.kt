@@ -24,8 +24,8 @@ import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.VideoPlayerSlot
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.components.tileDescription
+import dev.swipe.ui.theme.FILL_TINT_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 
 /**
  * The FR-24 full-screen viewer for one queued item, raised by a tile tap.
@@ -118,7 +118,7 @@ fun QueueItemViewer(
             label = "Restore",
             onClick = onRestore,
             size = sizes.actionButtonLarge,
-            container = colors.keep.copy(alpha = VERDICT_TINT_ALPHA),
+            container = colors.keep.copy(alpha = FILL_TINT_ALPHA),
             contentColor = colors.keep,
             iconSize = SwipeTheme.sizes.actionBarIcon,
             modifier =

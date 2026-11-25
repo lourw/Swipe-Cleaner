@@ -1,8 +1,8 @@
 package dev.swipe.ui.components
 
 import dev.swipe.ui.theme.CARD_SHADOW_ALPHA
+import dev.swipe.ui.theme.FILL_TINT_ALPHA
 import dev.swipe.ui.theme.SwipeComponentSizes
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -34,7 +34,7 @@ class ComponentSizesTest {
 
     @Test
     fun `5-3 verdict-tinted fills use 16 percent alpha`() {
-        assertEquals(0.16f, VERDICT_TINT_ALPHA)
+        assertEquals(0.16f, FILL_TINT_ALPHA)
     }
 
     @Test

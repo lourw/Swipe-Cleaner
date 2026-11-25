@@ -17,8 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import dev.swipe.ui.theme.FILL_TINT_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
-import dev.swipe.ui.theme.VERDICT_TINT_ALPHA
 
 private enum class GalleryFilter { All, Photos, Videos }
 
@@ -137,14 +137,14 @@ private fun GalleryIconButtonSection() {
                 SwipeIcons.DELETE,
                 label = "Delete",
                 onClick = {},
-                container = SwipeTheme.colors.delete.copy(alpha = VERDICT_TINT_ALPHA),
+                container = SwipeTheme.colors.delete.copy(alpha = FILL_TINT_ALPHA),
                 contentColor = SwipeTheme.colors.delete,
             )
             CircleIconButton(
                 SwipeIcons.CHECK,
                 label = "Keep",
                 onClick = {},
-                container = SwipeTheme.colors.keep.copy(alpha = VERDICT_TINT_ALPHA),
+                container = SwipeTheme.colors.keep.copy(alpha = FILL_TINT_ALPHA),
                 contentColor = SwipeTheme.colors.keep,
             )
             CircleIconButton(

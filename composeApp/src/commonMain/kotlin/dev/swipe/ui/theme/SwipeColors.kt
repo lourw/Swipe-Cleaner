@@ -30,8 +30,11 @@ data class SwipeColors(
     val shadow: Color,
 )
 
-/** Alpha for verdict-tinted fills, for example the Keep button background (§5.3). */
-const val VERDICT_TINT_ALPHA = 0.16f
+/**
+ * Alpha for translucent fills: the verdict-tinted button backgrounds (§5.3)
+ * and the disabled [dev.swipe.ui.components.PrimaryButton] fill.
+ */
+const val FILL_TINT_ALPHA = 0.16f
 
 private const val SCRIM_ALPHA = 0.55f
 
