@@ -11,8 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,9 +87,12 @@ internal fun CardMotionEffects(
     }
     // NFR-7: a failed decision write bumps the token; the card goes back.
     // The committed verdict is always the one that just failed, because the
-    // UI animates before sending the intent.
+    // UI animates before sending the intent. [rememberRevertGuard] keeps the
+    // replay to the bump itself: re-entering the screen with the same token
+    // (navigation back, foregrounding) must not fly the card in again.
+    val shouldRevert = rememberRevertGuard()
     LaunchedEffect(revertToken) {
-        if (revertToken > 0L) {
+        if (shouldRevert(revertToken)) {
             cardState.returnFrom(cardState.committedVerdict ?: SwipeVerdict.KEEP, reduceMotion)
         }
     }
@@ -96,6 +101,27 @@ internal fun CardMotionEffects(
     LaunchedEffect(currentId) {
         if (!pendingReturn) {
             cardState.resetForNext()
+        }
+    }
+}
+
+/**
+ * The NFR-7 revert one-shot: returns a predicate that reports `true` only
+ * for a token higher than every token seen before, and remembers the highest
+ * across recomposition, disposal, and state restoration ([rememberSaveable]).
+ * Without the saved high-water mark, `LaunchedEffect(revertToken)` restarts
+ * on re-entry and replays the return animation for a revert the user already
+ * watched (or for one from a previous app session).
+ */
+@Composable
+internal fun rememberRevertGuard(): (Long) -> Boolean {
+    val highestSeen = rememberSaveable { mutableLongStateOf(0L) }
+    return { token ->
+        if (token > highestSeen.longValue) {
+            highestSeen.longValue = token
+            true
+        } else {
+            false
         }
     }
 }
