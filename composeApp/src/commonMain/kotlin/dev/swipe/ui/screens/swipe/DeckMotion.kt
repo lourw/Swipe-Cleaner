@@ -323,6 +323,14 @@ private fun BoxScope.TopCardPlayback(
 }
 
 /**
+ * The §5.6 double-tap mapping: aspect-fit (default) ↔ aspect-fill. Fill is
+ * [ContentScale.Crop] — fill the frame and clip the overflow, keeping the
+ * aspect ratio; `FillBounds` would stretch the photo, which no reading of
+ * "aspect-fill" allows (WP-9.8).
+ */
+internal fun cardContentScale(fillMode: Boolean): ContentScale = if (fillMode) ContentScale.Crop else ContentScale.Fit
+
+/**
  * The top card's media: aspect-fit by default, fill after a double-tap (§5.6),
  * always mounted as the poster under any live playback (R2). Returns the
  * loaded image so the caller can read its R6 cloud signal.
@@ -344,7 +352,7 @@ private fun BoxScope.cardMedia(
         Image(
             bitmap = image.bitmap,
             contentDescription = null,
-            contentScale = if (fillMode) ContentScale.FillBounds else ContentScale.Fit,
+            contentScale = cardContentScale(fillMode),
             modifier = Modifier.matchParentSize(),
         )
         // NFR-1 span ends ride the emissions, after the frame they draw in
