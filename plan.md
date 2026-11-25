@@ -517,8 +517,10 @@ At most 2 rows. Add a row when you launch a subagent, before doing anything else
 
 | Slot | WP | Role | Branch (worktree in `../swipe-app-wt/`) | Session ID | Started | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 8.6 | fix | `fr-36-last-copy-warning` | ses_df0eb7c3cffeIYaaalNZ4UHeDE | 2026-11-24 | Rebase onto post-9.10 main (`29e55e9`) + verifier fixes (hazards A–E; `pendingUndo = false` in warn branch; double-swipe gate race; currentId guard; report prose). Verifier PASS on `9186d9b` (617/617) |
+| 1 | 8.6 | verify (recheck) | `fr-36-last-copy-warning` | ses_df00da8a2ffecMp3ChfdmZxIS7 | 2026-11-24 17:35 | Read-only recheck of findings vs REBASED tip `9987c22`: hazard B (`pendingUndo` not cleared in warn branch — trace confirmed/refute), finding 1 race re-derivation (may be unreachable post-merge), finding 2 guard, plus audit the conflict resolution for anything dropped from either side. Fix agent launches after, with the merged list |
 | 2 | — | — | — | — | — | (empty — WP-9.7 and 9.8 both overlap 8.6's files and each other; run sequentially after 8.6 merges) |
+
+Rebase status: done at `9987c22` (5 commits over `29e55e9`; 8.6's `commitDecision`-extraction commit dropped empty — main already has it). Tests 624/624 (gradle UP-TO-DATE at 17:21 run). **detekt FAILS** (post-merge `SwipeViewModel` 12 fn > 11; `isLastCopyOfItsSet` 4 returns > 2) — mechanical, in the fix agent's queue. ⚠️ The implementer session (`ses_df0eb7c3cffe…`) delivered a stale "standing down, another agent is writing" report mid-rebase while actually finishing it — treat its messages as suspect, trust git.
 
 **Role** is `implement`, `verify`, or `fix`. **Session ID** is the `sessionID` the `subagent` tool returned. Pass it back as `sessionID` to continue that conversation.
 
