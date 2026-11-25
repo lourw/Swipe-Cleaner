@@ -378,6 +378,14 @@ private suspend fun PointerInputScope.swipeDragGestures(
     var dragTotal = Offset.Zero
     var crossed: SwipeVerdict? = null
     var live = false
+
+    // The shared tail of a release or cancel: the animating flag goes up
+    // before the launch so no frame between release and the first snap-back
+    // frame counts as idle (R2: the live player must not mount mid-snap-back).
+    fun releaseToRest() {
+        state.animating = true
+        scope.launch { state.snapBack() }
+    }
     detectDragGestures(
         onDragStart = { _: Offset ->
             // FR-13: the card belongs to its verdict flight once one is
@@ -427,11 +435,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
                         dismiss(verdict)
                     }
                 } else {
-                    // Set the flag before the launch so no frame between release
-                    // and the first snap-back frame counts as idle (R2: the live
-                    // player must not mount for a frame mid-snap-back).
-                    state.animating = true
-                    scope.launch { state.snapBack() }
+                    releaseToRest()
                 }
             }
         },
@@ -439,8 +443,7 @@ private suspend fun PointerInputScope.swipeDragGestures(
             if (live) {
                 live = false
                 state.dragging = false
-                state.animating = true
-                scope.launch { state.snapBack() }
+                releaseToRest()
             }
         },
     )
