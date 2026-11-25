@@ -111,23 +111,21 @@ class MonthsViewModel(
 
     /** Handle one UI intent (convention: one `StateFlow` in, sealed intents out). */
     fun onIntent(intent: MonthsIntent) {
-        viewModelScope.launch {
-            when (intent) {
-                is MonthsIntent.OpenMonth -> {
-                    eventChannel.trySend(
-                        MonthsEvent.OpenDeck(
-                            source = DeckSource.Month(intent.bucket.year, intent.bucket.month),
-                            typeFilter = typeFilter,
-                        ),
-                    )
-                }
+        when (intent) {
+            is MonthsIntent.OpenMonth -> {
+                eventChannel.trySend(
+                    MonthsEvent.OpenDeck(
+                        source = DeckSource.Month(intent.bucket.year, intent.bucket.month),
+                        typeFilter = typeFilter,
+                    ),
+                )
+            }
 
-                MonthsIntent.Retry -> {
-                    // WP-9.6: from the error state, back to the loading
-                    // message and one fresh scan (FR-7).
-                    _uiState.update { it.copy(status = ListStatus.Loading) }
-                    reloads.tryEmit(Unit)
-                }
+            MonthsIntent.Retry -> {
+                // WP-9.6: from the error state, back to the loading
+                // message and one fresh scan (FR-7).
+                _uiState.update { it.copy(status = ListStatus.Loading) }
+                reloads.tryEmit(Unit)
             }
         }
     }

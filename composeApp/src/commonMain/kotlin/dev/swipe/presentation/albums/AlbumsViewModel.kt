@@ -129,30 +129,31 @@ class AlbumsViewModel(
 
     /** Handle one UI intent (convention: one `StateFlow` in, sealed intents out). */
     fun onIntent(intent: AlbumsIntent) {
-        viewModelScope.launch {
-            when (intent) {
-                is AlbumsIntent.OpenAlbum -> {
-                    eventChannel.trySend(
-                        AlbumsEvent.OpenDeck(
-                            source = DeckSource.Album(intent.row.id, intent.row.title),
-                            typeFilter = typeFilter,
-                        ),
-                    )
-                }
+        when (intent) {
+            is AlbumsIntent.OpenAlbum -> {
+                eventChannel.trySend(
+                    AlbumsEvent.OpenDeck(
+                        source = DeckSource.Album(intent.row.id, intent.row.title),
+                        typeFilter = typeFilter,
+                    ),
+                )
+            }
 
-                is AlbumsIntent.ToggleShuffleExclusion -> {
-                    // The state comes back from the store's Flow, so a failed
-                    // write changes nothing on screen (NFR-7).
+            is AlbumsIntent.ToggleShuffleExclusion -> {
+                // The one branch with work to await: the store write. The
+                // state comes back from the store's Flow, so a failed write
+                // changes nothing on screen (NFR-7).
+                viewModelScope.launch {
                     val excludedNow = intent.row.id in _uiState.value.excludedAlbumIds
                     attempt { exclusions.setExcluded(intent.row.id, !excludedNow) }
                 }
+            }
 
-                AlbumsIntent.Retry -> {
-                    // WP-9.6: from the error state, back to the loading
-                    // message and one fresh scan (FR-8).
-                    _uiState.update { it.copy(status = ListStatus.Loading) }
-                    reloads.tryEmit(Unit)
-                }
+            AlbumsIntent.Retry -> {
+                // WP-9.6: from the error state, back to the loading
+                // message and one fresh scan (FR-8).
+                _uiState.update { it.copy(status = ListStatus.Loading) }
+                reloads.tryEmit(Unit)
             }
         }
     }

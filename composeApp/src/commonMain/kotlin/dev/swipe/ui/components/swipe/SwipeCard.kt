@@ -24,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -40,7 +39,6 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.toSize
-import dev.swipe.ui.theme.CARD_SHADOW_ALPHA
 import dev.swipe.ui.theme.SwipeTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -155,8 +153,8 @@ fun SwipeCard(
                         elevation = SwipeTheme.componentSizes.cardShadowBlur,
                         shape = shape,
                         // §5.5: the one shadow in the app is soft black, blur 24, 40%.
-                        ambientColor = Color.Black.copy(alpha = CARD_SHADOW_ALPHA),
-                        spotColor = Color.Black.copy(alpha = CARD_SHADOW_ALPHA),
+                        ambientColor = SwipeTheme.colors.shadow,
+                        spotColor = SwipeTheme.colors.shadow,
                     ).clip(shape)
                     .background(SwipeTheme.colors.bg)
                     .combinedClickable(

@@ -22,6 +22,13 @@ data class SwipeColors(
     val delete: Color,
     val skip: Color,
     val warning: Color,
+
+    /**
+     * §5.5's one shadow: soft black at 40 % ([CARD_SHADOW_ALPHA]), applied as
+     * the top card's ambient and spot color. A token so no screen names a
+     * raw color for it.
+     */
+    val shadow: Color,
 )
 
 /** Alpha for verdict-tinted fills, for example the Keep button background (§5.3). */
@@ -44,4 +51,5 @@ internal val DarkSwipeColors =
         delete = Color(0xFFFF453A),
         skip = Color(0xFF8E8E93),
         warning = Color(0xFFFFD60A),
+        shadow = Color(0xFF000000).copy(alpha = CARD_SHADOW_ALPHA),
     )

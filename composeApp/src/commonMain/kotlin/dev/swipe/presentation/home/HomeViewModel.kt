@@ -128,44 +128,42 @@ class HomeViewModel(
 
     /** Handle one UI intent (convention: one `StateFlow` in, sealed intents out). */
     fun onIntent(intent: HomeIntent) {
-        viewModelScope.launch {
-            when (intent) {
-                is HomeIntent.SetTypeFilter -> {
-                    setTypeFilter(intent.type)
-                }
+        when (intent) {
+            is HomeIntent.SetTypeFilter -> {
+                setTypeFilter(intent.type)
+            }
 
-                HomeIntent.OpenQueue -> {
-                    eventChannel.trySend(HomeEvent.OpenQueue)
-                }
+            HomeIntent.OpenQueue -> {
+                eventChannel.trySend(HomeEvent.OpenQueue)
+            }
 
-                HomeIntent.OpenSettings -> {
-                    eventChannel.trySend(HomeEvent.OpenSettings)
-                }
+            HomeIntent.OpenSettings -> {
+                eventChannel.trySend(HomeEvent.OpenSettings)
+            }
 
-                HomeIntent.OpenAlbums -> {
-                    eventChannel.trySend(HomeEvent.OpenAlbums(_uiState.value.typeFilter))
-                }
+            HomeIntent.OpenAlbums -> {
+                eventChannel.trySend(HomeEvent.OpenAlbums(_uiState.value.typeFilter))
+            }
 
-                HomeIntent.OpenMonths -> {
-                    eventChannel.trySend(HomeEvent.OpenMonths(_uiState.value.typeFilter))
-                }
+            HomeIntent.OpenMonths -> {
+                eventChannel.trySend(HomeEvent.OpenMonths(_uiState.value.typeFilter))
+            }
 
-                HomeIntent.OpenSource.Shuffle -> {
-                    eventChannel.trySend(HomeEvent.OpenDeck(DeckSource.All, _uiState.value.typeFilter))
-                }
+            HomeIntent.OpenSource.Shuffle -> {
+                eventChannel.trySend(HomeEvent.OpenDeck(DeckSource.All, _uiState.value.typeFilter))
+            }
 
-                is HomeIntent.OpenSource.Smart -> {
-                    eventChannel.trySend(HomeEvent.OpenDeck(DeckSource.Smart(intent.kind), _uiState.value.typeFilter))
-                }
+            is HomeIntent.OpenSource.Smart -> {
+                eventChannel.trySend(HomeEvent.OpenDeck(DeckSource.Smart(intent.kind), _uiState.value.typeFilter))
+            }
 
-                is HomeIntent.OpenSource.Album -> {
-                    eventChannel.trySend(
-                        HomeEvent.OpenDeck(
-                            DeckSource.Album(intent.source.id, intent.source.title),
-                            _uiState.value.typeFilter,
-                        ),
-                    )
-                }
+            is HomeIntent.OpenSource.Album -> {
+                eventChannel.trySend(
+                    HomeEvent.OpenDeck(
+                        DeckSource.Album(intent.source.id, intent.source.title),
+                        _uiState.value.typeFilter,
+                    ),
+                )
             }
         }
     }
