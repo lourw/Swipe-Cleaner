@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.semantics
 import dev.swipe.ui.theme.SwipeTheme
 import dev.swipe.ui.theme.TABULAR_FIGURES
@@ -69,6 +70,17 @@ internal fun VideoScrubber(
                         // pointer-only, matching the card's gesture stack.
                         contentDescription = "Video scrubber"
                         progressBarRangeInfo = ProgressBarRangeInfo(fraction.coerceIn(0f, 1f), 0f..1f)
+                        // …and Accessibility can seek without a pointer:
+                        // SetProgress takes the same path a drag takes, seek
+                        // then end in one step (§5.7, NFR-8). Nothing to seek
+                        // while the duration is still unknown.
+                        if (durationMs > 0L) {
+                            setProgress { target ->
+                                onScrub(target)
+                                onScrubEnd()
+                                true
+                            }
+                        }
                     }.pointerInput(durationMs) {
                         // An unprepared item (duration still unknown) has no
                         // meaningful seek range: the player would drop the seek
