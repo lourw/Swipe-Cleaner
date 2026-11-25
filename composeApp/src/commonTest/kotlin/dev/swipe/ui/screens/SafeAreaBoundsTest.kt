@@ -29,7 +29,7 @@ import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.ui.screens.home.AlbumsScreen
 import dev.swipe.ui.screens.home.HomeScreen
 import dev.swipe.ui.screens.home.MonthsScreen
-import dev.swipe.ui.screens.onboarding.DeniedScreen
+import dev.swipe.ui.screens.permission.DeniedScreen
 import dev.swipe.ui.screens.queue.QueueScreen
 import dev.swipe.ui.screens.settings.SettingsScreen
 import dev.swipe.ui.screens.summary.DeleteSuccessScreen

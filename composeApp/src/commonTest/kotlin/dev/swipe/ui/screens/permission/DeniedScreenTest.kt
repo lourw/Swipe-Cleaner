@@ -1,7 +1,7 @@
 // The Compose multiplatform UI test API is experimental; opt in once per file.
 @file:OptIn(ExperimentalComposeUiApi::class, ExperimentalTestApi::class)
 
-package dev.swipe.ui.screens.onboarding
+package dev.swipe.ui.screens.permission
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi

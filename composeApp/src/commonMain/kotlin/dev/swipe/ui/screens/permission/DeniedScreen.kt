@@ -1,4 +1,4 @@
-package dev.swipe.ui.screens.onboarding
+package dev.swipe.ui.screens.permission
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column

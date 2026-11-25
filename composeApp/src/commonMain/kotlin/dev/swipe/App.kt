@@ -44,7 +44,7 @@ import dev.swipe.ui.navigation.Queue
 import dev.swipe.ui.navigation.Settings
 import dev.swipe.ui.navigation.Summary
 import dev.swipe.ui.navigation.Swipe
-import dev.swipe.ui.screens.onboarding.DeniedScreen
+import dev.swipe.ui.screens.permission.DeniedScreen
 import dev.swipe.ui.screens.queue.QueueScreen
 import dev.swipe.ui.screens.settings.SettingsScreen
 import dev.swipe.ui.screens.summary.DeleteSuccessScreen
@@ -266,10 +266,13 @@ private fun SwipeDestination(
     route: Swipe,
     navController: NavHostController,
 ) {
-    val source =
-        remember(route.sourceJson) {
-            Json.decodeFromString(DeckSource.serializer(), route.sourceJson)
-        }
+    val source = remember(route.sourceJson) { decodeDeckSource(route.sourceJson) }
+    if (source == null) {
+        // A route restored from an older build can carry source JSON this
+        // build cannot decode; fall back to Home rather than crash on launch.
+        LaunchedEffect(route.sourceJson) { navController.backToHome() }
+        return
+    }
     SwipeContainer(
         source = source,
         typeFilter = decodeTypeFilter(route.typeFilter),
@@ -278,6 +281,14 @@ private fun SwipeDestination(
         onOpenQueue = { navController.navigate(Queue) },
     )
 }
+
+/**
+ * Decode a [Swipe] route's [DeckSource] or return null when the JSON is from
+ * an incompatible older build (state restoration), so the destination can
+ * degrade to Home instead of throwing.
+ */
+internal fun decodeDeckSource(json: String): DeckSource? =
+    runCatching { Json.decodeFromString(DeckSource.serializer(), json) }.getOrNull()
 
 /**
  * Wires [SwipeViewModel] (resolved with the route's source and filter) and the
