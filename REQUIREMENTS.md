@@ -194,7 +194,7 @@ The swipe card is the heart of the app. These numbers are the spec, not suggesti
 | Card underneath | Scale 0.94 → 1.0 and alpha 0.6 → 1.0, tied to the top card's drag progress |
 | Undo return | The card flies back in from the side it left, 260 ms, `FastOutSlowInEasing` |
 | Undo during fly-off (FR-15) | An Undo tapped while the card is committed and flying is held by the UI until the commit intent goes out, then queued by the ViewModel until the write settles: it fires after the advance (the card comes back), or is discarded if the write failed — the failure path already returns the card (WP-9.10) |
-| Hide advance (FR-38) | No fly-off: the asset is already hidden in the library when the deck moves, so the card leaves with the plain card swap |
+| Hide advance (FR-38) | No fly-off: the asset is already hidden in the library when the deck moves, so the card leaves with the plain card swap. The new top card shows the next item's picture at once — the image the under card already held for that id — and never the hidden item's |
 | Hide undo return (FR-38) | The card returns **in place** where it stands — fade in with scale 0.92 → 1.0, 260 ms, `FastOutSlowInEasing` — not flying in from a side |
 | Button-triggered action | Same fly-off, with a synthetic 30 dp nudge first (80 ms) so the motion reads |
 | Haptics | `selection` when crossing the threshold in either direction. `impactLight` on Keep or Skip commit. `impactMedium` on Delete commit. `notificationSuccess` after a batch delete |

@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,7 @@ import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
 import dev.swipe.ui.components.media.SeekTarget
 import dev.swipe.ui.components.media.VideoPlayerSlot
+import dev.swipe.ui.components.media.promotedImage
 import dev.swipe.ui.components.media.rememberMediaImage
 import dev.swipe.ui.components.swipe.CardAccessibilityAction
 import dev.swipe.ui.components.swipe.SwipeCard
@@ -187,6 +189,9 @@ internal fun ColumnScope.CardStack(
     videoSlot: VideoPlayerSlot = DefaultVideoPlayerSlot,
 ) {
     var deckSize by remember { mutableStateOf(Size.Zero) }
+    // FR-38: the last image the under card drew, with its id, so a promoted card borrows
+    var underDrawn by remember { mutableStateOf<Pair<String, LoadedImage>?>(null) }
+    LaunchedEffect(next) { if (next == null) underDrawn = null }
     Box(
         modifier =
             Modifier
@@ -201,6 +206,7 @@ internal fun ColumnScope.CardStack(
                 loader = mediaLoader,
                 offset = cardState.offset,
                 deckSize = deckSize,
+                onImageReady = { id, image -> underDrawn = id to image },
             )
         }
         SwipeCard(
@@ -220,7 +226,7 @@ internal fun ColumnScope.CardStack(
             onDragStart = callbacks.onDragStart,
             modifier = Modifier.matchParentSize().testTag(SWIPE_CARD_TEST_TAG),
         ) {
-            val loaded = cardMedia(card = card, loader = mediaLoader, fillMode = display.fillMode, latency = latency)
+            val loaded = cardMedia(card, mediaLoader, display.fillMode, latency, underDrawn)
             TopCardPlayback(
                 card = card,
                 cardState = cardState,
@@ -328,8 +334,9 @@ private fun BoxScope.TopCardPlayback(
 
 /**
  * The top card's media: aspect-fit by default, fill after a double-tap (§5.6),
- * always mounted as the poster under any live playback (R2). Returns the
- * loaded image so the caller can read its R6 cloud signal.
+ * always mounted as the poster under any live playback (R2). Draws [underDrawn]'s
+ * bitmap when the card's own load has not emitted but the under card held this id
+ * (FR-38). Returns the image it drew so the caller can read its R6 cloud signal.
  */
 @Composable
 private fun BoxScope.cardMedia(
@@ -337,6 +344,7 @@ private fun BoxScope.cardMedia(
     loader: MediaLoader,
     fillMode: Boolean,
     latency: CommitLatencyTrace,
+    underDrawn: Pair<String, LoadedImage>?,
 ): LoadedImage? {
     val loaded =
         rememberMediaImage(
@@ -344,18 +352,19 @@ private fun BoxScope.cardMedia(
             targetPx = MediaLoader.FULL_TARGET_PX,
             loader = loader,
         )
-    loaded?.let { image ->
+    val drawn = promotedImage(card.id, loaded, underDrawn?.first, underDrawn?.second)
+    drawn?.let { image ->
         Image(
             bitmap = image.bitmap,
             contentDescription = null,
             contentScale = cardContentScale(fillMode),
             modifier = Modifier.matchParentSize(),
         )
-        // NFR-1 span ends ride the emissions, after the frame they draw in
-        // (CommitLatencyTrace; the committed card's own emissions are ignored).
-        LaunchedEffect(image) { latency.onImage(card.id, image.isDegraded) }
     }
-    return loaded
+    // NFR-1 span ends ride the card's own emissions only — never a borrowed frame
+    // (CommitLatencyTrace; the committed card's own emissions are ignored).
+    loaded?.let { image -> LaunchedEffect(image) { latency.onImage(card.id, image.isDegraded) } }
+    return drawn
 }
 
 /** The card underneath (FR-11): the next item's media on the shared surface. */
@@ -365,13 +374,19 @@ private fun BoxScope.UnderDeckCard(
     loader: MediaLoader,
     offset: Offset,
     deckSize: Size,
+    onImageReady: (String, LoadedImage) -> Unit,
 ) {
+    val imageReady by rememberUpdatedState(onImageReady)
     val loaded =
         rememberMediaImage(
             id = card.id,
             targetPx = MediaLoader.FULL_TARGET_PX,
             loader = loader,
         )
+    // FR-38: hand the drawn bitmap up (with its id) so the card promoted to the top
+    // this swipe can borrow it instead of flashing blank. The pair references a bitmap
+    // the loader's cache already owns — it is not an extra decode (NFR-3).
+    loaded?.let { image -> LaunchedEffect(image) { imageReady(card.id, image) } }
     Box(
         modifier =
             Modifier

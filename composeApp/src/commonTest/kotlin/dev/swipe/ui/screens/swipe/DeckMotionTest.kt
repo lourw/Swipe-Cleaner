@@ -14,8 +14,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.swipe.data.LoadedImage
+import dev.swipe.ui.components.media.promotedImage
 import dev.swipe.ui.components.swipe.SwipeCardState
 import dev.swipe.ui.components.swipe.SwipeVerdict
 import dev.swipe.ui.components.swipe.rememberSwipeCardState
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -159,4 +163,24 @@ class DeckMotionTest {
             awaitIdle()
             assertEquals(Offset.Zero, card.offset, "and the card stays at rest")
         }
+
+    /**
+     * FR-38 (§5.6 Hide advance): the pure borrow rule the promoted top card uses.
+     * The card's own load always wins; otherwise it borrows the under card's image
+     * only when that image was loaded for the very same id — an image is drawn only
+     * for the card it was loaded for (AC3).
+     */
+    @Test
+    fun `FR-38 a promoted card borrows the under card image only for its own id`() {
+        val own = LoadedImage(ImageBitmap(1, 1), isDegraded = false, isCloud = false)
+        val under = LoadedImage(ImageBitmap(2, 2), isDegraded = false, isCloud = false)
+        // The card's own emission wins even when a borrow is available.
+        assertEquals(own, promotedImage(cardId = "a", own = own, underId = "a", underImage = under))
+        // No own image yet, same id: borrow the under card's already-loaded bitmap.
+        assertEquals(under, promotedImage(cardId = "b", own = null, underId = "b", underImage = under))
+        // A borrow for a different id must never draw that image.
+        assertNull(promotedImage(cardId = "b", own = null, underId = "c", underImage = under))
+        // Nothing loaded anywhere.
+        assertNull(promotedImage(cardId = "b", own = null, underId = null, underImage = null))
+    }
 }

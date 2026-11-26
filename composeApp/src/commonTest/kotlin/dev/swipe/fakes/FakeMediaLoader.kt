@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.IntSize
 import dev.swipe.data.LoadedImage
 import dev.swipe.data.MediaLoader
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 
 /**
@@ -25,6 +26,12 @@ class FakeMediaLoader : MediaLoader {
     /** Every [image] call as (id, targetPx), oldest first. */
     val imageRequests = mutableListOf<Pair<String, IntSize>>()
 
+    /**
+     * Ids whose [image] flow records the request but emits nothing (FR-38): a card
+     * still loading for these ids has no image yet, so the deck must not draw a stale one.
+     */
+    var silentIds: Set<String> = emptySet()
+
     /** Every [prefetch] call, oldest first. */
     val prefetchCalls = mutableListOf<List<String>>()
 
@@ -39,6 +46,7 @@ class FakeMediaLoader : MediaLoader {
         targetPx: IntSize,
     ): Flow<LoadedImage> {
         imageRequests += id to targetPx
+        if (id in silentIds) return emptyFlow()
         return flow {
             failNextImage?.let {
                 failNextImage = null
