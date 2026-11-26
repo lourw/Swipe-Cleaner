@@ -27,4 +27,14 @@ data class SettingsUiState(
      * [SettingsIntent.RequestReset]; the clear runs only on [SettingsIntent.ConfirmReset].
      */
     val confirmResetVisible: Boolean = false,
+    /**
+     * Kept items that come back as undecided if the open FR-30 dialog is
+     * confirmed — read from `DecisionStore.stats()` when the row was tapped.
+     */
+    val resetKeptCount: Int = 0,
+    /**
+     * Items in To Delete the reset leaves queued — read from
+     * `DecisionStore.stats()` when the row was tapped (FR-30).
+     */
+    val resetQueuedCount: Int = 0,
 )

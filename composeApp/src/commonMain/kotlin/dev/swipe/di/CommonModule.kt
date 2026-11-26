@@ -129,6 +129,7 @@ val commonModule: Module =
                 library = get(),
                 exclusions = get(),
                 sourceCounts = get(),
+                decisions = get(),
             )
         }
 
@@ -139,6 +140,7 @@ val commonModule: Module =
                 typeFilter = params.get(),
                 library = get(),
                 sourceCounts = get(),
+                decisions = get(),
             )
         }
 

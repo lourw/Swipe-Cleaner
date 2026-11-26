@@ -5,11 +5,22 @@ package dev.swipe.presentation.settings
  * so a late collector never replays a stale toast).
  */
 sealed interface SettingsEvent {
-    /** FR-30: the KEEP history was cleared; the screen toasts. */
-    data object ResetDone : SettingsEvent
+    /**
+     * FR-30: the KEEP history was cleared; [restored] items are undecided
+     * again and the screen toasts the number.
+     */
+    data class ResetDone(
+        val restored: Int,
+    ) : SettingsEvent
 
     /** FR-30: the clear failed; the KEEP history is unchanged and the user hears why. */
     data object ResetFailed : SettingsEvent
+
+    /**
+     * FR-30: nothing is kept, so there is nothing to reset — the row toasts
+     * instead of opening the dialog.
+     */
+    data object NothingToReset : SettingsEvent
 
     /** FR-29: a settings write failed; the toggle falls back to the stored value. */
     data object SaveFailed : SettingsEvent

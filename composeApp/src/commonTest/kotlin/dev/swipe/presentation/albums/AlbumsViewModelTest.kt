@@ -65,6 +65,55 @@ class AlbumsViewModelTest {
             }
         }
 
+    /**
+     * FR-30, §6.5: back on this screen after a decision change (a deck's
+     * swipe, a reset, a commit), a resume re-runs the counts exactly once;
+     * a resume with no change re-runs nothing.
+     */
+    @Test
+    fun `FR-30 a resume after a decision change re-runs the album counts once`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library =
+                FakeMediaLibrary(
+                    photos(3),
+                    albums = mapOf("a1" to setOf("asset-1", "asset-2", "asset-3")),
+                )
+            val store = FakeDecisionStore()
+            val viewModel = albumsViewModel(MediaTypeFilter.ALL, library, store)
+            testScheduler.advanceUntilIdle()
+            assertEquals(
+                3,
+                viewModel.uiState.value.rows
+                    .single()
+                    .count,
+            )
+            val settledCalls = library.albumsCalls
+
+            // The first resume after the screen opens only records the set (§6.5).
+            viewModel.onIntent(AlbumsIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+            assertEquals(settledCalls, library.albumsCalls)
+
+            // Back from the deck with a new decision: one re-run, 3 → 2 (FR-30).
+            store.record("asset-2", Decision.KEEP, "deck")
+            viewModel.onIntent(AlbumsIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+            assertEquals(
+                2,
+                viewModel.uiState.value.rows
+                    .single()
+                    .count,
+            )
+            assertEquals(settledCalls + 1, library.albumsCalls)
+
+            // Nothing changed since: the next resume re-runs nothing (dedupe).
+            val afterChange = library.albumsCalls
+            viewModel.onIntent(AlbumsIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+            assertEquals(afterChange, library.albumsCalls)
+        }
+
     @Test
     fun `FR-8 opening an album navigates with the screen's filter`() =
         runTest {

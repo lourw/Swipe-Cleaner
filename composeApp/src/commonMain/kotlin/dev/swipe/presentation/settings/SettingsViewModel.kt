@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -19,9 +20,12 @@ import kotlinx.coroutines.launch
 /**
  * The Settings screen (FR-29–31): the three toggles ride
  * [SettingsStore]'s flows in both directions, and "Reset all decisions" is the
- * two-step FR-30 flow — [SettingsIntent.RequestReset] only raises the dialog
- * and [SettingsIntent.ConfirmReset] is the only call site of
- * [DecisionStore.clearKeeps], which leaves the delete queue untouched.
+ * two-step FR-30 flow — [SettingsIntent.RequestReset] reads the counts the
+ * dialog reports (or toasts when nothing is kept) and
+ * [SettingsIntent.ConfirmReset] is the only call site of
+ * [DecisionStore.clearKeeps], which leaves the delete queue untouched. Home,
+ * Albums and By month pick the cleared KEEP history up when they resume
+ * (FR-30, §6.5 *Counts*).
  *
  * The store is the single source of truth for the toggle values (NFR-7's
  * discipline in miniature): a setter that throws leaves its `StateFlow`
@@ -103,19 +107,48 @@ class SettingsViewModel(
         }
     }
 
-    /** FR-30: the row tap raises the dialog and stops there — nothing is cleared. */
+    /**
+     * FR-30: the row tap reads `stats()` first — the dialog reports how many
+     * kept items come back as undecided and how many stay queued. With nothing
+     * kept the row toasts [SettingsEvent.NothingToReset] and no dialog opens;
+     * either way nothing is cleared here.
+     */
     private fun requestReset() {
-        _uiState.update { it.copy(confirmResetVisible = true) }
+        viewModelScope.launch {
+            val stats =
+                try {
+                    decisions.stats().first()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation // ViewModel teardown, not a failed read
+                } catch (_: Exception) {
+                    eventChannel.trySend(SettingsEvent.ResetFailed)
+                    return@launch
+                }
+            if (stats.kept == 0) {
+                eventChannel.trySend(SettingsEvent.NothingToReset)
+                return@launch
+            }
+            _uiState.update {
+                it.copy(
+                    confirmResetVisible = true,
+                    resetKeptCount = stats.kept,
+                    resetQueuedCount = stats.queued,
+                )
+            }
+        }
     }
 
     /**
      * The dialog's Reset: the only call site of
      * [DecisionStore.clearKeeps] (FR-30). Ignored unless the dialog is up, so
-     * the confirm is the gate. Success and failure are reported as events; the
-     * KEEP rows' disappearance flows to Home through `DecisionStore.stats()`.
+     * the confirm is the gate. Success and failure are reported as events —
+     * the success carries the kept count the dialog showed, so the toast says
+     * how many came back. Home, Albums and By month re-run their counts on
+     * resume (FR-30, §6.5 *Counts*).
      */
     private fun confirmReset() {
         if (!_uiState.value.confirmResetVisible) return
+        val restored = _uiState.value.resetKeptCount
         _uiState.update { it.copy(confirmResetVisible = false) }
         viewModelScope.launch {
             try {
@@ -126,7 +159,7 @@ class SettingsViewModel(
                 eventChannel.trySend(SettingsEvent.ResetFailed)
                 return@launch
             }
-            eventChannel.trySend(SettingsEvent.ResetDone)
+            eventChannel.trySend(SettingsEvent.ResetDone(restored))
         }
     }
 

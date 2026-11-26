@@ -49,4 +49,13 @@ sealed interface HomeIntent {
 
     /** Open the **By month** screen (FR-4, FR-7, WP-5.3); its buckets and decks use the current filter. */
     data object OpenMonths : HomeIntent
+
+    /**
+     * Home became the resumed destination again — back from Settings, a deck
+     * or the queue, or the app returning to the foreground. Re-runs the counts
+     * only when the decided set changed since the previous check, so "Reset
+     * all decisions" (FR-30) and every other decision change lands on Home
+     * without a reload on a no-change resume (§6.5).
+     */
+    data object Resumed : HomeIntent
 }

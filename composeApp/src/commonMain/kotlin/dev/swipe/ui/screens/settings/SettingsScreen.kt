@@ -71,8 +71,9 @@ fun SettingsScreen(
             toast =
                 ToastSpec(
                     when (event) {
-                        SettingsEvent.ResetDone -> "Keep history cleared"
+                        is SettingsEvent.ResetDone -> resetToastText(event.restored)
                         SettingsEvent.ResetFailed -> "Couldn't reset"
+                        SettingsEvent.NothingToReset -> "Nothing to reset: no kept items"
                         SettingsEvent.SaveFailed -> "Couldn't save setting"
                     },
                 )
@@ -108,9 +109,13 @@ fun SettingsScreen(
     if (state.confirmResetVisible) {
         ConfirmDialog(
             title = "Reset all decisions?",
+            // FR-30: the dialog names what the reset does — the kept items
+            // coming back, and the To Delete queue it leaves alone.
             message =
-                "This clears your KEEP history so everything is undecided again. " +
-                    "Items waiting in the review queue are not deleted.",
+                "${state.resetKeptCount} kept ${plural(state.resetKeptCount, "item", "items")} " +
+                    "will be undecided again and show up in decks.",
+            secondaryMessage =
+                if (state.resetQueuedCount > 0) "Items in To Delete stay queued." else null,
             confirmLabel = "Reset",
             onConfirm = { onIntent(SettingsIntent.ConfirmReset) },
             onCancel = { onIntent(SettingsIntent.CancelReset) },
@@ -118,6 +123,16 @@ fun SettingsScreen(
         // Dialog host: the dialog renders in its own window; the flag drives it.
     }
 }
+
+/** FR-30: the success toast names how many kept items are undecided again. */
+private fun resetToastText(restored: Int) = "$restored ${plural(restored, "item is", "items are")} undecided again"
+
+/** The plural form for the reset copy: `plural(2, "item", "items")` → "items". */
+private fun plural(
+    count: Int,
+    one: String,
+    many: String,
+) = if (count == 1) one else many
 
 /**
  * The §5.7 toast of Settings through the shared host (WP-9.3): bottom,

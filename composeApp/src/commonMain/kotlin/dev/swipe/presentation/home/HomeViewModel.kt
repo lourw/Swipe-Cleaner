@@ -13,6 +13,7 @@ import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.usecase.SourceCounts
 import dev.swipe.domain.usecase.SourceCountsUseCase
+import dev.swipe.presentation.DecidedSetWatch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -45,7 +46,10 @@ import kotlinx.coroutines.launch
  * inside the collect body, the same pattern as
  * [dev.swipe.presentation.permission.PermissionViewModel]. The type filter
  * reloads the counts the same way (FR-5), and a late arrival from a superseded
- * filter is discarded so it can never overwrite fresher numbers.
+ * filter is discarded so it can never overwrite fresher numbers. A `Resumed`
+ * intent re-checks the decided set with [DecidedSetWatch] and re-runs the
+ * counts once when it moved — an FR-30 reset landing on Home without a library
+ * change — and costs nothing on a resume with no change.
  *
  * **Never called (WP-5.2):** `months(type)` — the By-month screen is FR-7 and
  * belongs to WP-5.3; Home stays off that full-library path.
@@ -76,6 +80,9 @@ class HomeViewModel(
      * fast filter flip never runs two enumerations at once.
      */
     private val reloadRequests = MutableSharedFlow<MediaTypeFilter>(replay = 1)
+
+    /** FR-30: the resume check — counts re-run only when the decided set moved. */
+    private val decidedWatch = DecidedSetWatch(decisions)
 
     init {
         reloadRequests.tryEmit(MediaTypeFilter.ALL)
@@ -147,6 +154,19 @@ class HomeViewModel(
 
             HomeIntent.OpenMonths -> {
                 eventChannel.trySend(HomeEvent.OpenMonths(_uiState.value.typeFilter))
+            }
+
+            HomeIntent.Resumed -> {
+                // FR-30: back on Home (or foregrounded) after a reset, a
+                // finished deck, a commit or a queue edit — re-run the counts
+                // for the current filter once, and only when the decided set
+                // actually changed. The re-run carries only final numbers, so
+                // settled rows never dip to the placeholder (§6.5).
+                viewModelScope.launch {
+                    if (decidedWatch.changedSinceLastCheck()) {
+                        reloadRequests.tryEmit(_uiState.value.typeFilter)
+                    }
+                }
             }
 
             HomeIntent.OpenSource.Shuffle -> {

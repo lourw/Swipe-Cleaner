@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import dev.swipe.data.MediaLoader
@@ -89,6 +90,11 @@ internal fun HomeDestination(
         return
     }
     val viewModel = homeViewModel()
+    // FR-30, §6.5: Home re-checks the decided set every time it becomes the
+    // resumed destination again (back from Settings, a deck, the queue, or the
+    // app foregrounding) and re-runs its counts only when it changed. After
+    // the NOT_DETERMINED return, so this only ever runs with a real ViewModel.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onIntent(HomeIntent.Resumed) }
     val onIntent: (HomeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
     val lifecycle = LocalLifecycleOwner.current
@@ -147,6 +153,9 @@ internal fun AlbumsDestination(
     },
 ) {
     val viewModel: AlbumsViewModel = albumsViewModel()
+    // FR-30: resuming this entry (back from a deck it opened, or the app
+    // foregrounding) re-runs the counts only when the decided set changed.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onIntent(AlbumsIntent.Resumed) }
     val onIntent: (AlbumsIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
     val lifecycle = LocalLifecycleOwner.current
@@ -183,6 +192,9 @@ internal fun MonthsDestination(
     },
 ) {
     val viewModel: MonthsViewModel = monthsViewModel()
+    // FR-30: resuming this entry (back from a deck it opened, or the app
+    // foregrounding) re-runs the counts only when the decided set changed.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onIntent(MonthsIntent.Resumed) }
     val onIntent: (MonthsIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
     val lifecycle = LocalLifecycleOwner.current

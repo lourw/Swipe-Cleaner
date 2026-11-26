@@ -58,6 +58,32 @@ class StartSessionUseCaseTest {
         }
 
     @Test
+    fun `FR-30 a resumed Shuffle session's rebuilt deck includes the ids a reset cleared`() =
+        runTest {
+            // FR-30: Reset all decisions clears KEEP rows only, so the next rebuild
+            // (FR-20) hands the cleared ids back to the deck while a queued DELETE
+            // stays decided away.
+            val env = Env(itemCount = 5)
+            env.sessionStore.create(DeckSource.All, MediaTypeFilter.ALL, seed = 7L)
+            env.store.record("asset-1", Decision.KEEP, "session-1")
+            env.store.record("asset-2", Decision.KEEP, "session-1")
+            env.store.record("asset-3", Decision.DELETE, "session-1")
+
+            val before = env.useCase(DeckSource.All, MediaTypeFilter.ALL) { error("a resume must not seed") }
+            // The keeps and the queued delete are all out of the deck.
+            assertEquals(setOf("asset-4", "asset-5"), before.deck.toSet())
+
+            env.store.clearKeeps()
+            val after = env.useCase(DeckSource.All, MediaTypeFilter.ALL) { error("a resume must not seed") }
+
+            assertEquals("session-1", after.sessionId)
+            assertEquals(4, after.deck.size)
+            assertTrue("asset-1" in after.deck)
+            assertTrue("asset-2" in after.deck)
+            assertTrue("asset-3" !in after.deck)
+        }
+
+    @Test
     fun `FR-19 the reviewed base adds the stored counts and this session's skips`() =
         runTest {
             val env = Env()

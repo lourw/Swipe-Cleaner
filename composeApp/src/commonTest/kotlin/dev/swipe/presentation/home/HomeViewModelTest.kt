@@ -21,6 +21,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeShuffleExclusionStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -254,6 +255,91 @@ class HomeViewModelTest {
             library.release()
             val refreshed = viewModel.awaitSettled(this)
             assertEquals(2, refreshed.shuffleCount)
+        }
+
+    @Test
+    fun `FR-30 a reset raises the Shuffle count on the next resume without a library change`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(5))
+            val store =
+                seedStore(
+                    "asset-1" to Decision.KEEP,
+                    "asset-2" to Decision.KEEP,
+                    "asset-3" to Decision.DELETE,
+                )
+            val viewModel = homeViewModel(library, store)
+            val settled = viewModel.awaitSettled(this)
+            assertEquals(2, settled.shuffleCount) // 5 − the two KEEPs and the queued DELETE
+
+            // The first resume only records the decided set — the startup load
+            // already counted against it (FR-30, §6.5).
+            viewModel.onIntent(HomeIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.shuffleCount)
+
+            // "Reset all decisions" clears the KEEPs; the queue stays (FR-30).
+            store.clearKeeps()
+            viewModel.onIntent(HomeIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+
+            // No library change happened, so only the resume can re-run the
+            // counts: 5 − the one still-queued DELETE. Without the fix this
+            // stays 2 — that was the FR-30 bug.
+            assertEquals(4, viewModel.uiState.value.shuffleCount)
+            // The queued DELETE survives the reset and stays out of the count (AC3).
+            assertEquals(listOf("asset-3"), store.deleteQueue().first())
+        }
+
+    @Test
+    fun `FR-30 a resume with no decision change does not re-run the counts`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(3))
+            val store = seedStore("asset-1" to Decision.KEEP)
+            val viewModel = homeViewModel(library, store)
+            viewModel.awaitSettled(this)
+
+            viewModel.onIntent(HomeIntent.Resumed) // records the decided set
+            testScheduler.advanceUntilIdle()
+            viewModel.onIntent(HomeIntent.Resumed) // no change → no reload
+            testScheduler.advanceUntilIdle()
+
+            val before = library.assetIdsCalls.count { it.first == DeckSource.All }
+            viewModel.onIntent(HomeIntent.Resumed) // still no change
+            testScheduler.advanceUntilIdle()
+            // At most one re-run per change: a no-change resume fetches nothing (§6.5).
+            assertEquals(before, library.assetIdsCalls.count { it.first == DeckSource.All })
+        }
+
+    @Test
+    fun `FR-30 a resume re-run never dips a settled count to the placeholder`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = GatingLibrary(FakeMediaLibrary(photoItems(4)))
+            val store = seedStore("asset-1" to Decision.KEEP, "asset-2" to Decision.DELETE)
+            val viewModel = homeViewModel(library, store)
+            val settled = viewModel.awaitSettled(this)
+            assertEquals(2, settled.shuffleCount)
+
+            viewModel.onIntent(HomeIntent.Resumed) // records the decided set
+            testScheduler.advanceUntilIdle()
+
+            // A reset then resume re-runs the counts; while the reads are in
+            // flight the settled number stays on screen — the re-run carries
+            // only final numbers, so never the placeholder (§6.5).
+            store.clearKeeps()
+            library.gate(MediaTypeFilter.ALL)
+            viewModel.onIntent(HomeIntent.Resumed)
+            testScheduler.advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.shuffleCount)
+
+            // Release and run the held reads to completion; `awaitSettled` would
+            // return the held 2 immediately (nothing ever went back to null —
+            // that is the point), so advance and read the settled value.
+            library.release()
+            testScheduler.advanceUntilIdle()
+            assertEquals(3, viewModel.uiState.value.shuffleCount) // 4 − the one queued DELETE
         }
 
     @Test

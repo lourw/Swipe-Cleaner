@@ -96,10 +96,11 @@ class SettingsViewModelTest {
             viewModel.uiState.test {
                 awaitItem()
 
-                // The row tap only raises the dialog — nothing is cleared (FR-30).
+                // The row tap reads the counts and only then raises the
+                // dialog — nothing is cleared (FR-30).
                 viewModel.onIntent(SettingsIntent.RequestReset)
-                assertTrue(awaitItem().confirmResetVisible)
                 advanceUntilIdle()
+                assertTrue(awaitItem().confirmResetVisible)
                 assertEquals(0, store.clearKeepsCalls)
 
                 // Cancel closes it, still clearing nothing.
@@ -124,8 +125,9 @@ class SettingsViewModelTest {
 
             viewModel.events.test {
                 viewModel.onIntent(SettingsIntent.RequestReset)
+                advanceUntilIdle() // the async count read behind the row tap
                 viewModel.onIntent(SettingsIntent.ConfirmReset)
-                assertEquals(SettingsEvent.ResetDone, awaitItem())
+                assertEquals(SettingsEvent.ResetDone(2), awaitItem())
             }
             assertEquals(1, store.clearKeepsCalls)
             // KEEP rows are gone; the pending DELETE and the DELETED history stay.
@@ -147,10 +149,48 @@ class SettingsViewModelTest {
 
             viewModel.events.test {
                 viewModel.onIntent(SettingsIntent.RequestReset)
+                advanceUntilIdle() // the async count read behind the row tap
                 viewModel.onIntent(SettingsIntent.ConfirmReset)
                 assertEquals(SettingsEvent.ResetFailed, awaitItem())
             }
             assertTrue(store.entries.any { it.decision == Decision.KEEP })
+        }
+
+    @Test
+    fun `FR-30 the reset dialog counts the kept items coming back and the queued ones staying`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val store = seededStore()
+            val viewModel = SettingsViewModel(FakeSettingsStore(), store, FakeSystemActions())
+
+            viewModel.onIntent(SettingsIntent.RequestReset)
+            advanceUntilIdle()
+
+            // The open dialog reports what the reset will do (FR-30): two kept
+            // items come back as undecided, the one queued delete stays queued.
+            val state = viewModel.uiState.value
+            assertTrue(state.confirmResetVisible)
+            assertEquals(2, state.resetKeptCount)
+            assertEquals(1, state.resetQueuedCount)
+            assertEquals(0, store.clearKeepsCalls)
+        }
+
+    @Test
+    fun `FR-30 with nothing kept the reset row toasts instead of opening the dialog`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val store = FakeDecisionStore()
+            store.record("del-1", Decision.DELETE, "session-1")
+            val viewModel = SettingsViewModel(FakeSettingsStore(), store, FakeSystemActions())
+
+            viewModel.events.test {
+                viewModel.onIntent(SettingsIntent.RequestReset)
+                // kept == 0: a "nothing to reset" toast, no dialog, no clear.
+                assertEquals(SettingsEvent.NothingToReset, awaitItem())
+            }
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.confirmResetVisible)
+            assertEquals(0, store.clearKeepsCalls)
         }
 
     @Test

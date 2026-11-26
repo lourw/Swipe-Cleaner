@@ -4,10 +4,12 @@ package dev.swipe.presentation.months
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaLibrary
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.usecase.SourceCountsUseCase
+import dev.swipe.presentation.DecidedSetWatch
 import dev.swipe.presentation.ListStatus
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +47,8 @@ class MonthsViewModel(
     private val library: MediaLibrary,
     /** The one count path (FR-9, WP-8.12): each row's number is its deck's size. */
     private val sourceCounts: SourceCountsUseCase,
+    /** FR-30: the decided set the resume trigger compares. */
+    private val decisions: DecisionStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MonthsUiState(typeFilter = typeFilter))
 
@@ -58,6 +62,9 @@ class MonthsViewModel(
 
     /** Reload requests, latest-wins; `replay = 1` doubles as the startup trigger. */
     private val reloads = MutableSharedFlow<Unit>(replay = 1)
+
+    /** FR-30: deduplicates the resume trigger over the decided set (§6.5). */
+    private val decidedWatch = DecidedSetWatch(decisions)
 
     init {
         reloads.tryEmit(Unit)
@@ -126,6 +133,19 @@ class MonthsViewModel(
                 // message and one fresh scan (FR-7).
                 _uiState.update { it.copy(status = ListStatus.Loading) }
                 reloads.tryEmit(Unit)
+            }
+
+            MonthsIntent.Resumed -> {
+                // FR-30: back on the screen after a reset, a finished
+                // deck, a commit or a queue edit — re-run the counts once,
+                // and only when the decided set actually changed. The
+                // status stays: rows stay put and the merge keeps held
+                // numbers, so nothing dips to the placeholder (§6.5).
+                viewModelScope.launch {
+                    if (decidedWatch.changedSinceLastCheck()) {
+                        reloads.tryEmit(Unit)
+                    }
+                }
             }
         }
     }

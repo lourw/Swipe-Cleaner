@@ -46,11 +46,11 @@ fun albumsViewModel(
     library: MediaLibrary,
     decisions: DecisionStore,
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
-): AlbumsViewModel = AlbumsViewModel(typeFilter, library, exclusions, sourceCountsUseCase(library, decisions, exclusions))
+): AlbumsViewModel = AlbumsViewModel(typeFilter, library, exclusions, sourceCountsUseCase(library, decisions, exclusions), decisions)
 
 fun monthsViewModel(
     typeFilter: MediaTypeFilter,
     library: MediaLibrary,
     decisions: DecisionStore,
     exclusions: ShuffleExclusionStore = FakeShuffleExclusionStore(),
-): MonthsViewModel = MonthsViewModel(typeFilter, library, sourceCountsUseCase(library, decisions, exclusions))
+): MonthsViewModel = MonthsViewModel(typeFilter, library, sourceCountsUseCase(library, decisions, exclusions), decisions)

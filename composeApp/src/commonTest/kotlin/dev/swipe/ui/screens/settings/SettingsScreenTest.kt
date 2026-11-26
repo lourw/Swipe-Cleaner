@@ -132,7 +132,24 @@ class SettingsScreenTest {
             // KEEP rows are gone; the pending DELETE survives the reset (FR-30).
             assertEquals(1, f.store.clearKeepsCalls)
             assertEquals(listOf("del-1"), f.store.deleteQueue().first())
-            onNodeWithText("Keep history cleared").assertExists()
+            onNodeWithText("2 items are undecided again").assertExists()
+        }
+
+    @Test
+    fun `FR-30 the reset dialog says how many come back and that To Delete stays`() =
+        runComposeUiTest {
+            val f = ScreenFixture() // 2 KEEP, 1 pending DELETE
+            setContent { TestScreen(f.viewModel) }
+            waitForIdle()
+
+            onNodeWithTag(RESET_ROW_TEST_TAG).performClick()
+            waitForIdle()
+
+            // The honest dialog (FR-30): it names the kept items coming back
+            // and says the queued deletes are not touched.
+            onNodeWithText("Reset all decisions?").assertExists()
+            onNodeWithText("2 kept items will be undecided again and show up in decks.").assertExists()
+            onNodeWithText("Items in To Delete stay queued.").assertExists()
         }
 
     @Test
@@ -180,12 +197,12 @@ class SettingsScreenTest {
     @Test
     fun `WP-9-3 settings toast fades on the host's three-second fuse`() =
         runComposeUiTest {
-            setContent { TestScreen(SettingsUiState(), events = flowOf(SettingsEvent.ResetDone)) }
+            setContent { TestScreen(SettingsUiState(), events = flowOf(SettingsEvent.ResetDone(2))) }
             waitForIdle()
-            onNodeWithContentDescription("Keep history cleared").assertExists()
+            onNodeWithContentDescription("2 items are undecided again").assertExists()
             mainClock.advanceTimeBy(3100L) // the §5.7 3 s auto-dismiss
             waitForIdle()
-            onNodeWithContentDescription("Keep history cleared").assertDoesNotExist()
+            onNodeWithContentDescription("2 items are undecided again").assertDoesNotExist()
         }
 
     /** The screen under the theme, driven by a fixed [state] with inert defaults. */

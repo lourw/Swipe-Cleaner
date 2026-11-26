@@ -11,6 +11,7 @@ import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeShuffleExclusionStore
 import dev.swipe.fakes.buildDeckUseCase
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,6 +39,27 @@ class BuildDeckUseCaseTest {
             val deck = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L).ids
 
             assertEquals(setOf("b", "d"), deck.toSet())
+        }
+
+    @Test
+    fun `FR-30 queued deletes stay out of the deck after a reset`() =
+        runTest {
+            // FR-30: Reset all decisions clears KEEP rows only, so the kept id is
+            // back in the deck while the queued DELETE (FR-25) stays out of it and
+            // stays on the delete queue.
+            val library =
+                FakeMediaLibrary(
+                    listOf(photo("a", 0L), photo("b", 1L), photo("c", 2L)),
+                )
+            val store = FakeDecisionStore()
+            store.record("a", Decision.KEEP, "old-session")
+            store.record("b", Decision.DELETE, "old-session")
+
+            store.clearKeeps()
+            val deck = buildDeckUseCase(library, store)(DeckSource.All, MediaTypeFilter.ALL, seed = 7L).ids
+
+            assertEquals(setOf("a", "c"), deck.toSet())
+            assertEquals(listOf("b"), store.deleteQueue().first())
         }
 
     @Test

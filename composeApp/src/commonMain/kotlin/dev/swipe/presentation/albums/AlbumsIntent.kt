@@ -25,4 +25,13 @@ sealed interface AlbumsIntent {
      * scan answers.
      */
     data object Retry : AlbumsIntent
+
+    /**
+     * The screen became the resumed destination again — back from a deck it
+     * opened, or the app returning to the foreground. Re-runs the album
+     * counts only when the decided set changed since the previous check, so
+     * "Reset all decisions" (FR-30) and every other decision change land
+     * without a reload on a no-change resume (§6.5).
+     */
+    data object Resumed : AlbumsIntent
 }
