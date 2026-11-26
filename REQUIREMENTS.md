@@ -77,7 +77,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-13** Left swipe or the Delete button records `DELETE` (queued, not yet deleted) and advances.
 - **FR-14** Up swipe or the Skip button records `SKIP` for this session only. The item can appear in later sessions.
 - **FR-15** **Undo** reverts the last decision and brings the card back. The undo stack holds up to 50 steps per session. The stack is in-memory only: after process death the resumed session starts with an empty undo stack. An Undo tapped while the card is flying off — including while its decision write is in flight — is **queued**, not dropped: it fires once the commit has landed and the card comes back, as if the tap had arrived after the animation (WP-9.10). The deck still never rewinds under a completing write. If the write fails the card is already back (NFR-7), so the queued Undo is discarded — there is nothing to revert. Only one Undo is queued at a time; extra taps are ignored, like extra taps during a removal.
-- **FR-16** Videos autoplay muted and loop. Tapping the video toggles sound, and the mute state is remembered for the session. A scrubber shows progress.
+- **FR-16** Videos autoplay and loop, muted unless Settings → "Play video sound by default" is on. A mute button beside the scrubber (`volume_off` / `volume_up`) toggles sound, and the choice is remembered for the session. Tapping the video toggles the chrome, as on a photo. Turning sound on switches the app to the playback audio session (`AVAudioSessionCategoryPlayback`, no mixing): sound plays with the silent switch on and interrupts other apps' audio, like Photos. It is requested only once an unmuted video is on top. Muted playback stays in the mixable ambient category, so it never interrupts other audio. Muting again returns to ambient and deactivates with notify-others, and iOS decides whether the other app resumes. A scrubber shows progress.
 - **FR-17** Long-press on a Live Photo plays its motion.
 - **FR-18** The card shows metadata: date, and the duration for videos. A badge marks Live Photos, iCloud items, and favorites.
 - **FR-19** The progress indicator shows `reviewed / total` for the session.
@@ -98,7 +98,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-34** While the in-app delete confirmation is up (§6.7), it shows an estimate of the disk size of the items being deleted — "Frees about 1.2 GB once Recently Deleted clears." Sizing reads the `PHAssetResource` file sizes (undocumented KVC, Risk R3) for the current queue only, off the main thread (`Dispatchers.Default`), when the dialog opens. It never blocks or delays the delete: the confirmation behaves exactly the same with the line absent or still loading, and the delete path (FR-25, NFR-5) is untouched. The wording stays honest: **at least** when some sizes could not be read, the line omitted entirely when none could; the estimate is the queue as it stood when the dialog opened (an "about" number, not a receipt); space frees only once Recently Deleted clears (30 days), and iCloud-only originals may free no device space at all — the "about" hedge covers that.
 
 ### Settings
-- **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos.
+- **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos, play video sound by default (off).
 - **FR-30** "Reset all decisions" clears the KEEP history after a confirmation that says how many kept items come back as undecided and that items in To Delete stay queued; the toast afterwards says how many came back. With nothing kept, the row shows a "Nothing to reset" toast instead of the dialog. It does not touch the delete queue. Home, Albums and By month pick up the change when they resume (§6.5 *Counts*).
 - **FR-31** Settings shows the app version and build, and the date the current signing expires if it can be determined (otherwise this is skipped).
 
@@ -202,7 +202,7 @@ The swipe card is the heart of the app. These numbers are the spec, not suggesti
 
 Other gestures on the card:
 
-- **Tap**: on a video, toggles mute; on a photo, toggles the chrome (top bar and metadata) on and off.
+- **Tap**: on a video or photo, toggles the chrome (top bar and metadata). With autoplay off, the first tap on a video starts playback. Sound is the mute button's job (FR-16).
 - **Double-tap**: toggles between aspect-fit (default) and aspect-fill.
 - **Long-press**: plays a Live Photo.
 - **Horizontal drag always belongs to the swipe.** The video scrubber sits in the action-bar area, outside the card, so the two never conflict.
@@ -214,6 +214,7 @@ Other gestures on the card:
 | `SwipeCard` | Full width minus 2 × 8 dp, height = space between top bar and action bar. Radius 24, `bg` fill. Media is aspect-fit by default. The bottom 96 dp has a `scrim` gradient with date (`caption`, `textPrimary`) and badges. On the Likely Duplicates deck a set-place label sits above the date line in `caption textSecondary` (FR-35). |
 | `VerdictStamp` | Bordered uppercase `stamp` text, 3 dp stroke, radius 8, 8/16 dp padding. |
 | `ActionBar` | 3 circular buttons in a row, centered, 24 dp gap: Delete (64 dp, `delete @ 16%` fill, `delete` icon), Skip (48 dp, `surfaceRaised`, `skip` icon), Keep (64 dp, `keep @ 16%` fill, `keep` icon). Undo (40 dp) sits at the left edge of the bar. Share (40 dp, transparent, `textPrimary` `ios_share` icon, FR-32) mirrors it at the right edge; while the media loads it shows the `downloading` icon, reads "Preparing to share", and is disabled. |
+| `VideoMuteButton` | 44 dp transparent `CircleIconButton` at the trailing end of the scrubber row, videos only (FR-16): `textPrimary` icon, `volume_off` while muted / `volume_up` with sound, VoiceOver "Unmute video" / "Mute video". |
 | `TopBar` | 44 dp tall, transparent over `scrim`. Left: close (×). Center: progress `128 / 2,340` (`caption`, tnum) with a 2 dp progress line under it. Right: a **Hide** button (default touch-target size like its neighbors, `visibility_off`, VoiceOver label "Hide from library", FR-38) immediately left of the queue button with a red count badge. The Hide button is disabled while a hide or a decision write is in flight. |
 | `QueueBadge` | `delete` pill, min 20 dp, `caption` white text. Shows 99+ above 99. |
 | `SourceRow` (Home) | 64 dp row on `surface`: 40 dp thumbnail (radius 8), title `headline`, count `callout textSecondary`, chevron. On the Albums screen it grows a trailing **In Shuffle** switch (FR-37, on by default — WP-8.15) before the chevron: the iOS-shape `SwipeSwitch` in a touch box `max(minTouchTarget, switch track width)` = 51 × 44 dp owning `Role.Switch` semantics — the 51 dp track fits its box instead of spilling toward the count (WP-8.14), and its selected state means *in Shuffle*: `checked` when the album is **not** in the exclusion store. `s` gaps separate count → switch and switch → chevron; rows without a switch keep the `xs` chevron spacing, so Home and By month render unchanged. The title column shrinks below its content's intrinsic width when the row runs out of room, so the switch and the chevron always sit fully inside the gutter — the chevron is never clipped (WP-8.15). An album whose switch is off shows a "Not in Shuffle" subtitle under its title in `caption textSecondary` — the row stays 64 dp — and the subtitle joins the row's VoiceOver description (NFR-8). The switch's tap toggles the exclusion and never opens the row. |
@@ -331,7 +332,7 @@ delivered; a failed refresh keeps them for the next `changes()` retry.
 │ │ 2 of 4 in this set         │ │  duplicate set label (FR-35)
 │ │ Mar 14, 2021 · 0:32  ☁ ◉ │ │  metadata on scrim
 │ └──────────────────────────┘ │
-│  ──●──────────── 0:12        │  video scrubber (videos only)
+│  ──●──────────── 0:12   🔇    │  video scrubber + mute (videos only)
 │ ↶     ( ✕ )  (↑)  ( ✓ )    ⇪ │  ActionBar: undo, delete, skip, keep, share (FR-32)
 └──────────────────────────────┘
 ```
@@ -543,13 +544,15 @@ interface ShuffleExclusionStore {                           // shuffle_exclusion
     suspend fun setExcluded(albumId: String, excluded: Boolean)  // switch write; a failed write leaves the switch where it was (NFR-7)
 }
 
-interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true
+interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true, playVideoSound = false
     val haptics: StateFlow<Boolean>                         // FR-29
     val includeCloudOnly: StateFlow<Boolean>                // FR-29
     val autoplayVideos: StateFlow<Boolean>                  // FR-29
+    val playVideoSound: StateFlow<Boolean>                  // FR-29; swipe sessions start with video sound on (FR-16)
     fun setHaptics(enabled: Boolean)
     fun setIncludeCloudOnly(enabled: Boolean)
     fun setAutoplayVideos(enabled: Boolean)
+    fun setPlayVideoSound(enabled: Boolean)
 }
 
 interface MediaSharer {                                     // FR-32; iosMain impl PhotoKitMediaSharer
@@ -569,6 +572,11 @@ interface Haptics {                                         // §5.6; silent whi
     fun impactLight()                                       // keep / skip committed
     fun impactMedium()                                      // delete committed
     fun notificationSuccess()                               // batch delete confirmed (FR-26)
+}
+
+interface AudioSession {                                    // FR-16; iosMain IosAudioSession over AVAudioSession, created at launch (ambient)
+    fun requestPlayback()                                   // unmuted video on top: .playback, active, interrupts others
+    fun releasePlayback()                                   // muted again / deck closed: back to ambient, deactivate (notify others)
 }
 
 interface SystemActions {
@@ -617,7 +625,7 @@ data class SwipeUiState(
     val progress: Progress,         // reviewed, total
     val queueCount: Int,
     val canUndo: Boolean,           // the undo stack is non-empty (FR-15)
-    val muted: Boolean,             // videos start muted; ToggleMute flips it (FR-16)
+    val muted: Boolean,             // starts from SettingsStore.playVideoSound (muted when off); ToggleMute flips it (FR-16)
     val toast: ToastMessage?,
     val finished: SessionSummary?,  // set once the deck runs out (FR-21)
     val revertToken: Long,          // bumps when a failed save sends the card back (NFR-7)
@@ -631,7 +639,7 @@ sealed interface SwipeIntent {
     data class Decide(val id: String, val verdict: Decision) // Keep / Delete / Skip for card `id`
     data class Hide(val id: String) // FR-38: hide card `id` in the library; ignored when `id` is not the card on screen
     data object Undo
-    data object ToggleMute
+    data object ToggleMute // sent by the video mute button beside the scrubber (FR-16)
     data class ConfirmFavoriteDelete(val id: String)
     data object DismissToast
     data object Share

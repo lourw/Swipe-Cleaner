@@ -3,7 +3,7 @@ package dev.swipe.presentation.settings
 import kotlin.time.Instant
 
 /**
- * The one state of [SettingsViewModel] (FR-29–31): the three setting values
+ * The one state of [SettingsViewModel] (FR-29–31): the four setting values
  * mirrored live from [dev.swipe.data.SettingsStore], the version/build and
  * signing-expiry text, and the FR-30 reset confirm-dialog flag.
  */
@@ -14,6 +14,11 @@ data class SettingsUiState(
     val includeCloudOnly: Boolean = true,
     /** Videos autoplay on top of the deck (FR-29). Mirrors `autoplayVideos`. */
     val autoplayVideos: Boolean = true,
+    /**
+     * New Swipe sessions start with video sound on (FR-16, FR-29). Default off;
+     * mirrors `playVideoSound`.
+     */
+    val playVideoSound: Boolean = false,
     /** Version and build for the info row, from [dev.swipe.data.SystemActions.appVersion] (FR-31). */
     val appVersion: String = "",
     /**

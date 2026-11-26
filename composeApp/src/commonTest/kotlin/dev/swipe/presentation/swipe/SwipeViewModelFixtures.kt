@@ -15,6 +15,7 @@ import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.fakes.FakeAudioSession
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
@@ -22,6 +23,7 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeVideoPreloader
 import dev.swipe.fakes.buildDeckUseCase
 import kotlin.test.assertTrue
@@ -68,6 +70,7 @@ internal class Fixture(
     seed: Long = SEED,
     favoriteIds: Set<String> = emptySet(),
     items: List<MediaItem>? = null,
+    playVideoSound: Boolean = false,
 ) {
     val clock = FakeClock()
     val skips = FakeSessionSkips()
@@ -77,6 +80,10 @@ internal class Fixture(
     val loader = FakeMediaLoader()
     val videoPreloader = FakeVideoPreloader()
     val sharer = FakeMediaSharer()
+    val audio = FakeAudioSession()
+
+    // FR-16: the session's initial mute state comes from this setting.
+    val settings = FakeSettingsStore().apply { this.playVideoSound.value = playVideoSound }
     val viewModel =
         SwipeViewModel(
             source = SOURCE,
@@ -92,6 +99,8 @@ internal class Fixture(
             // FR-38: the fake library is also the fake hide door, like the real
             // PhotoKitMediaLibrary is the fake delete door.
             mediaHider = library,
+            audioSession = audio,
+            settings = settings,
             decisions = store,
             seedProvider = { seed },
         )

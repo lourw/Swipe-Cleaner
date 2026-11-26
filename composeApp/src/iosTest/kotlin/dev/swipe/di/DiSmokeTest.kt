@@ -5,6 +5,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import dev.swipe.data.AudioSession
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaDeleter
@@ -81,6 +82,9 @@ class DiSmokeTest {
         koin.get<SettingsStore>()
         koin.get<SystemActions>()
         koin.get<Haptics>()
+        // FR-16: the audio door resolves too — its binding is createdAtStart, so
+        // the ambient category is set at launch before any video mounts.
+        koin.get<AudioSession>()
         // WP-9.1: the two typed views of the library are one PhotoKit bridge — the
         // graph hands the same PhotoKitMediaLibrary out read-side and write-side.
         assertSame<Any>(koin.get<MediaLibrary>(), koin.get<MediaDeleter>())

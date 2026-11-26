@@ -96,6 +96,25 @@ class SettingsScreenTest {
         }
 
     @Test
+    fun `FR-16 video sound row renders the state and toggles through an intent`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SettingsIntent>()
+            setContent {
+                TestScreen(
+                    SettingsUiState(playVideoSound = false),
+                    onIntent = { intents.add(it) },
+                )
+            }
+            onNodeWithText("Play video sound by default").assertExists()
+            onNodeWithTag(SWITCH_VIDEO_SOUND_TEST_TAG).assertIsOff()
+
+            // Tapping the row flips the value it reports (the VM flips the store).
+            onNodeWithTag(SWITCH_VIDEO_SOUND_TEST_TAG).performClick()
+            waitForIdle()
+            assertEquals(listOf<SettingsIntent>(SettingsIntent.SetPlayVideoSound(true)), intents)
+        }
+
+    @Test
     fun `FR-30 reset row asks for confirmation before anything clears`() =
         runComposeUiTest {
             val f = ScreenFixture()

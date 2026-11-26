@@ -70,6 +70,27 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `FR-16 video sound setting defaults off and persists through the settings store`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val settings = FakeSettingsStore()
+            val viewModel = SettingsViewModel(settings, FakeDecisionStore(), FakeSystemActions())
+
+            viewModel.uiState.test {
+                // Default off (FR-16): a new Swipe session starts muted.
+                assertFalse(awaitItem().playVideoSound)
+
+                viewModel.onIntent(SettingsIntent.SetPlayVideoSound(true))
+                advanceUntilIdle()
+
+                // The toggle wrote through to the store…
+                assertEquals(listOf("playVideoSound=true"), settings.setCalls)
+                // …and the state mirrors it back.
+                assertTrue(expectMostRecentItem().playVideoSound)
+            }
+        }
+
+    @Test
     fun `FR-29 failed toggle keeps the stored value and reports it`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))

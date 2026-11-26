@@ -22,6 +22,7 @@ class NSUserDefaultsSettingsStore : SettingsStore {
                 KEY_HAPTICS to true,
                 KEY_INCLUDE_CLOUD_ONLY to true,
                 KEY_AUTOPLAY_VIDEOS to true,
+                KEY_PLAY_VIDEO_SOUND to false,
             ),
         )
     }
@@ -29,16 +30,20 @@ class NSUserDefaultsSettingsStore : SettingsStore {
     private val _haptics = MutableStateFlow(defaults.boolForKey(KEY_HAPTICS))
     private val _includeCloudOnly = MutableStateFlow(defaults.boolForKey(KEY_INCLUDE_CLOUD_ONLY))
     private val _autoplayVideos = MutableStateFlow(defaults.boolForKey(KEY_AUTOPLAY_VIDEOS))
+    private val _playVideoSound = MutableStateFlow(defaults.boolForKey(KEY_PLAY_VIDEO_SOUND))
 
     override val haptics: StateFlow<Boolean> = _haptics
     override val includeCloudOnly: StateFlow<Boolean> = _includeCloudOnly
     override val autoplayVideos: StateFlow<Boolean> = _autoplayVideos
+    override val playVideoSound: StateFlow<Boolean> = _playVideoSound
 
     override fun setHaptics(enabled: Boolean) = write(KEY_HAPTICS, enabled, _haptics)
 
     override fun setIncludeCloudOnly(enabled: Boolean) = write(KEY_INCLUDE_CLOUD_ONLY, enabled, _includeCloudOnly)
 
     override fun setAutoplayVideos(enabled: Boolean) = write(KEY_AUTOPLAY_VIDEOS, enabled, _autoplayVideos)
+
+    override fun setPlayVideoSound(enabled: Boolean) = write(KEY_PLAY_VIDEO_SOUND, enabled, _playVideoSound)
 
     /** Persists first, then publishes, so a read after a write never sees stale state. */
     private fun write(
@@ -54,5 +59,6 @@ class NSUserDefaultsSettingsStore : SettingsStore {
         const val KEY_HAPTICS = "settings.haptics"
         const val KEY_INCLUDE_CLOUD_ONLY = "settings.includeCloudOnly"
         const val KEY_AUTOPLAY_VIDEOS = "settings.autoplayVideos"
+        const val KEY_PLAY_VIDEO_SOUND = "settings.playVideoSound"
     }
 }

@@ -3,6 +3,7 @@ package dev.swipe.di
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asSkiaBitmap
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
+import dev.swipe.data.AudioSession
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaDeleter
 import dev.swipe.data.MediaHider
@@ -17,6 +18,7 @@ import dev.swipe.data.VideoPreloader
 import dev.swipe.data.image.BitmapLruCache
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.platform.DatabaseDriverFactory
+import dev.swipe.platform.IosAudioSession
 import dev.swipe.platform.IosHaptics
 import dev.swipe.platform.IosPerfTrace
 import dev.swipe.platform.IosSystemActions
@@ -62,6 +64,9 @@ val iosModule: Module =
         single<SystemActions> { IosSystemActions() }
         single<SettingsStore> { NSUserDefaultsSettingsStore() }
         single<Haptics> { IosHaptics(settings = get()) }
+        // Audio door (FR-16): createdAtStart applies the ambient category at launch,
+        // before any video (including the queue viewer's) mounts.
+        single<AudioSession>(createdAtStart = true) { IosAudioSession() }
 
         // Signpost tracing (WP-6.3, NFR-1, NFR-4): one shared object so the
         // cold-start span can begin at MainViewController before Koin resolves

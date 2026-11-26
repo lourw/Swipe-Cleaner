@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,7 +32,9 @@ import dev.swipe.presentation.swipe.SwipeEvent
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeUiState
 import dev.swipe.presentation.swipe.ToastMessage
+import dev.swipe.ui.components.CircleIconButton
 import dev.swipe.ui.components.FavoriteConfirmCard
+import dev.swipe.ui.components.SwipeIcons
 import dev.swipe.ui.components.ToastHost
 import dev.swipe.ui.components.ToastSpec
 import dev.swipe.ui.components.media.DefaultVideoPlayerSlot
@@ -58,6 +61,9 @@ internal const val SWIPE_CARD_TEST_TAG = "swipe-card"
 /** Tag of the autoplay-off play affordance over a video poster (§5.6, R2 wiring). */
 internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
 
+/** Tag of the FR-16 mute button at the trailing end of the scrubber row. */
+internal const val VIDEO_MUTE_BUTTON_TEST_TAG = "video-mute-button"
+
 /**
  * The Swipe screen (§5.8, WP-2.3): [TopBar] over the deck over the [ActionBar]
  * (§5.7), the §5.6 [SwipeCard] gesture in the middle, and the §5.7 overlay
@@ -79,11 +85,12 @@ internal const val VIDEO_PLAY_AFFORDANCE_TEST_TAG = "video-play-affordance"
  *   FR-22) flies the card back in from the side it left, and a changed
  *   [SwipeUiState.revertToken] (a failed decision write, NFR-7) reverts it
  *   the same way (see `CardMotionEffects` in DeckMotion.kt).
- * - **Card taps** (§5.6): a photo tap toggles the chrome (top bar and
- *   metadata), a video tap toggles mute through [SwipeIntent.ToggleMute]
- *   (with autoplay off the first tap starts playback instead), a double-tap
- *   toggles aspect-fit/fill locally, and holding a Live Photo plays its
- *   paired video until release (FR-17; see `CardStack` in DeckMotion.kt).
+ * - **Card taps** (§5.6): a tap toggles the chrome (top bar and metadata),
+ *   photo or video alike — sound is toggled by the FR-16 mute button beside
+ *   the scrubber (with autoplay off a video's first tap starts playback
+ *   instead), a double-tap toggles aspect-fit/fill locally, and holding a
+ *   Live Photo plays its paired video until release (FR-17; see `CardStack`
+ *   in DeckMotion.kt).
  * - **Video scrubber** (FR-16): videos only, below the card in the
  *   action-bar area — [VideoScrubber] seeks through a [SeekTarget] while the
  *   finger drags (Live Photos show none; they play once, no loop).
@@ -502,7 +509,6 @@ private fun BoxScope.DeckStage(
             // fly-off-window gate as the action-bar button.
             onUndo = onUndo,
             onToggleChrome = onToggleChrome,
-            onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
             onToggleFill = onToggleFill,
             onThresholdCrossed = { haptics.selection() },
             // U3 (WP-8.9): the finger moving over the card while the FR-22
@@ -549,14 +555,52 @@ private fun BoxScope.DeckStage(
                     .height(SwipeTheme.componentSizes.videoScrubberTouchHeight),
         ) {
             if (current.type == MediaType.VIDEO) {
-                VideoScrubber(
+                ScrubberRowWithMute(
                     durationMs = current.durationMs ?: 0L,
                     fraction = video.visibleFraction,
+                    muted = state.muted,
                     onScrub = video::onScrub,
                     onScrubEnd = video::onScrubEnd,
+                    onToggleMute = { onIntent(SwipeIntent.ToggleMute) },
                 )
             }
         }
+    }
+}
+
+/**
+ * The FR-16 video row: [VideoScrubber] taking the width, with the mute button
+ * beside it at the trailing end — below the card and outside its gestures,
+ * so a tap on the card stays the chrome toggle. The button's 44 dp touch
+ * target equals the reserved row height, so WP-9.3 holds: switching card
+ * types never resizes the card.
+ */
+@Composable
+private fun ScrubberRowWithMute(
+    durationMs: Long,
+    fraction: Float,
+    muted: Boolean,
+    onScrub: (Float) -> Unit,
+    onScrubEnd: () -> Unit,
+    onToggleMute: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        VideoScrubber(
+            durationMs = durationMs,
+            fraction = fraction,
+            onScrub = onScrub,
+            onScrubEnd = onScrubEnd,
+            modifier = Modifier.weight(1f),
+        )
+        CircleIconButton(
+            symbol = if (muted) SwipeIcons.VOLUME_OFF else SwipeIcons.VOLUME_UP,
+            label = if (muted) "Unmute video" else "Mute video",
+            onClick = onToggleMute,
+            modifier =
+                Modifier
+                    .padding(end = SwipeTheme.spacing.gutter)
+                    .testTag(VIDEO_MUTE_BUTTON_TEST_TAG),
+        )
     }
 }
 

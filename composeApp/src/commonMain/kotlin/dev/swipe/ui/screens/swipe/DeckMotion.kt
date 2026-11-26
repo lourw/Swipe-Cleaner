@@ -135,7 +135,7 @@ internal data class VideoUiState(
  * Every way the top card talks back, grouped into one [CardStack] parameter
  * (WP-9.2): the gesture [DeckCallbacks.onDismiss] and the button
  * [DeckCallbacks.onButtonCommit] verdict paths (§5.6), Undo (FR-15), the
- * chrome, mute, and fill toggles, the threshold-crossed haptic, the video
+ * chrome and fill toggles, the threshold-crossed haptic, the video
  * start and progress and Live Photo press callbacks (FR-16, FR-17), and the
  * U3 (WP-8.9) drag-start dismissal — inert by default so a caller that has
  * no FR-22 confirm to cancel stays untouched by it.
@@ -145,7 +145,6 @@ internal class DeckCallbacks(
     val onButtonCommit: (SwipeVerdict) -> Unit,
     val onUndo: () -> Unit,
     val onToggleChrome: () -> Unit,
-    val onToggleMute: () -> Unit,
     val onToggleFill: () -> Unit,
     val onThresholdCrossed: () -> Unit,
     val onVideoStart: () -> Unit,
@@ -160,10 +159,11 @@ internal class DeckCallbacks(
 /**
  * The card stack (FR-11): [UnderDeckCard] under the top [SwipeCard], growing
  * 0.94 → 1.0 and 0.6 → 1.0 alpha with the drag progress (§5.6); the one §5.5
- * shadow belongs to the top card only. The §5.6 taps: a video tap toggles
- * mute (or, with autoplay off, starts playback first), a photo tap the chrome,
- * a double-tap the fill mode, and a Live Photo long-press plays through
- * [videoSlot] while the finger is down (FR-16, FR-17).
+ * shadow belongs to the top card only. The §5.6 taps: a tap toggles the chrome
+ * (with autoplay off a video's first tap starts playback instead — sound is
+ * the mute button beside the scrubber), a double-tap the fill mode, and a Live
+ * Photo long-press plays through [videoSlot] while the finger is down
+ * (FR-16, FR-17).
  *
  * R2 (see [dev.swipe.ui.components.media.VideoPlayer]): the hosted player
  * ignores card transforms, so it is mounted only while the top card is at
@@ -271,9 +271,10 @@ private fun decisionAccessibilityActions(
     }
 
 /**
- * The §5.6 tap behavior on the top card: a video tap toggles mute; a photo
- * tap the chrome. With autoplay off the first tap starts playback instead
- * (the poster + affordance state), later taps toggle mute.
+ * The §5.6 tap behavior on the top card: a tap toggles the chrome, photo or
+ * video alike (FR-16, AC3). With autoplay off the first video tap starts
+ * playback instead (the poster + affordance state); sound is toggled by the
+ * mute button beside the scrubber, never by the card.
  */
 private fun cardTapAction(
     card: CardState,
@@ -285,7 +286,7 @@ private fun cardTapAction(
         when {
             card.type != MediaType.VIDEO -> callbacks.onToggleChrome()
             !display.autoplayVideos && !video.started -> callbacks.onVideoStart()
-            else -> callbacks.onToggleMute()
+            else -> callbacks.onToggleChrome()
         }
     }
 

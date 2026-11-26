@@ -21,6 +21,11 @@ sealed interface SettingsIntent {
         val enabled: Boolean,
     ) : SettingsIntent
 
+    /** Video-sound toggle (FR-16, FR-29): writes `SettingsStore.setPlayVideoSound`. */
+    data class SetPlayVideoSound(
+        val enabled: Boolean,
+    ) : SettingsIntent
+
     /**
      * "Reset all decisions" tap: raises the confirm dialog
      * ([SettingsUiState.confirmResetVisible]). **Nothing is cleared by this

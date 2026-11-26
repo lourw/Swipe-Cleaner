@@ -2,11 +2,13 @@ package dev.swipe.presentation.swipe
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.swipe.data.AudioSession
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
+import dev.swipe.data.SettingsStore
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
@@ -77,6 +79,10 @@ import kotlinx.coroutines.launch
  * **Prefetch** (§6.5 step 3): after every move the window of current + next 3 is
  * requested from [MediaLoader.prefetch] and ids that left the window are cancelled.
  *
+ * **Video sound** (FR-16): the session starts muted unless [SettingsStore.playVideoSound]
+ * is on — read once at construction, so the setting applies to the *next* session and
+ * this one remembers only [SwipeIntent.ToggleMute].
+ *
  * One-shot UI events go out through [events]; `Clock` stays out of this constructor —
  * nothing here timestamps anything (the stores stamp their own rows), so it joins only
  * when something actually reads it.
@@ -96,10 +102,12 @@ class SwipeViewModel(
     private val videoPreloader: VideoPreloader,
     private val mediaSharer: MediaSharer,
     private val mediaHider: MediaHider,
+    private val audioSession: AudioSession,
+    settings: SettingsStore,
     private val decisions: DecisionStore,
     private val seedProvider: () -> Long,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(SwipeUiState())
+    private val _uiState = MutableStateFlow(SwipeUiState(muted = !settings.playVideoSound.value))
 
     /** The one state flow (AGENTS.md ViewModel convention). */
     val uiState: StateFlow<SwipeUiState> = _uiState.asStateFlow()
@@ -196,6 +204,19 @@ class SwipeViewModel(
             },
         )
 
+    /**
+     * FR-16: the audio session follows the card on top — unmuting a VIDEO card
+     * requests the playback session once, muting releases it, and the request
+     * carries across cards. It only observes [uiState], so the
+     * [SwipeIntent.ToggleMute] branch below stays a pure state flip.
+     */
+    private val videoSound =
+        VideoSound(
+            scope = viewModelScope,
+            audio = audioSession,
+            state = uiState,
+        )
+
     init {
         // The queue badge tracks the shared delete queue live (FR-10, FR-23).
         viewModelScope.launch {
@@ -223,7 +244,11 @@ class SwipeViewModel(
             }
 
             SwipeIntent.ToggleMute -> {
-                // FR-16: remembered for this ViewModel's lifetime (the session).
+                // FR-16: remembered for this ViewModel's lifetime (the session);
+                // the session itself starts from SettingsStore.playVideoSound at
+                // construction, never re-read mid-session.
+                // [VideoSound] reacts to the flip and steps the audio session
+                // up or back for the card on top; nothing to do here.
                 _uiState.update { it.copy(muted = !it.muted) }
             }
 
@@ -665,8 +690,9 @@ class SwipeViewModel(
             CardState.from(item).copy(duplicateSet = duplicateSets[item.id])
         }
 
-    /** §6.5 steps 3–4: leaving the deck cancels the still-warm image and video windows. */
+    /** §6.5 steps 3–4: leaving the deck hands back the audio session and cancels the still-warm image and video windows. */
     public override fun onCleared() {
+        videoSound.release()
         prefetch.release()
     }
 }

@@ -44,14 +44,16 @@ import kotlinx.coroutines.flow.Flow
 internal const val SWITCH_HAPTICS_TEST_TAG = "switch-haptics"
 internal const val SWITCH_CLOUD_TEST_TAG = "switch-cloud"
 internal const val SWITCH_AUTOPLAY_TEST_TAG = "switch-autoplay"
+internal const val SWITCH_VIDEO_SOUND_TEST_TAG = "switch-video-sound"
 internal const val RESET_ROW_TEST_TAG = "settings-reset-row"
 internal const val VERSION_ROW_TEST_TAG = "settings-version-row"
 internal const val EXPIRY_ROW_TEST_TAG = "settings-expiry-row"
 
 /**
- * The Settings screen (FR-29–31, §5.8): three toggle rows bound to
- * `SettingsStore` (haptics, include iCloud-only items, autoplay videos), the
- * "Reset all decisions" row behind a [ConfirmDialog] (FR-30), and the info
+ * The Settings screen (FR-29–31, §5.8): four toggle rows bound to
+ * `SettingsStore` (haptics, include iCloud-only items, autoplay videos, video
+ * sound), the "Reset all decisions" row behind a [ConfirmDialog] (FR-30), and
+ * the info
  * rows — app version and, when readable, the free-provisioning signing expiry
  * (FR-31; the row is simply absent otherwise). One-shot [events] surface as
  * the §5.7 toast through the shared [ToastHost] (WP-9.3).
@@ -155,7 +157,7 @@ private fun BoxScope.SettingsToastOverlay(
     }
 }
 
-/** The three toggles, the reset row, and the info rows (FR-29–31, §5.8 order). */
+/** The four toggles, the reset row, and the info rows (FR-29–31, §5.8 order). */
 @Composable
 private fun SettingsRows(
     state: SettingsUiState,
@@ -182,6 +184,13 @@ private fun SettingsRows(
             checked = state.autoplayVideos,
             onCheckedChange = { onIntent(SettingsIntent.SetAutoplayVideos(!state.autoplayVideos)) },
             testTag = SWITCH_AUTOPLAY_TEST_TAG,
+        )
+        ToggleRow(
+            title = "Play video sound by default",
+            caption = "Start videos unmuted in each new session",
+            checked = state.playVideoSound,
+            onCheckedChange = { onIntent(SettingsIntent.SetPlayVideoSound(!state.playVideoSound)) },
+            testTag = SWITCH_VIDEO_SOUND_TEST_TAG,
         )
         Hairline()
         ResetRow(onClick = { onIntent(SettingsIntent.RequestReset) })

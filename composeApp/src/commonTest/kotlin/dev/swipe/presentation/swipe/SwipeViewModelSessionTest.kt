@@ -13,6 +13,7 @@ import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.fakes.FakeAudioSession
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
@@ -20,6 +21,7 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeVideoPreloader
 import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.Dispatchers
@@ -212,6 +214,95 @@ class SwipeViewModelSessionTest {
         }
 
     @Test
+    fun `FR-16 unmuting a video requests the playback audio session`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3, items = mixedDeck(3, videoPositions = setOf(1, 2)))
+            advanceUntilIdle()
+
+            // Muted playback never touches the audio session (FR-16): silent
+            // autoplay must not interrupt other apps' music.
+            assertEquals(emptyList(), f.audio.calls)
+
+            // Unmuting while a VIDEO card is up requests the playback session.
+            f.viewModel.onIntent(SwipeIntent.ToggleMute)
+            advanceUntilIdle()
+            assertEquals(listOf("request"), f.audio.calls)
+
+            // FR-16 / AC4: the setting carries to the next video and the session
+            // stays requested — no second request while the deck keeps playing.
+            f.viewModel.onIntent(f.viewModel.keep())
+            advanceUntilIdle()
+            assertEquals("asset-2", f.viewModel.currentId())
+            assertEquals(listOf("request"), f.audio.calls)
+
+            // Muting again releases it.
+            f.viewModel.onIntent(SwipeIntent.ToggleMute)
+            advanceUntilIdle()
+            assertEquals(listOf("request", "release"), f.audio.calls)
+        }
+
+    @Test
+    fun `FR-16 unmuting on a photo waits for a video before requesting audio`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3, items = mixedDeck(3, videoPositions = setOf(2)))
+            advanceUntilIdle()
+
+            // asset-1 is a photo: unmuting on it requests nothing — a photo
+            // never interrupts anything, so the deck stays on ambient.
+            f.viewModel.onIntent(SwipeIntent.ToggleMute)
+            advanceUntilIdle()
+            assertEquals(emptyList(), f.audio.calls)
+
+            // The first VIDEO card to reach the top does.
+            f.viewModel.onIntent(f.viewModel.keep())
+            advanceUntilIdle()
+            assertEquals(listOf("request"), f.audio.calls)
+        }
+
+    @Test
+    fun `FR-16 a session starts muted when the video sound setting is off`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3, items = mixedDeck(3, videoPositions = setOf(1)))
+
+            f.viewModel.uiState.test {
+                // The setting is off by default, so the session starts muted
+                // (FR-16) and the VIDEO card on top never touches the audio
+                // session — silent autoplay must not interrupt other apps.
+                assertTrue(awaitDeckReady().muted)
+                advanceUntilIdle()
+                assertEquals(emptyList(), f.audio.calls)
+            }
+        }
+
+    @Test
+    fun `FR-16 a session starts with sound when the video sound setting is on`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3, items = mixedDeck(3, videoPositions = setOf(1, 2)), playVideoSound = true)
+
+            f.viewModel.uiState.test {
+                // The setting is on, so the session starts unmuted (FR-16) and
+                // [VideoSound] requests the playback session as soon as the
+                // VIDEO card is on top — no ToggleMute needed.
+                assertFalse(awaitDeckReady().muted)
+                advanceUntilIdle()
+                assertEquals(listOf("request"), f.audio.calls)
+
+                // AC4: keep → asset-2 arrives still unmuted, and the playback
+                // session stays requested — no second request.
+                f.viewModel.onIntent(f.viewModel.keep())
+                awaitDecidingToggle() // FR-38: the write's toggle-up emission
+                val after = awaitItem()
+                assertEquals("asset-2", after.current?.id)
+                assertFalse(after.muted)
+                assertEquals(listOf("request"), f.audio.calls)
+            }
+        }
+
+    @Test
     fun `FR-21 exhausted deck emits session summary with counts`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -318,6 +409,8 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -356,6 +449,8 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -434,6 +529,8 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = f.library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = f.store,
                     seedProvider = { SEED },
                 )
@@ -481,6 +578,8 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = store,
                     seedProvider = { SEED },
                 )
@@ -521,6 +620,8 @@ class SwipeViewModelSessionTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = f.library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = f.store,
                     seedProvider = { SEED },
                 )
@@ -540,6 +641,8 @@ class SwipeViewModelSessionTest {
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
                 mediaHider = f.library,
+                audioSession = FakeAudioSession(),
+                settings = FakeSettingsStore(),
                 decisions = f.store,
                 seedProvider = { SEED },
             )
@@ -569,6 +672,8 @@ class SwipeViewModelSessionTest {
                 videoPreloader = FakeVideoPreloader(),
                 mediaSharer = FakeMediaSharer(),
                 mediaHider = f.library,
+                audioSession = FakeAudioSession(),
+                settings = FakeSettingsStore(),
                 decisions = f.store,
                 seedProvider = { SEED },
             )

@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The Settings screen (FR-29–31): the three toggles ride
+ * The Settings screen (FR-29–31): the four toggles ride
  * [SettingsStore]'s flows in both directions, and "Reset all decisions" is the
  * two-step FR-30 flow — [SettingsIntent.RequestReset] reads the counts the
  * dialog reports (or toasts when nothing is kept) and
@@ -46,6 +46,7 @@ class SettingsViewModel(
                 hapticsEnabled = settings.haptics.value,
                 includeCloudOnly = settings.includeCloudOnly.value,
                 autoplayVideos = settings.autoplayVideos.value,
+                playVideoSound = settings.playVideoSound.value,
                 appVersion = systemActions.appVersion(),
                 signingExpiry = systemActions.signingExpiry(),
             ),
@@ -60,20 +61,22 @@ class SettingsViewModel(
     val events: Flow<SettingsEvent> = eventChannel.receiveAsFlow()
 
     init {
-        // Live mirror of the three FR-29 values. The store only changes through
+        // Live mirror of the four FR-29 values. The store only changes through
         // this screen today, but the flows keep the state honest regardless.
         viewModelScope.launch {
             combine(
                 settings.haptics,
                 settings.includeCloudOnly,
                 settings.autoplayVideos,
-            ) { haptics, cloud, autoplay -> Triple(haptics, cloud, autoplay) }
-                .collect { (haptics, cloud, autoplay) ->
+                settings.playVideoSound,
+            ) { haptics, cloud, autoplay, sound -> ToggleValues(haptics, cloud, autoplay, sound) }
+                .collect { values ->
                     _uiState.update {
                         it.copy(
-                            hapticsEnabled = haptics,
-                            includeCloudOnly = cloud,
-                            autoplayVideos = autoplay,
+                            hapticsEnabled = values.haptics,
+                            includeCloudOnly = values.cloud,
+                            autoplayVideos = values.autoplay,
+                            playVideoSound = values.sound,
                         )
                     }
                 }
@@ -86,6 +89,7 @@ class SettingsViewModel(
             is SettingsIntent.SetHaptics -> save { settings.setHaptics(intent.enabled) }
             is SettingsIntent.SetIncludeCloudOnly -> save { settings.setIncludeCloudOnly(intent.enabled) }
             is SettingsIntent.SetAutoplayVideos -> save { settings.setAutoplayVideos(intent.enabled) }
+            is SettingsIntent.SetPlayVideoSound -> save { settings.setPlayVideoSound(intent.enabled) }
             SettingsIntent.RequestReset -> requestReset()
             SettingsIntent.ConfirmReset -> confirmReset()
             SettingsIntent.CancelReset -> cancelReset()
@@ -168,3 +172,11 @@ class SettingsViewModel(
         _uiState.update { it.copy(confirmResetVisible = false) }
     }
 }
+
+/** The four toggle values combined out of [SettingsStore]'s flows. */
+private data class ToggleValues(
+    val haptics: Boolean,
+    val cloud: Boolean,
+    val autoplay: Boolean,
+    val sound: Boolean,
+)

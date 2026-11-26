@@ -9,8 +9,10 @@ import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.fakes.FakeAudioSession
 import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
+import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeVideoPreloader
 import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.CompletableDeferred
@@ -54,6 +56,8 @@ class SwipeViewModelAuditTest {
             videoPreloader = FakeVideoPreloader(),
             mediaSharer = FakeMediaSharer(),
             mediaHider = f.library,
+            audioSession = FakeAudioSession(),
+            settings = FakeSettingsStore(),
             decisions = f.store,
             seedProvider = { SEED },
         )

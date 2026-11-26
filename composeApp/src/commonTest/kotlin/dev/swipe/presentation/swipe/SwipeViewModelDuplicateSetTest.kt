@@ -14,6 +14,7 @@ import dev.swipe.domain.usecase.FinishSessionUseCase
 import dev.swipe.domain.usecase.RecordDecisionUseCase
 import dev.swipe.domain.usecase.StartSessionUseCase
 import dev.swipe.domain.usecase.UndoDecisionUseCase
+import dev.swipe.fakes.FakeAudioSession
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
 import dev.swipe.fakes.FakeMediaLibrary
@@ -21,6 +22,7 @@ import dev.swipe.fakes.FakeMediaLoader
 import dev.swipe.fakes.FakeMediaSharer
 import dev.swipe.fakes.FakeSessionSkips
 import dev.swipe.fakes.FakeSessionStore
+import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeVideoPreloader
 import dev.swipe.fakes.buildDeckUseCase
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +77,8 @@ class SwipeViewModelDuplicateSetTest {
         videoPreloader = FakeVideoPreloader(),
         mediaSharer = FakeMediaSharer(),
         mediaHider = library,
+        audioSession = FakeAudioSession(),
+        settings = FakeSettingsStore(),
         decisions = store,
         seedProvider = { SEED },
     )
@@ -192,6 +196,8 @@ class SwipeViewModelDuplicateSetTest {
                     videoPreloader = FakeVideoPreloader(),
                     mediaSharer = FakeMediaSharer(),
                     mediaHider = library,
+                    audioSession = FakeAudioSession(),
+                    settings = FakeSettingsStore(),
                     decisions = store,
                     seedProvider = { SEED },
                 )

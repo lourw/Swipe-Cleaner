@@ -19,7 +19,11 @@ data class SwipeUiState(
     val queueCount: Int = 0,
     /** Whether the in-memory undo stack (max 50, FR-15) has an entry to undo. */
     val canUndo: Boolean = false,
-    /** Video mute state, remembered for the session (FR-16); videos start muted. */
+    /**
+     * Video mute state, remembered for the session (FR-16); the ViewModel starts it
+     * from `SettingsStore.playVideoSound` (muted when off), and this `true` default
+     * stands in for previews and tests.
+     */
     val muted: Boolean = true,
     /** Transient message above the cards ([ToastMessage]); null when none. */
     val toast: ToastMessage? = null,

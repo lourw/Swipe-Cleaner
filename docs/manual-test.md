@@ -215,20 +215,34 @@ xcrun simctl addmedia booted clip-5s.mp4 clip-61s.mp4
    player is mounted while the card is at rest and plays muted on its own;
    the poster shows during every drag and flight (R2 — no axis-aligned
    player rectangle while the card turns).
-2. ☐ Tap the video card once: audio starts (simulator: verify by ear with
-   system sound on; a muted `AVPlayer` has `volume = 0`, the unmuted one
-   `1.0`). A second tap mutes again. The card itself does not move and the
-   chrome does **not** toggle on video cards.
+2. ☐ Tap the **mute button** beside the scrubber (the `volume_off` icon at
+   the trailing end of the scrubber row): it becomes `volume_up` and audio
+   starts (simulator: verify by ear with system sound on; a muted `AVPlayer`
+   has `volume = 0`, the unmuted one `1.0`). Tap it again: back to
+   `volume_off`, sound off. Tapping the video **card** toggles the chrome
+   (top bar and metadata), as on a photo — it never toggles sound, and the
+   card itself does not move.
 3. ☐ The mute choice is remembered **for the session**: after unmuting,
    swipe to another video and back (or Undo the swipe) — playback stays
-   unmuted. Force-quitting and relaunching resets to muted.
+   unmuted. Force-quitting and relaunching resets to the Settings default
+   (muted unless **Play video sound by default** is on).
 4. ☐ With **Autoplay videos** off (the store default is on and the Settings
    screen is WP-6.1, so flip `SettingsStore.autoplayVideos` however you can
    until that lands): the card shows the poster with a centered play
-   affordance and no player is mounted. The first tap starts playback
-   (still muted); later taps only toggle mute.
+   affordance and no player is mounted. The first tap starts playback (with
+   sound as the session has it); later taps toggle the chrome, as on a
+   photo — sound stays the mute button's job.
 5. ☐ The card loops: let a short clip play past its end — it restarts from
    0 without stalling.
+
+👤 Audio session (FR-16) — a real iPhone; the simulator has no silent
+switch and no Music app:
+
+- (a) ☐ Silent switch **on**: unmute a video → sound plays anyway.
+- (b) ☐ Silent switch **off**: same → sound plays.
+- (c) ☐ Play Music, open a video deck: the music keeps playing while the
+  video is muted; unmute → the music stops.
+- (d) ☐ Mute again → no crash; whether Music resumes is up to iOS.
 
 **Scrubber (FR-16, §5.6)**
 
@@ -289,7 +303,7 @@ and reinstall it.
 
 ## Settings
 
-1. ☐ Home → gear opens Settings: three toggle rows, a "Reset all decisions"
+1. ☐ Home → gear opens Settings: four toggle rows, a "Reset all decisions"
    row, and an App version row showing `version (build)`.
 2. ☐ Toggle each switch; leave Settings and return — every switch keeps the
    state you left it (FR-29, NSUserDefaults).
@@ -311,6 +325,10 @@ and reinstall it.
    profile in the bundle).
 8. ☐ 👤 On a device with free provisioning, the expiry row appears with a date
    about 7 days after the profile was signed (FR-31).
+9. ☐ **Play video sound by default** on → the next Swipe session starts with
+   sound and the mute button shows `volume_up`; off (the default) → it
+   starts muted (FR-16). The setting applies to the **next** session, never
+   mid-session.
 
 ## Debug gallery
 

@@ -16,6 +16,12 @@ object SwipeIcons {
     const val CLOUD: String = "cloud"
     const val FAVORITE: String = "favorite"
     const val PLAY_ARROW: String = "play_arrow"
+
+    /** FR-16 mute button while the video is muted: the `volume_off` glyph. */
+    const val VOLUME_OFF: String = "volume_off"
+
+    /** FR-16 mute button while the video's sound is on: the `volume_up` glyph. */
+    const val VOLUME_UP: String = "volume_up"
     const val CHEVRON_RIGHT: String = "chevron_right"
     const val ARROW_BACK: String = "arrow_back"
     const val FILTER_LIST: String = "filter_list"

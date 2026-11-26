@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -36,8 +37,9 @@ import kotlin.test.assertEquals
 import kotlin.time.Instant
 
 /**
- * The WP-4.2 video and Live Photo UX: FR-16 (tap toggles mute, the session
- * remembers it, the scrubber shows for videos only, drags seek), FR-17 (hold
+ * The WP-4.2 video and Live Photo UX: FR-16 (a card tap toggles the chrome and
+ * the mute button beside the scrubber toggles sound, remembered for the
+ * session; the scrubber shows for videos only, drags seek), FR-17 (hold
  * a Live Photo to play it, release stops), FR-18 (date, duration, and the
  * Live/cloud/favorite badges), §5.6 (card drags and scrubber drags stay
  * disjoint), and R2 (the player mounts only while the card is at rest).
@@ -128,7 +130,7 @@ class SwipeScreenVideoTest {
     }
 
     @Test
-    fun `FR-16 tap on video card toggles mute`() =
+    fun `FR-16 tap on a video card toggles the chrome not mute`() =
         runComposeUiTest {
             val intents = mutableListOf<SwipeIntent>()
             val slot = RecordingSlot()
@@ -141,15 +143,58 @@ class SwipeScreenVideoTest {
             assertEquals(true, slot.lastMuted)
             assertEquals(true, slot.lastPlaying)
             assertEquals(false, slot.lastLivePhoto)
-            // Tap → the ToggleMute intent; the session state rides the VM.
+            // AC3: a video tap toggles the chrome, as a photo tap does — the
+            // chrome is up, so the first tap hides the top bar and sends no
+            // intent (mute is the button beside the scrubber, not the card).
+            onNodeWithContentDescription("Close").assertIsDisplayed()
             onNodeWithTag(SWIPE_CARD_TEST_TAG).performClick()
             mainClock.advanceTimeBy(400L) // the double-tap window closes, onClick fires
             waitForIdle()
+            assertEquals(emptyList(), intents)
+            onNodeWithContentDescription("Close").assertDoesNotExist()
+            // A second tap brings the chrome back; the player never unmuted.
+            onNodeWithTag(SWIPE_CARD_TEST_TAG).performClick()
+            mainClock.advanceTimeBy(400L)
+            waitForIdle()
+            assertEquals(emptyList(), intents)
+            onNodeWithContentDescription("Close").assertIsDisplayed()
+            assertEquals(true, slot.lastMuted)
+        }
+
+    @Test
+    fun `FR-16 mute button shows the mute state and toggles sound`() =
+        runComposeUiTest {
+            val intents = mutableListOf<SwipeIntent>()
+            val slot = RecordingSlot()
+            val stateFlow =
+                MutableStateFlow(SwipeUiState(current = card(id = "vid", durationMs = 5_000L)))
+            setContent { VideoTestScreen(stateFlow, { intents.add(it) }, slot) }
+            waitForIdle()
+            // AC2: muted (the session default), the button offers "Unmute video".
+            assertEquals(
+                listOf("Unmute video"),
+                onNodeWithTag(VIDEO_MUTE_BUTTON_TEST_TAG)
+                    .fetchSemanticsNode()
+                    .config[SemanticsProperties.ContentDescription],
+            )
+            // A click sends the same intent the card tap used to send.
+            onNodeWithTag(VIDEO_MUTE_BUTTON_TEST_TAG).performClick()
+            waitForIdle()
             assertEquals(listOf<SwipeIntent>(SwipeIntent.ToggleMute), intents)
-            // The flipped `muted` (remembered for the session) reaches the player.
+            // The flipped state reads "Mute video" and reaches the player.
             stateFlow.value = stateFlow.value.copy(muted = false)
             waitForIdle()
+            assertEquals(
+                listOf("Mute video"),
+                onNodeWithTag(VIDEO_MUTE_BUTTON_TEST_TAG)
+                    .fetchSemanticsNode()
+                    .config[SemanticsProperties.ContentDescription],
+            )
             assertEquals(false, slot.lastMuted)
+            // Photos show no mute button (the queue viewer stays muted, too).
+            stateFlow.value = SwipeUiState(current = card(id = "photo", type = MediaType.PHOTO))
+            waitForIdle()
+            onNodeWithTag(VIDEO_MUTE_BUTTON_TEST_TAG).assertDoesNotExist()
         }
 
     @Test
@@ -173,11 +218,12 @@ class SwipeScreenVideoTest {
             assertEquals(emptyList(), intents)
             assertEquals(listOf("vid:video"), slot.active)
             onNodeWithTag(VIDEO_PLAY_AFFORDANCE_TEST_TAG, useUnmergedTree = true).assertDoesNotExist()
-            // Later taps toggle mute as usual.
+            // Later taps toggle the chrome, not mute (AC3).
             onNodeWithTag(SWIPE_CARD_TEST_TAG).performClick()
             mainClock.advanceTimeBy(400L)
             waitForIdle()
-            assertEquals(listOf<SwipeIntent>(SwipeIntent.ToggleMute), intents)
+            assertEquals(emptyList(), intents)
+            onNodeWithContentDescription("Close").assertDoesNotExist()
         }
 
     @Test
