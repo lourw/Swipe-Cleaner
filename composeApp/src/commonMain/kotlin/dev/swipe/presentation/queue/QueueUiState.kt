@@ -57,8 +57,8 @@ data class QueueUiState(
      * it stood when [confirming] was raised. Null until it lands — and stays
      * null while no dialog is up — so the dialog renders with or without the
      * line, exactly the same either way (R3: sizing gates nothing).
-     * [dev.swipe.domain.model.StorageEstimate.Complete] renders "About …",
-     * [dev.swipe.domain.model.StorageEstimate.Partial] "At least …",
+     * [dev.swipe.domain.model.StorageEstimate.Complete] renders "Frees about …",
+     * [dev.swipe.domain.model.StorageEstimate.Partial] "Frees at least …",
      * [dev.swipe.domain.model.StorageEstimate.Unavailable] nothing.
      */
     val deleteSize: StorageEstimate? = null,

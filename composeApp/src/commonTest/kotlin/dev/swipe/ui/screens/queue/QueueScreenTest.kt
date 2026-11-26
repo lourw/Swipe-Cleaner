@@ -347,7 +347,7 @@ class QueueScreenTest {
             waitForIdle()
 
             onNodeWithText("Delete 3 items?").assertExists()
-            onNodeWithText("About 1.2 GB. Space is freed after Recently Deleted clears.").assertExists()
+            onNodeWithText("Frees about 1.2 GB once Recently Deleted clears.").assertExists()
             // The honest 30-day line is still the dialog's own message (the bar
             // behind the dialog repeats it, so the phrase shows twice).
             assertEquals(
@@ -367,8 +367,8 @@ class QueueScreenTest {
             onNodeWithContentDescription("Delete 3 items").performClick()
             waitForIdle()
 
-            onNodeWithText("At least 850 MB. Space is freed after Recently Deleted clears.").assertExists()
-            assertEquals(0, onAllNodesWithText("About ", substring = true).fetchSemanticsNodes().size)
+            onNodeWithText("Frees at least 850 MB once Recently Deleted clears.").assertExists()
+            assertEquals(0, onAllNodesWithText("about ", substring = true).fetchSemanticsNodes().size)
         }
 
     @Test
@@ -386,7 +386,7 @@ class QueueScreenTest {
 
             onNodeWithContentDescription("Delete 3 items").performClick()
             waitForIdle()
-            assertEquals(0, onAllNodesWithText("Space is freed after", substring = true).fetchSemanticsNodes().size)
+            assertEquals(0, onAllNodesWithText("Recently Deleted clears", substring = true).fetchSemanticsNodes().size)
 
             onNodeWithContentDescription("Delete").performClick() // the dialog's confirm
             waitForIdle()

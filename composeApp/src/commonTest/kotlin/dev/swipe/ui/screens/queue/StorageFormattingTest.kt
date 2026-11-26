@@ -3,6 +3,7 @@ package dev.swipe.ui.screens.queue
 import dev.swipe.domain.model.StorageEstimate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 /**
@@ -51,12 +52,25 @@ class StorageFormattingTest {
     @Test
     fun `deleteSizeLabel hedges a complete total and states a partial one`() {
         assertEquals(
-            "About 1.2 GB. Space is freed after Recently Deleted clears.",
+            "Frees about 1.2 GB once Recently Deleted clears.",
             deleteSizeLabel(StorageEstimate.Complete(totalBytes = 1_200_000_000L)),
         )
         assertEquals(
-            "At least 850 MB. Space is freed after Recently Deleted clears.",
+            "Frees at least 850 MB once Recently Deleted clears.",
             deleteSizeLabel(StorageEstimate.Partial(totalBytes = 850_000_000L)),
         )
+    }
+
+    @Test
+    fun `FR-34 size line is one sentence and never says Space is freed`() {
+        val complete = deleteSizeLabel(StorageEstimate.Complete(totalBytes = 1_200_000_000L))
+        val partial = deleteSizeLabel(StorageEstimate.Partial(totalBytes = 850_000_000L))
+        assertEquals("Frees about 1.2 GB once Recently Deleted clears.", complete)
+        assertEquals("Frees at least 850 MB once Recently Deleted clears.", partial)
+        // Regression: the line used to be two fragments and said "Space is
+        // freed"; it is one sentence now, and never carries that phrase.
+        assertFalse(complete?.contains("Space is freed") == true)
+        assertFalse(partial?.contains("Space is freed") == true)
+        assertFalse(partial?.contains("about") == true)
     }
 }

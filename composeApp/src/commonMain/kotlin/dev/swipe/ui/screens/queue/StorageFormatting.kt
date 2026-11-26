@@ -46,8 +46,8 @@ private fun roundedTenths(
 /**
  * The dialog line for [estimate]: null omits it — while loading, when nothing
  * read (R3), or for a zero total, which only an empty queue produces and that
- * cannot raise the dialog. A complete estimate hedges with "About"; a partial
- * one states what it is — a lower bound, "At least". Both name the Recently
+ * cannot raise the dialog. A complete estimate hedges with "about"; a partial
+ * one states what it is — a lower bound, "at least". Both name the Recently
  * Deleted delay, because the space is not free until it clears.
  */
 internal fun deleteSizeLabel(estimate: StorageEstimate?): String? {
@@ -64,10 +64,10 @@ internal fun deleteSizeLabel(estimate: StorageEstimate?): String? {
     if (bytes <= 0L) return null
     val qualifier =
         when (estimate) {
-            is StorageEstimate.Partial -> "At least"
-            else -> "About"
+            is StorageEstimate.Partial -> "at least"
+            else -> "about"
         }
-    return "$qualifier ${formatStorageBytes(bytes)}. Space is freed after Recently Deleted clears."
+    return "Frees $qualifier ${formatStorageBytes(bytes)} once Recently Deleted clears."
 }
 
 // Decimal (1000-based) units, the way iOS labels storage.

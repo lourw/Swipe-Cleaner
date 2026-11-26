@@ -15,7 +15,7 @@ sealed interface StorageEstimate {
 
     /**
      * Some sizes could not be read; [totalBytes] is the sum of the ones that
-     * could — a **lower bound**, rendered as "At least …" (FR-34).
+     * could — a **lower bound**, rendered as "Frees at least …" (FR-34).
      */
     data class Partial(
         val totalBytes: Long,
