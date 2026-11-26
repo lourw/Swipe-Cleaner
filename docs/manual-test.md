@@ -357,3 +357,15 @@ edge-to-edge behind both.
    card image stays full-bleed (FR-11).
 9. ☐ Empty state ("Nothing left here 🎉"): the CTA clears the Home Indicator.
 10. ☐ Debug gallery: the first heading clears the status bar.
+
+## Open device checks (👤)
+
+Carried over from the archived plan (`docs/archive/plan-v2.md` §3) on 2026-11-25. These need a physical iPhone. Tick them here when done.
+
+- ☐ FR-16 crash fix: drag a video card partway and release, repeatedly, on a device build (fixed in `dadc5c3`).
+- ☐ First Xcode Cloud build succeeds and reaches TestFlight as `0.1.<build number>`.
+- ☐ Full run of this checklist, including "Layout and safe areas".
+- ☐ Fill in the `TODO(👤)` rows in [`perf.md`](perf.md) "Results" (NFR-1 to NFR-4, on a 10k+ and 50k library where listed). If a number misses its target, file the matching item from `perf.md` "What to watch" as a factory feature.
+- ☐ VoiceOver and Reduce Motion session on a device.
+- ☐ Favorite confirmation user test (FR-22): on a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. File follow-ups as factory features.
+- ☐ Per-feature device checks recorded when each work package merged: see the Notes column of the tracker in `docs/archive/plan-v2.md` and the reports in `docs/reports/`.

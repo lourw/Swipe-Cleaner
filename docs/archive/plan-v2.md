@@ -1,6 +1,8 @@
-# Swipe Cleaner — Plan
+# Swipe Cleaner — Plan v2 (archived)
 
-_Started 2026-11-09. Source of truth for behavior: [`REQUIREMENTS.md`](REQUIREMENTS.md). Rules for agents: [`AGENTS.md`](AGENTS.md). The completed v1 plan (M1–M6, WP-1.1 to WP-6.4) is archived at [`docs/archive/plan-v1.md`](docs/archive/plan-v1.md)._
+> **Archived 2026-11-25.** Work is now planned and tracked in the `factory` queue (see AGENTS.md "Workflow: factory"). This file is history: the workflow, tracker, and subagent rules below no longer apply. WPs still open at archive time (8.2, 8.13, 8.16, 9.7, 9.9) were carried into the queue as drafts; WP-8.6 was in progress on `fr-36-last-copy-warning`.
+
+_Started 2026-11-09. Source of truth for behavior: [`REQUIREMENTS.md`](../../REQUIREMENTS.md). Rules for agents: [`AGENTS.md`](../../AGENTS.md). The completed v1 plan (M1–M6, WP-1.1 to WP-6.4) is archived at [`docs/archive/plan-v1.md`](plan-v1.md)._
 
 All functional requirements in the v1 plan shipped. This plan tracks what is still open. WP numbers continue from v1.
 
@@ -146,8 +148,8 @@ These need a physical iPhone and can't be done by a subagent.
 
 - [ ] FR-16 crash fix: drag a video card partway and release, repeatedly, on a device build (fixed in `dadc5c3`).
 - [ ] First Xcode Cloud build succeeds and reaches TestFlight as `0.1.<build number>`.
-- [ ] Full run of [`docs/manual-test.md`](docs/manual-test.md), including the Layout and safe areas section.
-- [ ] Fill in the `TODO(👤)` rows in [`docs/perf.md`](docs/perf.md) "Results" (NFR-1 to NFR-4, on a 10k+ and 50k library where listed).
+- [ ] Full run of [`docs/manual-test.md`](../manual-test.md), including the Layout and safe areas section.
+- [ ] Fill in the `TODO(👤)` rows in [`docs/perf.md`](../perf.md) "Results" (NFR-1 to NFR-4, on a 10k+ and 50k library where listed).
 - [ ] VoiceOver and Reduce Motion session on a device.
 - [ ] **Favorite confirmation user test (after WP-8.9 merges).** On a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. Record what you find under WP-8.9 and file follow-up changes as a new WP before calling the feature done.
 

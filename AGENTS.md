@@ -61,7 +61,7 @@ xcrun simctl addmedia booted <files...>                # seed the photo library 
 
 Or open `iosApp/iosApp.xcodeproj` in Xcode and press Run. On a device, set `TEAM_ID` and `BUNDLE_ID` in `Local.xcconfig` first.
 
-Run `scripts/validate.sh` before declaring a code change done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. **Skip validation for docs-only changes**, meaning the diff touches only markdown or other docs files (`*.md`, `docs/`). If a diff mixes docs and code, validate it. Don't add lint baselines or bare `@Suppress`. If a command above stops working, fix it here in the same change.
+Run `scripts/validate.sh` (or `factory gate` inside a factory worktree) before declaring a code change done, plus any extra checks for the type of change listed in REQUIREMENTS §8.4. **Skip validation for docs-only changes**, meaning the diff touches only markdown or other docs files (`*.md`, `docs/`). If a diff mixes docs and code, validate it. Don't add lint baselines or bare `@Suppress`. If a command above stops working, fix it here in the same change.
 
 ## Hard rules
 
@@ -74,53 +74,64 @@ Run `scripts/validate.sh` before declaring a code change done, plus any extra ch
 7. **No network or analytics code**, apart from PhotoKit's own iCloud downloads (NFR-6).
 8. **Signing stays local.** Don't commit an Apple `DEVELOPMENT_TEAM` or personal bundle ID. They belong in `iosApp/Configuration/Local.xcconfig`, which is gitignored.
 
-## Working with subagents
+## Workflow: factory
 
-Use subagents for implementation and verification wherever you can. The main agent plans, sends out the work, merges, and checks each result. It doesn't write the feature code itself.
+Work is planned and built through [`factory`](#factory-commands), a local work queue with an autonomous implementer. There is no `plan.md`, no task file, and no hand-kept tracker: the queue in `.factory/` (local, not in git) is the only record of what is planned, running, parked, and merged. The finished plans are history in `docs/archive/`.
 
-**Run at most 2 subagents at a time**, on top of the main (orchestrating) agent. Implementers and verifiers both count toward the pool. When a slot frees up, fill it with the next task from the queue.
+**Who does what**
 
-- **Implementation.** Each work package (WP) in [`plan.md`](plan.md) goes to its own subagent, briefed with the "Sub-agent brief template" in `plan.md` §0, each in its own worktree and branch (see Git workflow).
-- **Pick tasks that can run in parallel.** Two WPs can run side by side only if neither depends on the other (`plan.md` §1 waves and each WP's "Depends on") and they won't conflict: they don't edit the same files, the same SQLDelight schema or migration, or the same Koin module or navigation graph. To fill a slot, walk down the queue in order and take the first WP that is unblocked and doesn't conflict with the running one. Skip WPs that depend on or overlap with running work; they stay queued for a later slot. If nothing fits, leave the slot empty.
-- **Verification.** When a WP is done, a *separate* subagent reviews it against the REQUIREMENTS sections the WP cites, the hard rules above, and the `plan.md` §0 definition of done. Give it the branch diff and the WP, not the implementer's summary, so it reviews the code rather than confirming the summary. Send its findings back to the implementer, or to a new fix-up subagent, before merging.
-- **Main agent.** It owns the branch merges (including resolving conflicts between parallel branches, see Git workflow), the 👤 human checkpoints, and the summary for the user. It doesn't re-run checks a subagent already ran and reported as passing, unless the result looks wrong.
-- **Launch subagents in the background.** Call the `subagent` tool with `background: true` for every implementer, verifier, and fix-up. Don't wait for both to finish. When you're notified that one is done, record the result and fill its slot with the next task that fits (still at most 2). Don't poll, sleep, or ask a running subagent for status; wait for the completion notification. Only rebase, merge, or remove a worktree after its subagent has reported done.
-- **Track every subagent in `plan.md` "Tracker".** This is how you keep track of what's running, so update it at each step, not at the end:
-  - **Launch:** add a row to "Active subagents" with the WP, role, branch, the returned session ID, and the time. Set the WP's status (`implementing`, `verifying`, or `fixing`).
-  - **Report back:** remove the row, then move the WP to its next status and note anything open (👤 checkpoints, deferred items, findings sent to a fix-up).
-  - **Merge:** set the WP to `merged`.
-  - **Before choosing the next task**, and after any restart or context compaction, read the tracker first and check it against `git worktree list`. If they disagree, fix the tracker before launching anything.
-  - Tracker updates are the one exception to "never commit directly to `main`": the main agent edits `plan.md` "Tracker" in the main checkout and commits it straight to `main` with a message like `plan: tracker WP-8.4 verifying`. Commit only the tracker, never other files this way. Subagents don't edit the tracker.
-- **Exception: small changes.** A change of a few lines (a typo, a one-line fix, a docs tweak) can be done directly, because writing the brief would cost more than making the change.
+- **Claude plans.** Every feature and bug is written in Claude Code with the `factory-feature` skill in **full-plan mode**: a spec with testable acceptance criteria, sized tasks, and a complete packet for every task. Don't use quick mode. It leaves the packets to the opencode overseer, and planning is Claude's job here. Refreshing stale packets (`factory stale`) and retros are planning too.
+- **opencode builds.** `factory run` builds ready features with the opencode backend (`factory internal config backend` is `opencode`; don't change it). Builder, verifier, and overseer each get one task per session, in a worktree that factory creates and removes.
+- **The user lands.** Finished features are squash-merged into the `factory` branch. `factory review` shows what is waiting, and `factory land` fast-forwards `main` to it. Agents run `factory land` only when the user asks.
+
+**Planning rules**
+
+- The builder reads only its task packet, the lessons, and the files the packet lists. Put everything it needs in the packet: cite REQUIREMENTS sections by number, give file refs with line ranges, name the test to add (its name starts with the requirement ID) and the file it goes in.
+- Hard rules above bind every task. If a task comes near one (the delete path, gesture constants, tokens, layering), say so in the packet's Constraints.
+- Size tasks for opencode: at most 150 changed lines each, one coherent change, and the gate stays green after every task.
+- If a feature changes behavior the spec describes, make the `REQUIREMENTS.md` edit part of a task, not an afterthought.
+- Two features that edit the same SQLDelight schema or migration, the same Koin module, or the navigation graph will collide when they merge. Chain them with priorities or plan them as one feature.
+- Anything that needs a physical iPhone is a 👤 checkpoint. The spec lists it under "Out of scope" with the exact steps, and a task adds those steps to `docs/manual-test.md`.
+
+### Factory commands
+
+```bash
+factory board                  # queue health and every feature's next step
+factory show <id>              # one feature: tasks, worktree, events, park reason
+factory cat plan <id>          # spec, AC coverage, and every packet, as the builder sees them
+factory stale                  # packets whose referenced code changed since they were written
+factory run                    # build ready features until the queue is empty
+factory review                 # what is on the factory branch and not yet on main
+factory land                   # fast-forward main to factory (user's call)
+factory gate                   # run the gate in the current worktree
+factory test '*HomeViewModelTest*'   # one test class (a Gradle --tests filter)
+```
+
+The gate is the definition of done, split into checks: `format`, `lint`, `rules`, `typecheck`, `migrations`, `test`, `build`. They are the steps of `scripts/validate.sh --full`. If you change a step in one place, change it in the other (`factory gate config <name> '<command>'`). On a new machine, run `factory init` and set the gate up again with the skill's init mode, because `.factory/` isn't in git.
+
+A parked feature keeps its worktree. Read `factory show <id>`, fix the cause (usually a packet refresh), then `factory set <id> --status ready`.
 
 ## Git workflow
 
-- **Never commit directly to `main`.** Every feature, fix, or doc change gets its own branch **and its own worktree**, created from an up-to-date `main`. Name the branch after the milestone or requirement, such as `m2-swipe-gestures` or `fr-15-undo`. Worktrees live outside the repo in `../swipe-app-wt/<branch>`:
+- **`main` only moves through `factory land`**, apart from the small changes below. Feature and fix work is never committed to `main` by hand.
+- **Factory owns its branches and worktrees.** Don't create, rebase, or remove them by hand; use `factory clean` for leftovers. `git worktree list` should show `main`, factory's worktrees, and nothing else.
+- **Commits are conventional**, built from the feature's kind, scope, and title. Keep requirement IDs in the title, for example `fix(swipe): FR-15 undo restores the last card`.
+- **Small changes** (a typo, a one-line fix, a docs tweak) don't need a feature. Make them on a short branch in a worktree, validate if they touch code, and fast-forward `main`:
 
   ```bash
   git worktree add ../swipe-app-wt/<branch> -b <branch> main
+  # edit, commit, scripts/validate.sh --full for code changes
+  git merge --ff-only <branch> && git worktree remove ../swipe-app-wt/<branch> && git branch -d <branch>
   ```
 
-  The main checkout stays on `main`. Work, validation, and commits for the branch happen only inside its worktree.
-- **Commit as you go.** Make small commits, each one with a working build, rather than one large commit at the end.
-- **Merge into `main` only when the work is done**, meaning `scripts/validate.sh --full` passes in the worktree. Docs-only branches skip validation and can be merged directly. Then, from the main checkout, merge and **always remove the worktree**:
-
-  ```bash
-  git merge --ff-only <branch>     # if main has moved on: rebase <branch> onto main in its worktree, re-validate, then merge
-  git worktree remove ../swipe-app-wt/<branch>
-  git branch -d <branch>
-  ```
-
-  Don't leave worktrees around after merging.
-- **Merging parallel work.** When both parallel subagents are done, the main agent merges both branches itself; it doesn't hand this back to a subagent or ask the user first. Merge the first branch as above. Then rebase the second onto the new `main` in its worktree and resolve any conflicts so the result contains **both** changes: keep each branch's behavior, combine edits to shared files, and renumber colliding SQLDelight migrations or schema versions. Re-run `scripts/validate.sh --full` on the combined result, then merge it.
-  - **Ask the user only if the two changes are incompatible**, meaning you can't keep both without changing what one of them does. Examples: they implement contradicting behavior for the same requirement, or one removes or redesigns something the other relies on. In that case, stop before merging the second branch, say what conflicts, and offer options. Merge conflicts that just need both sides combined are not a reason to ask. `git worktree list` should show only `main` and the branches still in progress.
+  If `main` moves this way while the `factory` branch has unlanded work, `factory land` rebases and re-runs the gate first.
 
 ## Releases
 
 Xcode Cloud builds from the `release` branch, not `main`. To ship, fast-forward `release` to a validated `main` commit and push it:
 
 ```bash
-git push origin main:release     # main must already be pushed and pass scripts/validate.sh --full
+git push origin main:release     # main must already be landed (factory land), pushed, and pass scripts/validate.sh --full
 ```
 
 Pushing `release` starts a TestFlight build, so only do it when the user asks. Never commit directly to `release`.

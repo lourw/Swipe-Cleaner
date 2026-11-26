@@ -70,8 +70,8 @@ Main libraries: Compose Multiplatform, Navigation Compose, Koin, SQLDelight, kot
 ## Documentation
 
 - [`REQUIREMENTS.md`](REQUIREMENTS.md): product spec, design tokens, architecture. The source of truth for behavior.
-- [`AGENTS.md`](AGENTS.md): commands, hard rules, git and subagent workflow for contributors and coding agents.
-- [`plan.md`](plan.md): open work packages. The completed v1 plan is in [`docs/archive/plan-v1.md`](docs/archive/plan-v1.md).
+- [`AGENTS.md`](AGENTS.md): commands, hard rules, and the factory workflow for contributors and coding agents.
+- Open work lives in the local `factory` queue (`factory board`), not in a plan file. Finished plans are in [`docs/archive/`](docs/archive/).
 - [`docs/manual-test.md`](docs/manual-test.md): device checklist for gestures, haptics, and iOS dialogs.
 - [`docs/coverage.md`](docs/coverage.md): which test covers each requirement.
 - [`docs/perf.md`](docs/perf.md): performance targets and how to measure them.
