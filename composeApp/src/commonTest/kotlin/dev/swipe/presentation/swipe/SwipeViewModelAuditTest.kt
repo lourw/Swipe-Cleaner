@@ -28,7 +28,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * WP-7.4 decision-integrity audit cases (report: docs/audits/2026-11-decision-audit.md):
+ * WP-7.4 decision-integrity audit cases (report: docs/archive/audits/2026-11-decision-audit.md):
  * the wrong-card guard seen as an integration, the undo paths the other suites do not
  * cover (KEEP undo leaving no row, undo after a failed write, undo after resume), the
  * resume contract (FR-20), and the FR-22 guards against confirming a different card.

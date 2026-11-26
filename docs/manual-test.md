@@ -368,4 +368,4 @@ Carried over from the archived plan (`docs/archive/plan-v2.md` §3) on 2026-11-2
 - ☐ Fill in the `TODO(👤)` rows in [`perf.md`](perf.md) "Results" (NFR-1 to NFR-4, on a 10k+ and 50k library where listed). If a number misses its target, file the matching item from `perf.md` "What to watch" as a factory feature.
 - ☐ VoiceOver and Reduce Motion session on a device.
 - ☐ Favorite confirmation user test (FR-22): on a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. File follow-ups as factory features.
-- ☐ Per-feature device checks recorded when each work package merged: see the Notes column of the tracker in `docs/archive/plan-v2.md` and the reports in `docs/reports/`.
+- ☐ Per-feature device checks recorded when each work package merged: see the Notes column of the tracker in `docs/archive/plan-v2.md` and the reports in `docs/archive/reports/`.

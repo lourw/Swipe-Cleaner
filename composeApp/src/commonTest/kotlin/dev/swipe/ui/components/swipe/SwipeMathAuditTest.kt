@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 
 /**
  * WP-7.4 audit pins for the §5.6 verdict geometry (report:
- * docs/audits/2026-11-decision-audit.md, findings U1/U2): what a short or
+ * docs/archive/audits/2026-11-decision-audit.md, findings U1/U2): what a short or
  * mostly-vertical drag can and cannot resolve to, and which verdict wins when
  * a diagonal drag or fling crosses two directions at once. These pin the
  * CURRENT behavior so any future change to the thresholds or their ordering
