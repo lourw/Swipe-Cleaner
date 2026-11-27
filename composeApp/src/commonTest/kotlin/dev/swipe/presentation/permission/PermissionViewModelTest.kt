@@ -20,7 +20,9 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The permission flow (FR-1–3, §5.8 screen map): every outcome routes to Home
@@ -262,6 +264,28 @@ class PermissionViewModelTest {
             val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> =
                 listOf(DeckSource.All to MediaTypeFilter.ALL, DeckSource.All to MediaTypeFilter.ALL)
             assertEquals(expectedCalls, library.assetIdsCalls)
+        }
+
+    @Test
+    fun `NFR-8 ui state follows Reduce Motion`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(4), access = LibraryAccess.FULL)
+            val actions = FakeSystemActions()
+
+            val viewModel = PermissionViewModel(library, actions)
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.reduceMotion)
+
+            // The user flips Reduce Motion in iOS Settings while we run: the
+            // mirror rides the state, never a koinInject in a composable (§5.6, NFR-8).
+            actions.setReduceMotion(true)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.reduceMotion)
+
+            actions.setReduceMotion(false)
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.reduceMotion)
         }
 
     private fun photoItems(count: Int): List<MediaItem> =

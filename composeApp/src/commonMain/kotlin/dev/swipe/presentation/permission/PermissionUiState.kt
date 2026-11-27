@@ -35,4 +35,11 @@ data class PermissionUiState(
      * banner. Non-null only while [access] is [LibraryAccess.LIMITED].
      */
     val limitedCount: Int? = null,
+    /**
+     * §5.6 Reduce Motion, NFR-8: whether the system asks for reduced motion. The
+     * ViewModel mirrors `SystemActions.isReduceMotionEnabled()` so the flag travels
+     * down the NavHost (via `LocalReduceMotion`) instead of being injected into
+     * composables (hard rule 5).
+     */
+    val reduceMotion: Boolean = false,
 )

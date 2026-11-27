@@ -11,7 +11,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import dev.swipe.data.MediaLoader
-import dev.swipe.data.NoPerfTrace
 import dev.swipe.data.PerfSpan
 import dev.swipe.data.PerfTrace
 import dev.swipe.domain.model.DeckSource
@@ -28,6 +27,8 @@ import dev.swipe.presentation.months.MonthsEvent
 import dev.swipe.presentation.months.MonthsIntent
 import dev.swipe.presentation.months.MonthsViewModel
 import dev.swipe.presentation.permission.PermissionUiState
+import dev.swipe.ui.LocalMediaLoader
+import dev.swipe.ui.LocalPerfTrace
 import dev.swipe.ui.navigation.Albums
 import dev.swipe.ui.navigation.Months
 import dev.swipe.ui.navigation.Queue
@@ -39,7 +40,6 @@ import dev.swipe.ui.screens.home.MonthsScreen
 import dev.swipe.ui.screens.swipe.decodeTypeFilter
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -62,14 +62,15 @@ import org.koin.core.parameter.parametersOf
  * FR-5), [HomeEvent.OpenAlbums] and [HomeEvent.OpenMonths] carry that filter
  * into the sub-screens so their counts and decks agree with Home (FR-5).
  * The permission flow and the ViewModel provider are injectable so navigation
- * tests run the real ViewModel over the fakes without Koin.
+ * tests run the real ViewModel over the fakes without Koin. [perfTrace]
+ * defaults to [LocalPerfTrace] (§6.1), which `App()` provides from Koin.
  */
 @Composable
 internal fun HomeDestination(
     navController: NavHostController,
     permissionState: StateFlow<PermissionUiState>,
     onManageLimitedAccess: () -> Unit,
-    perfTrace: PerfTrace = NoPerfTrace,
+    perfTrace: PerfTrace = LocalPerfTrace.current,
     homeViewModel: @Composable () -> HomeViewModel = { koinViewModel() },
 ) {
     val permission by permissionState.collectAsState()
@@ -139,7 +140,8 @@ internal fun HomeDestination(
  * opens the album deck with that filter. State is collected inside this
  * destination composable, never in the NavHost builder (WP-1.7 rule). The
  * ViewModel and [mediaLoader] providers let navigation tests run the real
- * ViewModel over the fakes without Koin (WP-9.6); event-driven navigation
+ * ViewModel over the fakes without Koin (WP-9.6); by default [mediaLoader]
+ * comes from [LocalMediaLoader] (§6.1), not Koin; event-driven navigation
  * happens only while this entry is resumed, so a double tap on a row pushes
  * exactly one deck (WP-9.6, FR-8).
  */
@@ -147,7 +149,7 @@ internal fun HomeDestination(
 internal fun AlbumsDestination(
     route: Albums,
     navController: NavHostController,
-    mediaLoader: MediaLoader = koinInject(),
+    mediaLoader: MediaLoader = LocalMediaLoader.current,
     albumsViewModel: @Composable () -> AlbumsViewModel = {
         koinViewModel(parameters = { parametersOf(decodeTypeFilter(route.typeFilter)) })
     },

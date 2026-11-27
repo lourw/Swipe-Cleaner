@@ -25,6 +25,13 @@ data class SwipeUiState(
      * stands in for previews and tests.
      */
     val muted: Boolean = true,
+    /**
+     * FR-29: whether videos autoplay (the §5.6 card shows the poster + a play
+     * affordance when off). Mirrored from `SettingsStore.autoplayVideos` by
+     * [SwipeViewModel] so the screen never injects the store; the `true` default
+     * matches the setting's default (and `FakeSettingsStore`).
+     */
+    val autoplayVideos: Boolean = true,
     /** Transient message above the cards ([ToastMessage]); null when none. */
     val toast: ToastMessage? = null,
     /** Session summary once the deck runs out (FR-21); set with the final decision. */

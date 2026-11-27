@@ -36,6 +36,32 @@ grep_files() {
 main_kt -path "$SRC/commonMain/*" | grep_files '^import platform\.' |
     report "commonMain must not import platform.* (REQUIREMENTS §6.1)"
 
+# 1b. Layering (§6.1): ui/ may import only the sanctioned UI services from data/ —
+#     MediaLoader (and the LoadedImage it hands back), Haptics, and PerfTrace (and
+#     NoPerfTrace and the PerfSpan it hands back). Everything else reaches the UI
+#     only through ViewModels. App.kt and HomeDestinations.kt sit outside ui/ but
+#     are composition wiring, so they get the same allowlist.
+{
+    main_kt -path "$SRC/commonMain/kotlin/dev/swipe/ui/*"
+    printf '%s\0' "$SRC/commonMain/kotlin/dev/swipe/App.kt" "$SRC/commonMain/kotlin/dev/swipe/HomeDestinations.kt"
+} | grep_files '^import dev\.swipe\.data\.' |
+    grep -vE ':[0-9]+:import dev\.swipe\.data\.(MediaLoader|LoadedImage|Haptics|PerfTrace|PerfSpan|NoPerfTrace)$' |
+    report "ui/ may import only the sanctioned UI services from data/ (MediaLoader, Haptics, PerfTrace; REQUIREMENTS §6.1)"
+
+# 1c. Koin in composables (§6.1): App() is the only koinInject call site — it resolves
+#     the sanctioned UI services once from Koin and provides them through the locals
+#     in UiServices.kt; composables read the locals, never Koin. Comment-only
+#     mentions are stripped like in guard 5 — docs may explain the rule.
+main_kt -path "$SRC/commonMain/*" -not -name 'App.kt' | grep_files '\bkoinInject\b' | grep -vE ':[0-9]+: *[/*]' |
+    report "Only App() may koinInject — it provides the sanctioned UI services (REQUIREMENTS §6.1)"
+
+# 1d. No blocking waits (NFR-4): the database opens off the main thread and the stores
+#     await its Deferred (T1), so nothing in commonMain may block on a coroutine, and
+#     the DI modules must never reach for runBlocking to unwrap what they provide.
+#     Comment-only mentions are stripped like in guard 5.
+main_kt \( -path "$SRC/commonMain/*" -o -path "$SRC/iosMain/*/di/*" \) | grep_files '\brunBlocking\b' | grep -vE ':[0-9]+: *[/*]' |
+    report "No runBlocking in commonMain or DI modules (NFR-4)"
+
 # 2. Design tokens (§5.2): no hex colors outside ui/theme/
 main_kt -not -path '*/ui/theme/*' | grep_files 'Color\(0x' |
     report "Hex colors belong in ui/theme/ only (REQUIREMENTS §5.2)"

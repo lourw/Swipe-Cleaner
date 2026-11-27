@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
+import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.presentation.queue.QueueEvent
 import dev.swipe.presentation.queue.QueueIntent
@@ -59,8 +60,10 @@ import kotlinx.coroutines.flow.Flow
  * NFR-5 gate, whose Delete tap is the only path to `ConfirmDelete` — and
  * `selected` raises the full-screen [QueueItemViewer] (FR-24).
  *
- * [events] carries the one-shots: [QueueEvent.ShowDeleteSuccess] navigates
- * through [onShowDeleteSuccess] (the ViewModel never navigates), and the two
+ * [events] carries the one-shots: [QueueEvent.ShowDeleteSuccess] fires the
+ * `notificationSuccess` haptic through [haptics] (§5.6, FR-26 — the screen is
+ * haptics' only owner) and navigates through [onShowDeleteSuccess] (the
+ * ViewModel never navigates), and the two
  * error events fold into one local [ToastSpec] rendered through the shared
  * [ToastHost] (§6.7, WP-9.3 — plain retry copy on screen, the raw PhotoKit
  * message stays diagnostic). Thumbnails request their tile-sized target
@@ -78,6 +81,7 @@ fun QueueScreen(
     events: Flow<QueueEvent>,
     onIntent: (QueueIntent) -> Unit,
     mediaLoader: MediaLoader,
+    haptics: Haptics,
     onBack: () -> Unit,
     onBackHome: () -> Unit,
     onShowDeleteSuccess: (
@@ -97,13 +101,22 @@ fun QueueScreen(
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
-                is QueueEvent.ShowDeleteSuccess -> navigate(event.count, event.notFound)
+                // FR-26: the UI owns the haptic (§5.6) — the success buzz
+                // fires here, before navigation, not in the ViewModel.
+                is QueueEvent.ShowDeleteSuccess -> {
+                    haptics.notificationSuccess()
+                    navigate(event.count, event.notFound)
+                }
 
                 // WP-9.3: the event's raw message is diagnostic only — the
                 // user sees the plain retry copy, never PhotoKit's own words.
-                is QueueEvent.ShowDeleteError -> toast = deleteFailedToast
+                is QueueEvent.ShowDeleteError -> {
+                    toast = deleteFailedToast
+                }
 
-                QueueEvent.RestoreFailed -> toast = restoreFailedToast
+                QueueEvent.RestoreFailed -> {
+                    toast = restoreFailedToast
+                }
             }
         }
     }

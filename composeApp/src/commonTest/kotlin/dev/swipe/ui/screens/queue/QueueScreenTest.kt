@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.MediaItem
@@ -313,7 +314,11 @@ class QueueScreenTest {
             val f = ScreenFixture(3)
             val successes = mutableListOf<Pair<Int, Int>>()
             setContent {
-                TestScreen(f.viewModel, onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) })
+                TestScreen(
+                    f.viewModel,
+                    haptics = f.haptics,
+                    onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) },
+                )
             }
             waitForIdle()
 
@@ -426,6 +431,37 @@ class QueueScreenTest {
         }
 
     @Test
+    fun `FR-26 the success event fires the success haptic once before navigating`() =
+        runComposeUiTest {
+            val haptics = FakeHaptics()
+            val successes = mutableListOf<Pair<Int, Int>>()
+            setContent {
+                TestScreen(
+                    queueState(4),
+                    events = flowOf(QueueEvent.ShowDeleteSuccess(4)),
+                    haptics = haptics,
+                    onShowDeleteSuccess = { deleted, notFound -> successes.add(deleted to notFound) },
+                )
+            }
+            waitForIdle()
+            // The screen owns the FR-26 haptic (§5.6): exactly one success buzz
+            // for the event, and the navigation still happens.
+            assertEquals(listOf(FakeHaptics.Event.NOTIFICATION_SUCCESS), haptics.events)
+            assertEquals(listOf(4 to 0), successes)
+        }
+
+    @Test
+    fun `FR-27 an error event fires no haptic`() =
+        runComposeUiTest {
+            val haptics = FakeHaptics()
+            setContent {
+                TestScreen(queueState(2), events = flowOf(QueueEvent.ShowDeleteError("x")), haptics = haptics)
+            }
+            waitForIdle()
+            assertTrue(haptics.events.isEmpty())
+        }
+
+    @Test
     fun `6-7 delete error rides a toast and the queue stays`() =
         runComposeUiTest {
             setContent { TestScreen(queueState(2), events = flowOf(QueueEvent.ShowDeleteError("PhotoKit said no"))) }
@@ -509,6 +545,7 @@ class QueueScreenTest {
         events: Flow<QueueEvent> = flowOf(),
         onIntent: (QueueIntent) -> Unit = {},
         mediaLoader: MediaLoader = FakeMediaLoader(),
+        haptics: Haptics = FakeHaptics(),
         onBack: () -> Unit = {},
         onBackHome: () -> Unit = {},
         onShowDeleteSuccess: (Int, Int) -> Unit = { _, _ -> },
@@ -520,6 +557,7 @@ class QueueScreenTest {
                 events = events,
                 onIntent = onIntent,
                 mediaLoader = mediaLoader,
+                haptics = haptics,
                 onBack = onBack,
                 onBackHome = onBackHome,
                 onShowDeleteSuccess = onShowDeleteSuccess,
@@ -588,7 +626,6 @@ class QueueScreenTest {
                     restoreFromQueue = RestoreFromQueueUseCase(store),
                     decisions = store,
                     mediaLibrary = library,
-                    haptics = haptics,
                     mediaSizing = sizing,
                 )
         }
@@ -616,6 +653,7 @@ class QueueScreenTest {
     @Composable
     private fun TestScreen(
         viewModel: QueueViewModel,
+        haptics: Haptics = FakeHaptics(),
         onShowDeleteSuccess: (Int, Int) -> Unit = { _, _ -> },
     ) {
         SwipeTheme {
@@ -624,6 +662,7 @@ class QueueScreenTest {
                 events = viewModel.events,
                 onIntent = viewModel::onIntent,
                 mediaLoader = FakeMediaLoader(),
+                haptics = haptics,
                 onBack = {},
                 onBackHome = {},
                 onShowDeleteSuccess = onShowDeleteSuccess,

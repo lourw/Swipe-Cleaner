@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,8 +21,6 @@ import androidx.navigation.toRoute
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.PerfTrace
-import dev.swipe.data.SettingsStore
-import dev.swipe.data.SystemActions
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.presentation.permission.PermissionIntent
@@ -34,6 +33,11 @@ import dev.swipe.presentation.settings.SettingsIntent
 import dev.swipe.presentation.settings.SettingsViewModel
 import dev.swipe.presentation.swipe.SwipeIntent
 import dev.swipe.presentation.swipe.SwipeViewModel
+import dev.swipe.ui.LocalHaptics
+import dev.swipe.ui.LocalMediaLoader
+import dev.swipe.ui.LocalPerfTrace
+import dev.swipe.ui.LocalReduceMotion
+import dev.swipe.ui.ProvideUiServices
 import dev.swipe.ui.components.ComponentGallery
 import dev.swipe.ui.navigation.Albums
 import dev.swipe.ui.navigation.DeleteSuccess
@@ -61,7 +65,9 @@ import org.koin.core.parameter.parametersOf
 
 /**
  * Root composable (REQUIREMENTS §5.8 screen map). Wraps the permission-driven
- * [NavHost] in the theme. The debug WP-1.2 [gallery] (ComponentGallery) is
+ * [NavHost] in the theme, and provides the three sanctioned UI services
+ * (§6.1) once from Koin via [ProvideUiServices] — the only `koinInject` of
+ * them. The debug WP-1.2 [gallery] (ComponentGallery) is
  * only passed from debug entry points; release builds never reach it.
  */
 @Composable
@@ -73,7 +79,13 @@ fun App(
         if (gallery) {
             ComponentGallery()
         } else {
-            PermissionFlow(modifier = modifier)
+            ProvideUiServices(
+                mediaLoader = koinInject(),
+                haptics = koinInject(),
+                perfTrace = koinInject(),
+            ) {
+                PermissionFlow(modifier = modifier)
+            }
         }
     }
 }
@@ -89,21 +101,16 @@ fun App(
 private fun PermissionFlow(
     modifier: Modifier = Modifier,
     viewModel: PermissionViewModel = koinViewModel(),
-    systemActions: SystemActions = koinInject(),
 ) {
     val onIntent: (PermissionIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.onIntent(PermissionIntent.Recheck)
     }
-    // remember: the flow re-registers a NSNotification observer per call, so
-    // building it inline would churn the subscription on every recomposition
-    // (same rule as SwipeContainer).
-    val reduceMotionFlow = remember(systemActions) { systemActions.isReduceMotionEnabled() }
-    val reduceMotion by reduceMotionFlow.collectAsState(initial = false)
+    val uiState by viewModel.uiState.collectAsState()
     PermissionFlowContent(
         state = viewModel.uiState,
         onIntent = onIntent,
-        reduceMotion = reduceMotion,
+        reduceMotion = uiState.reduceMotion,
         modifier = modifier,
     )
 }
@@ -143,7 +150,6 @@ internal fun PermissionFlowContent(
             navController,
             state,
             { onIntent(PermissionIntent.ManageLimitedAccess) },
-            perfTrace = koinInject(),
         )
     },
     albumsDestination: @Composable (Albums) -> Unit = { route -> AlbumsDestination(route, navController) },
@@ -158,41 +164,45 @@ internal fun PermissionFlowContent(
     val currentRoute = startScreen.toRoute()
     val initialRoute = remember { currentRoute }
     FollowStartRoute(navController, currentRoute, initialRoute)
-    NavHost(
-        navController = navController,
-        startDestination = initialRoute,
-        modifier = modifier.fillMaxSize(),
-        enterTransition = { navEnter(reduceMotion) },
-        exitTransition = { navExit(reduceMotion) },
-        popEnterTransition = { navPopEnter(reduceMotion) },
-        popExitTransition = { navPopExit(reduceMotion) },
-    ) {
-        composable<Denied> {
-            DeniedScreen(onOpenSettings = { onIntent(PermissionIntent.OpenSettings) })
-        }
-        composable<Home> {
-            // The WP-5.3 destination (HomeViewModel-backed) is behind a hook so
-            // navigation tests can run it over fakes without Koin, matching
-            // [swipeDestination] and [queueDestination].
-            homeDestination()
-        }
-        composable<Albums> { entry ->
-            albumsDestination(entry.toRoute<Albums>())
-        }
-        composable<Months> { entry ->
-            monthsDestination(entry.toRoute<Months>())
-        }
-        composable<Settings> {
-            // The WP-6.1 destination (FR-29–31) behind a hook so navigation tests
-            // never build the settings pipeline, matching [queueDestination].
-            settingsDestination()
-        }
-        composable<Swipe> { entry ->
-            swipeDestination(entry.toRoute<Swipe>())
-        }
-        resultDestinations(navController)
-        composable<Queue> {
-            queueDestination()
+    // §5.6: Reduce Motion reaches the deck through a value local (the ViewModel
+    // mirrors SystemActions); hard rule 5 keeps the service itself out of the graph.
+    CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
+        NavHost(
+            navController = navController,
+            startDestination = initialRoute,
+            modifier = modifier.fillMaxSize(),
+            enterTransition = { navEnter(reduceMotion) },
+            exitTransition = { navExit(reduceMotion) },
+            popEnterTransition = { navPopEnter(reduceMotion) },
+            popExitTransition = { navPopExit(reduceMotion) },
+        ) {
+            composable<Denied> {
+                DeniedScreen(onOpenSettings = { onIntent(PermissionIntent.OpenSettings) })
+            }
+            composable<Home> {
+                // The WP-5.3 destination (HomeViewModel-backed) is behind a hook so
+                // navigation tests can run it over fakes without Koin, matching
+                // [swipeDestination] and [queueDestination].
+                homeDestination()
+            }
+            composable<Albums> { entry ->
+                albumsDestination(entry.toRoute<Albums>())
+            }
+            composable<Months> { entry ->
+                monthsDestination(entry.toRoute<Months>())
+            }
+            composable<Settings> {
+                // The WP-6.1 destination (FR-29–31) behind a hook so navigation tests
+                // never build the settings pipeline, matching [queueDestination].
+                settingsDestination()
+            }
+            composable<Swipe> { entry ->
+                swipeDestination(entry.toRoute<Swipe>())
+            }
+            resultDestinations(navController)
+            composable<Queue> {
+                queueDestination()
+            }
         }
     }
 }
@@ -285,9 +295,12 @@ private fun SwipeDestination(
 
 /**
  * Wires [SwipeViewModel] (resolved with the route's source and filter) and the
- * injected [MediaLoader], [SystemActions] (Reduce Motion, §5.6) and [Haptics]
- * (§5.6) to [SwipeScreen]. State is collected inside this destination
- * composable, never in the NavHost builder (WP-1.7 rule).
+ * sanctioned [MediaLoader] and [Haptics] locals (§6.1) to [SwipeScreen]. Reduce
+ * Motion (§5.6) comes from [LocalReduceMotion] — a value the permission flow
+ * provides from `PermissionUiState` — and autoplay (FR-29) from the state, so
+ * no `SystemActions` or `SettingsStore` is injected here (hard rule 5). State
+ * is collected inside this destination composable, never in the NavHost
+ * builder (WP-1.7 rule).
  *
  * FR-21: when the deck ends, the summary replaces the deck route — the deck
  * leaves the back stack, so Back from the summary cannot resume a finished
@@ -300,11 +313,9 @@ private fun SwipeContainer(
     navController: NavHostController,
     onClose: () -> Unit,
     onOpenQueue: () -> Unit,
-    mediaLoader: MediaLoader = koinInject(),
-    systemActions: SystemActions = koinInject(),
-    haptics: Haptics = koinInject(),
-    settings: SettingsStore = koinInject(),
-    perfTrace: PerfTrace = koinInject(),
+    mediaLoader: MediaLoader = LocalMediaLoader.current,
+    haptics: Haptics = LocalHaptics.current,
+    perfTrace: PerfTrace = LocalPerfTrace.current,
 ) {
     val viewModel: SwipeViewModel =
         koinViewModel(
@@ -312,13 +323,6 @@ private fun SwipeContainer(
         )
     val onIntent: (SwipeIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
     val state by viewModel.uiState.collectAsState()
-    // remember: the flow re-registers a NSNotification observer per call, so
-    // building it inline would churn the subscription on every recomposition.
-    val reduceMotionFlow = remember(systemActions) { systemActions.isReduceMotionEnabled() }
-    val reduceMotion by reduceMotionFlow.collectAsState(initial = false)
-    // FR-16/FR-29: with autoplay off the card shows the poster and a play
-    // affordance until tapped.
-    val autoplayVideos by settings.autoplayVideos.collectAsState()
     val finished = state.finished
     LaunchedEffect(finished) {
         if (finished != null) {
@@ -334,10 +338,10 @@ private fun SwipeContainer(
         mediaLoader = mediaLoader,
         haptics = haptics,
         perfTrace = perfTrace,
-        reduceMotion = reduceMotion,
+        reduceMotion = LocalReduceMotion.current,
         onClose = onClose,
         onOpenQueue = onOpenQueue,
-        autoplayVideos = autoplayVideos,
+        autoplayVideos = state.autoplayVideos,
     )
 }
 
@@ -353,7 +357,8 @@ private fun SwipeContainer(
 @Composable
 private fun QueueContainer(
     navController: NavHostController,
-    mediaLoader: MediaLoader = koinInject(),
+    mediaLoader: MediaLoader = LocalMediaLoader.current,
+    haptics: Haptics = LocalHaptics.current,
 ) {
     val viewModel: QueueViewModel = koinViewModel()
     val onIntent: (QueueIntent) -> Unit = remember(viewModel) { viewModel::onIntent }
@@ -363,6 +368,7 @@ private fun QueueContainer(
         events = viewModel.events,
         onIntent = onIntent,
         mediaLoader = mediaLoader,
+        haptics = haptics,
         onBack = { navController.navigateUp() },
         onBackHome = { navController.backToHome() },
         onShowDeleteSuccess = { deleted, notFound ->

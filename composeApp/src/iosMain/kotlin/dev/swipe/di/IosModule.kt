@@ -2,7 +2,6 @@ package dev.swipe.di
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asSkiaBitmap
-import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import dev.swipe.data.AudioSession
 import dev.swipe.data.Haptics
 import dev.swipe.data.MediaDeleter
@@ -32,29 +31,27 @@ import dev.swipe.platform.PhotoKitMediaSizing
 import dev.swipe.platform.PhotoKitSensitivityAnalyzer
 import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.runBlocking
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
 /**
- * iOS implementations of the `data/` interfaces (REQUIREMENTS §6.1). The driver opens
- * eagerly when Koin starts (§7, FR-20), but on [Dispatchers.Default]: opening runs
- * file IO (create file, backup exclusion, warm-up query, corrupt-DB recovery), and
- * that must not delay the first frame inside `MainViewController()` (NFR-4). The
- * database file materialises a moment after launch, and [SwipeDatabase] waits for it
- * only if something resolves it before the warm-up finishes.
+ * iOS implementations of the `data/` interfaces (REQUIREMENTS §6.1). The database opens
+ * eagerly when Koin starts (§7, FR-20) as a `Deferred<SwipeDatabase>`, on
+ * [Dispatchers.Default]: opening runs file IO (create file, backup exclusion, warm-up
+ * query, corrupt-DB recovery), and that must not delay the first frame inside
+ * `MainViewController()` (NFR-4). The stores await the open inside their own suspending
+ * calls, so the database file materialising a moment after launch blocks no thread
+ * (NFR-4, §7).
  */
 val iosModule: Module =
     module {
         single(createdAtStart = true) {
             CoroutineScope(Dispatchers.Default + SupervisorJob())
-                .async { DatabaseDriverFactory().create() }
+                .async { SwipeDatabase(DatabaseDriverFactory().create()) }
         }
-        single { SwipeDatabase(runBlocking { get<Deferred<NativeSqliteDriver>>().await() }) }
 
         // Platform bridges (WP-1.4): PhotoKit reads, system actions, and settings.
         // One PhotoKitMediaLibrary instance backs both typed views of the library

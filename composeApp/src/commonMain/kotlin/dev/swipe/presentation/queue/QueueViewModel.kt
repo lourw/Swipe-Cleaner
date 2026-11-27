@@ -3,7 +3,6 @@ package dev.swipe.presentation.queue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
-import dev.swipe.data.Haptics
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaSizing
 import dev.swipe.domain.model.MediaItem
@@ -44,9 +43,9 @@ import kotlinx.coroutines.launch
  * [InAppDeleteConfirmation] is built — from the whole queue at tap time (FR-25) —
  * and the only path into [CommitDeletionsUseCase]. While the commit runs,
  * [QueueUiState.deleting] blocks re-confirmation, so one batch is one
- * `MediaDeleter.delete` call (FR-25). Outcomes: success fires the
- * `notificationSuccess` haptic and emits [QueueEvent.ShowDeleteSuccess] (the UI
- * navigates; the ViewModel never does); failure emits
+ * `MediaDeleter.delete` call (FR-25). Outcomes: success emits
+ * [QueueEvent.ShowDeleteSuccess] (the UI navigates and fires the
+ * `notificationSuccess` haptic; the ViewModel does neither); failure emits
  * [QueueEvent.ShowDeleteError] and the queue stays as it was; a cancelled iOS
  * dialog is silent (FR-27).
  *
@@ -64,7 +63,6 @@ class QueueViewModel(
     private val mediaSizing: MediaSizing,
     private val decisions: DecisionStore,
     private val mediaLibrary: MediaLibrary,
-    private val haptics: Haptics,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(QueueUiState())
 
@@ -270,7 +268,9 @@ class QueueViewModel(
                     }
             when (outcome) {
                 is CommitOutcome.Success -> {
-                    // FR-26: haptic, state, then the navigation event (§5.6, §6.4).
+                    // FR-26: state, then the navigation event (§5.6, §6.4) —
+                    // the screen fires the `notificationSuccess` haptic when it
+                    // handles ShowDeleteSuccess (the UI owns haptics).
                     // A zero-count success — every id pruned while the dialog was
                     // up, so PhotoKit was never asked for anything — reports
                     // neither haptic nor success screen: there is nothing new to
@@ -278,9 +278,6 @@ class QueueViewModel(
                     // A partial batch (WP-7.6) reports both counts: the not-found
                     // ids stay queued and the success screen says so.
                     val reported = outcome.deleted > 0 || outcome.notFound > 0
-                    if (reported) {
-                        haptics.notificationSuccess()
-                    }
                     _uiState.update {
                         it.copy(
                             deleting = false,

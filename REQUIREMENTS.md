@@ -418,6 +418,8 @@ A single Compose Multiplatform app module with clean internal layers. The code d
           ▲ entry point: MainViewController() called from iosApp (Swift)
 ```
 
+**Sanctioned UI services.** `ui/` talks to `presentation/` only, with three exceptions that are rendering concerns: `MediaLoader` (image loading), `Haptics`, and `PerfTrace`. Each reaches composables through a `CompositionLocal` (`LocalMediaLoader`, `LocalHaptics`, `LocalPerfTrace`) that `App()` provides once from Koin. The UI owns all haptics — swipe ticks and impacts in the deck, the FR-26 success in `QueueScreen`. Every other `data` interface reaches the UI only through ViewModels. The database opens off the main thread, and stores await it (no `runBlocking`, NFR-4).
+
 ### 6.2 Tech stack
 
 | Concern | Choice | Notes |
@@ -928,6 +930,9 @@ Seed the simulator by dragging photos and videos into the Photos app, or by usin
 | `MediaDeleter` named in code of a production (`src/*Main`) file other than `MediaDeleter.kt`, `CommitDeletionsUseCase.kt`, `IosModule.kt`, or `PhotoKitMediaLibrary.kt` (comment-only mentions don't count; `MediaLibrary` has no `delete`, so readers cannot call one at all — WP-9.1) | NFR-5 |
 | Imports of `io.ktor`, `NSURLSession`, `NSURLConnection`, or any analytics or crash-reporting SDK | NFR-6 |
 | A `DEVELOPMENT_TEAM` value or a personal bundle ID in any file tracked by git | Signing stays local |
+| An `import dev.swipe.data.*` line in `ui/`, `App.kt`, or `HomeDestinations.kt` outside the sanctioned UI services (`MediaLoader`, `LoadedImage`, `Haptics`, `PerfTrace`, `PerfSpan`, `NoPerfTrace`) | Layering (§6.1) |
+| `koinInject` in any `commonMain` file other than `App.kt` (comment-only mentions don't count) | Layering (§6.1) |
+| `runBlocking` in `commonMain` or an `iosMain` DI module (comment-only mentions don't count) | NFR-4 |
 
 ### 8.4 Validating a change
 

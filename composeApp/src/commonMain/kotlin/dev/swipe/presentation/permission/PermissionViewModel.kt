@@ -50,6 +50,15 @@ class PermissionViewModel(
         viewModelScope.launch {
             mediaLibrary.changes().collect { checkAccess() }
         }
+        // §5.6, NFR-8: Reduce Motion rides the state so the NavHost and the deck
+        // get it through ViewModels, never through koinInject (hard rule 5).
+        // The initial `false` emission equals the state default, so StateFlow
+        // dedupes it and existing Turbine sequences see no extra item.
+        viewModelScope.launch {
+            systemActions
+                .isReduceMotionEnabled()
+                .collect { on -> _uiState.update { it.copy(reduceMotion = on) } }
+        }
     }
 
     /** The one entry point for user and lifecycle actions (AGENTS.md ViewModel convention). */

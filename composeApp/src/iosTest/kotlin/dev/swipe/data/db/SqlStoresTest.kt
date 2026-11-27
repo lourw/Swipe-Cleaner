@@ -14,6 +14,8 @@ import dev.swipe.domain.model.Stats
 import dev.swipe.fakes.FakeClock
 import dev.swipe.platform.DatabaseDriverFactory
 import kotlinx.cinterop.refTo
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
@@ -24,6 +26,7 @@ import platform.posix.fwrite
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -368,6 +371,20 @@ class SqlStoresTest {
                 store.setExcluded("a1", false)
                 assertEquals(emptySet(), awaitItem())
             }
+        }
+
+    // ——— NFR-4: a store built before the database opens suspends until it opens ———
+
+    @Test
+    fun `NFR-4 a store built before the database opens suspends until it opens`() =
+        runTest {
+            val pending = CompletableDeferred<SwipeDatabase>()
+            val store = SqlDecisionStore(pending, clock)
+            val read = async { store.decidedIds() }
+            testScheduler.runCurrent()
+            assertFalse(read.isCompleted)
+            pending.complete(database)
+            assertEquals(emptySet(), read.await())
         }
 }
 

@@ -1,12 +1,13 @@
 package dev.swipe.data.db
 
 import dev.swipe.data.SessionStore
-import dev.swipe.db.SessionQueries
 import dev.swipe.db.SwipeDatabase
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.SessionRecord
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -18,15 +19,21 @@ import kotlin.uuid.Uuid
  * SQLDelight-backed [SessionStore] over the `session` / `session_skip` tables
  * (REQUIREMENTS §7, WP-1.3). [DeckSource] is stored as JSON in `session.source` (§7);
  * timestamps come from the injected [Clock]. Every query runs on [dispatcher], and
- * writes rethrow driver failures (NFR-7).
+ * writes rethrow driver failures (NFR-7). The database arrives as a [Deferred]: a
+ * store built before it opens suspends until it does (NFR-4, §7).
  */
 class SqlSessionStore(
-    private val database: SwipeDatabase,
+    private val database: Deferred<SwipeDatabase>,
     private val clock: Clock,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val json: Json = Json,
 ) : SessionStore {
-    private val sessions: SessionQueries = database.sessionQueries
+    constructor(
+        database: SwipeDatabase,
+        clock: Clock,
+        dispatcher: CoroutineDispatcher = Dispatchers.Default,
+        json: Json = Json,
+    ) : this(CompletableDeferred(database), clock, dispatcher, json)
 
     override suspend fun create(
         source: DeckSource,
@@ -34,6 +41,7 @@ class SqlSessionStore(
         seed: Long,
     ): String =
         withContext(dispatcher) {
+            val sessions = database.await().sessionQueries
             val id = Uuid.random().toString()
             sessions.insert(
                 id = id,
@@ -47,13 +55,13 @@ class SqlSessionStore(
 
     override suspend fun end(id: String) {
         withContext(dispatcher) {
-            sessions.endSession(clock.now().toEpochMilliseconds(), id)
+            database.await().sessionQueries.endSession(clock.now().toEpochMilliseconds(), id)
         }
     }
 
     override suspend fun endOtherOpenSessions(exceptId: String) {
         withContext(dispatcher) {
-            sessions.endOtherOpenSessions(clock.now().toEpochMilliseconds(), exceptId)
+            database.await().sessionQueries.endOtherOpenSessions(clock.now().toEpochMilliseconds(), exceptId)
         }
     }
 
@@ -66,6 +74,7 @@ class SqlSessionStore(
      */
     override suspend fun openSession(): SessionRecord? =
         withContext(dispatcher) {
+            val sessions = database.await().sessionQueries
             val row = sessions.selectOpen().executeAsOneOrNull() ?: return@withContext null
             val record =
                 try {
@@ -90,6 +99,11 @@ class SqlSessionStore(
 
     override suspend fun skippedIds(sessionId: String): Set<String> =
         withContext(dispatcher) {
-            sessions.skippedIds(sessionId).executeAsList().toSet()
+            database
+                .await()
+                .sessionQueries
+                .skippedIds(sessionId)
+                .executeAsList()
+                .toSet()
         }
 }

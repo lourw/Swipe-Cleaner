@@ -13,7 +13,6 @@ import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
-import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaSizing
 import kotlinx.coroutines.CompletableDeferred
@@ -225,7 +224,6 @@ class QueueViewModelSizingTest {
         val clock = FakeClock()
         val store = FakeDecisionStore(clock)
         val library = FakeMediaLibrary(photos(count))
-        val haptics = FakeHaptics()
         val sizing = FakeMediaSizing()
         lateinit var viewModel: QueueViewModel
             private set
@@ -242,7 +240,6 @@ class QueueViewModelSizingTest {
                     mediaSizing = sizing,
                     decisions = store,
                     mediaLibrary = library,
-                    haptics = haptics,
                 )
             return this
         }

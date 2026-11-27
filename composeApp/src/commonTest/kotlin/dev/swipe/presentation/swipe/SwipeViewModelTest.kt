@@ -439,4 +439,24 @@ class SwipeViewModelTest {
             f.viewModel.onCleared()
             assertEquals(listOf("asset-2", "asset-4"), f.videoPreloader.cancelCalls)
         }
+
+    @Test
+    fun `FR-29 ui state follows the autoplay setting`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val f = Fixture(3)
+            advanceUntilIdle()
+            // Default on, matching SettingsStore and FakeSettingsStore (FR-29).
+            assertTrue(f.viewModel.uiState.value.autoplayVideos)
+
+            // The user turns autoplay off in Settings: the flag rides the state so
+            // the card never injects SettingsStore (hard rule 5).
+            f.settings.autoplayVideos.value = false
+            advanceUntilIdle()
+            assertEquals(false, f.viewModel.uiState.value.autoplayVideos)
+
+            f.settings.autoplayVideos.value = true
+            advanceUntilIdle()
+            assertEquals(true, f.viewModel.uiState.value.autoplayVideos)
+        }
 }

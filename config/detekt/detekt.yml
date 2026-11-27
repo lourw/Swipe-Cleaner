@@ -42,6 +42,10 @@ Compose:
       - LocalSwipeRadii
       - LocalSwipeSizes
       - LocalSwipeComponentSizes
+      - LocalMediaLoader
+      - LocalHaptics
+      - LocalPerfTrace
+      - LocalReduceMotion
   ViewModelForwarding:
     active: true
   ViewModelInjection:

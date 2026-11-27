@@ -13,7 +13,6 @@ import dev.swipe.domain.usecase.PruneQueueUseCase
 import dev.swipe.domain.usecase.RestoreFromQueueUseCase
 import dev.swipe.fakes.FakeClock
 import dev.swipe.fakes.FakeDecisionStore
-import dev.swipe.fakes.FakeHaptics
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeMediaSizing
 import kotlinx.coroutines.CompletableDeferred
@@ -267,8 +266,6 @@ class QueueViewModelTest {
                 assertEquals(listOf(listOf("asset-3", "asset-2", "asset-1")), f.store.markDeletedCalls)
                 assertEquals(QueueDeleteResult.Deleted(3), done.result)
                 assertFalse(done.confirming)
-                // FR-26's success haptic fires with the success event (§5.6).
-                assertEquals(listOf(FakeHaptics.Event.NOTIFICATION_SUCCESS), f.haptics.events)
             }
             assertEquals(
                 setOf(Decision.DELETED),
@@ -316,7 +313,6 @@ class QueueViewModelTest {
                     )
                     // The success event carries both counts (§6.7).
                     assertEquals(QueueEvent.ShowDeleteSuccess(2, notFound = 1), eventTurbine.awaitItem())
-                    assertEquals(listOf(FakeHaptics.Event.NOTIFICATION_SUCCESS), f.haptics.events)
                 }
             }
         }
@@ -354,7 +350,6 @@ class QueueViewModelTest {
             assertTrue(f.store.dropFromQueueCalls.isEmpty())
             assertEquals(queueBefore, f.store.deleteQueue().first())
             assertEquals(entriesBefore, f.store.entries)
-            assertTrue(f.haptics.events.isEmpty())
         }
 
     @Test
@@ -385,7 +380,6 @@ class QueueViewModelTest {
             }
             assertTrue(f.store.markDeletedCalls.isEmpty())
             assertEquals(entriesBefore, f.store.entries)
-            assertTrue(f.haptics.events.isEmpty())
         }
 
     @Test
@@ -715,7 +709,6 @@ class QueueViewModelTest {
                     // no success screen — the empty state is the feedback (§6.7).
                     assertEquals(QueueDeleteResult.Deleted(0), done.result)
                     assertTrue(f.library.deleteCalls.isEmpty())
-                    assertTrue(f.haptics.events.isEmpty())
                 }
                 eventTurbine.expectNoEvents()
             }
@@ -752,7 +745,6 @@ class QueueViewModelTest {
         val clock = FakeClock()
         val store = FakeDecisionStore(clock)
         val library = FakeMediaLibrary(photos(count))
-        val haptics = FakeHaptics()
         val sizing = FakeMediaSizing()
         lateinit var viewModel: QueueViewModel
             private set
@@ -768,7 +760,6 @@ class QueueViewModelTest {
                     restoreFromQueue = RestoreFromQueueUseCase(store),
                     decisions = store,
                     mediaLibrary = library,
-                    haptics = haptics,
                     mediaSizing = sizing,
                 )
             return this

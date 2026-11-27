@@ -8,6 +8,7 @@ import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.data.db.SqlDecisionStore
 import dev.swipe.data.db.SqlSessionStore
 import dev.swipe.data.db.SqlShuffleExclusionStore
+import dev.swipe.db.SwipeDatabase
 import dev.swipe.domain.usecase.BuildDeckUseCase
 import dev.swipe.domain.usecase.CommitDeletionsUseCase
 import dev.swipe.domain.usecase.DeckMembership
@@ -26,6 +27,7 @@ import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.settings.SettingsViewModel
 import dev.swipe.presentation.swipe.SensitiveFilter
 import dev.swipe.presentation.swipe.SwipeViewModel
+import kotlinx.coroutines.Deferred
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -34,17 +36,20 @@ import kotlin.time.Clock
 
 /**
  * Platform-independent bindings: use cases, ViewModels, the SQLDelight stores (WP-1.3).
- * The `SwipeDatabase` itself comes from the platform module — only its driver touches
- * platform APIs (AGENTS.md rule 5).
+ * The platform module supplies the `Deferred<SwipeDatabase>` the stores await inside
+ * their suspending calls — only the driver touches platform APIs (AGENTS.md rule 5),
+ * and a store built before the database opens waits for it without blocking a thread
+ * (NFR-4). The explicit `get<Deferred<SwipeDatabase>>()` picks the Deferred constructor
+ * the graph needs; the bare `SwipeDatabase` constructor exists for tests.
  */
 val commonModule: Module =
     module {
         // `single<Clock>` explicitly: `Clock.System` alone would register the concrete
         // companion-object subtype, so `get<Clock>()` would not find it.
         single<Clock> { Clock.System }
-        single<DecisionStore> { SqlDecisionStore(database = get(), clock = get()) }
-        single<SessionStore> { SqlSessionStore(database = get(), clock = get()) }
-        single<ShuffleExclusionStore> { SqlShuffleExclusionStore(database = get()) }
+        single<DecisionStore> { SqlDecisionStore(database = get<Deferred<SwipeDatabase>>(), clock = get()) }
+        single<SessionStore> { SqlSessionStore(database = get<Deferred<SwipeDatabase>>(), clock = get()) }
+        single<ShuffleExclusionStore> { SqlShuffleExclusionStore(database = get<Deferred<SwipeDatabase>>()) }
 
         // Permission flow (WP-1.7); its data interfaces bind in the platform module.
         viewModel { PermissionViewModel(mediaLibrary = get(), systemActions = get()) }
@@ -114,7 +119,6 @@ val commonModule: Module =
                 mediaSizing = get(),
                 decisions = get(),
                 mediaLibrary = get(),
-                haptics = get(),
             )
         }
 

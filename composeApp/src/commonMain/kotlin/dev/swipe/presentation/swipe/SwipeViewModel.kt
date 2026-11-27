@@ -86,7 +86,9 @@ import kotlinx.coroutines.launch
  *
  * **Video sound** (FR-16): the session starts muted unless [SettingsStore.playVideoSound]
  * is on — read once at construction, so the setting applies to the *next* session and
- * this one remembers only [SwipeIntent.ToggleMute].
+ * this one remembers only [SwipeIntent.ToggleMute]. **Autoplay** (FR-29) rides the
+ * state instead: [SwipeUiState.autoplayVideos] mirrors `SettingsStore.autoplayVideos`
+ * live, so the screen never injects the store (hard rule 5).
  *
  * One-shot UI events go out through [events]; `Clock` stays out of this constructor —
  * nothing here timestamps anything (the stores stamp their own rows), so it joins only
@@ -230,6 +232,14 @@ class SwipeViewModel(
                 .deleteQueue()
                 .map { queue -> queue.size }
                 .collect { size -> _uiState.update { it.copy(queueCount = size) } }
+        }
+        // FR-29: autoplay rides the state (the `settings` constructor param is in
+        // scope here; hard rule 5 keeps the store out of composables). The initial
+        // `true` emission equals the state default, so StateFlow dedupes it.
+        viewModelScope.launch {
+            settings
+                .autoplayVideos
+                .collect { on -> _uiState.update { it.copy(autoplayVideos = on) } }
         }
         viewModelScope.launch { start() }
     }
