@@ -44,16 +44,17 @@ import kotlinx.coroutines.flow.Flow
 internal const val SWITCH_HAPTICS_TEST_TAG = "switch-haptics"
 internal const val SWITCH_CLOUD_TEST_TAG = "switch-cloud"
 internal const val SWITCH_AUTOPLAY_TEST_TAG = "switch-autoplay"
+internal const val SWITCH_SENSITIVE_TEST_TAG = "switch-sensitive"
 internal const val SWITCH_VIDEO_SOUND_TEST_TAG = "switch-video-sound"
 internal const val RESET_ROW_TEST_TAG = "settings-reset-row"
 internal const val VERSION_ROW_TEST_TAG = "settings-version-row"
 internal const val EXPIRY_ROW_TEST_TAG = "settings-expiry-row"
 
 /**
- * The Settings screen (FR-29–31, §5.8): four toggle rows bound to
- * `SettingsStore` (haptics, include iCloud-only items, autoplay videos, video
- * sound), the "Reset all decisions" row behind a [ConfirmDialog] (FR-30), and
- * the info
+ * The Settings screen (FR-29–31, FR-33, §5.8): five toggle rows bound to
+ * `SettingsStore` (haptics, include iCloud-only items, autoplay videos, hide
+ * sensitive photos, video sound), the "Reset all decisions" row behind a
+ * [ConfirmDialog] (FR-30), and the info
  * rows — app version and, when readable, the free-provisioning signing expiry
  * (FR-31; the row is simply absent otherwise). One-shot [events] surface as
  * the §5.7 toast through the shared [ToastHost] (WP-9.3).
@@ -157,7 +158,7 @@ private fun BoxScope.SettingsToastOverlay(
     }
 }
 
-/** The four toggles, the reset row, and the info rows (FR-29–31, §5.8 order). */
+/** The five toggles, the reset row, and the info rows (FR-29–31, FR-33, §5.8 order). */
 @Composable
 private fun SettingsRows(
     state: SettingsUiState,
@@ -184,6 +185,22 @@ private fun SettingsRows(
             checked = state.autoplayVideos,
             onCheckedChange = { onIntent(SettingsIntent.SetAutoplayVideos(!state.autoplayVideos)) },
             testTag = SWITCH_AUTOPLAY_TEST_TAG,
+        )
+        // FR-33 (AC3): when analysis is unavailable the row shows off, can't be
+        // toggled, and the caption says how to turn the feature on — the screen
+        // never implies items are being hidden.
+        ToggleRow(
+            title = "Hide sensitive photos",
+            caption =
+                if (state.sensitiveAnalysisAvailable) {
+                    "Skip photos this iPhone flags as nudity"
+                } else {
+                    "Unavailable. Turn on Sensitive Content Warning in iOS Settings → Privacy & Security"
+                },
+            checked = state.hideSensitive && state.sensitiveAnalysisAvailable,
+            enabled = state.sensitiveAnalysisAvailable,
+            onCheckedChange = { onIntent(SettingsIntent.SetHideSensitive(!state.hideSensitive)) },
+            testTag = SWITCH_SENSITIVE_TEST_TAG,
         )
         ToggleRow(
             title = "Play video sound by default",
@@ -219,6 +236,7 @@ private fun ToggleRow(
     checked: Boolean,
     onCheckedChange: () -> Unit,
     testTag: String,
+    enabled: Boolean = true,
 ) {
     val spacing = SwipeTheme.spacing
     Row(
@@ -231,9 +249,11 @@ private fun ToggleRow(
                 // the on/off state and the "double-tap to turn off" hint,
                 // where clickable + selected read as "selected" instead. The
                 // row's own title and caption texts label it, so no content
-                // description is needed.
+                // description is needed. `enabled = false` (FR-33, AC3) makes
+                // the row inert and VoiceOver reports it dimmed.
                 .toggleable(
                     value = checked,
+                    enabled = enabled,
                     role = Role.Switch,
                     onValueChange = { onCheckedChange() },
                 ).testTag(testTag)

@@ -26,7 +26,7 @@ Deleted items go to iOS **Recently Deleted**, where they stay recoverable for 30
 
 - No in-app accounts, cloud sync, or analytics.
 - No editing, favoriting, or album management. (Sharing the current item through the iOS share sheet was added on 2026-11-09, FR-32.)
-- No ML-based duplicate or blur detection. Smart filters use metadata only.
+- No ML-based duplicate or blur detection. Smart filters use metadata only. The one exception is FR-33's sensitive-content check, which uses Apple's on-device `SensitiveContentAnalysis` and never leaves the device (NFR-6).
 
 ## 2. Decisions
 
@@ -85,6 +85,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-21** When the deck runs out, show a session summary: kept, queued for deletion, skipped, and a CTA to review the queue. A deck that **opens** empty never runs out: the screen shows its §5.8 empty state instead of a summary, and the session row ends immediately — with no decisions and nothing to resume, the session is over as soon as it opened (WP-7.3).
 - **FR-22** A favorited item (`PHAsset.isFavorite`) swiped left is asked about before it is queued: a compact confirm card anchored at the bottom of the deck stage above the action bar (§5.7 `FavoriteConfirmCard`), titled "Delete this favorite?" with a supporting line, and **Cancel** and **Delete** actions. The card never covers or resizes the photo, stays until the user acts or the deck moves on, and nothing is pre-selected or auto-accepted (NFR-5): the DELETE is recorded only when **Delete** is tapped. Starting a drag on the pending card while the card is up cancels the confirmation (same as **Cancel**) and records nothing; the gesture that follows is a fresh verdict — right/keep commits normally, and a completed left/delete swipe re-raises this confirmation rather than queueing, since a favorite's DELETE is written only on **Delete** (U3).
 - **FR-32** A **Share** button on the swipe screen opens the iOS share sheet (`UIActivityViewController`) for the current item. It shares the original media: the photo, the video, or a Live Photo's photo plus its paired video, never a still frame of a video or Live Photo (an edited item shares its current rendition, as Photos does). The media loads only when the button is tapped, and the temp files are deleted once the sheet finishes. While it loads (for example an iCloud download, allowed per the FR-29 "Include iCloud-only items" setting) the button shows a loading state and ignores further taps; if it can't load, a toast says "Couldn't load this item to share — try again". Opening, completing, or cancelling the share sheet never records a decision, advances the deck, or changes the undo stack; swiping away while the media is still loading abandons the share. This replaces opening the item in the Photos app, which iOS has no documented way to do for one specific asset.
+- **FR-33** A **Hide sensitive photos** setting (FR-29, on by default) keeps photos that Apple's on-device `SensitiveContentAnalysis` flags as nudity off the swipe deck. Only ids in the §6.5 prefetch window (current + next 3) are analyzed, at 512 px, local data only, never a library scan. The current and next card are checked before a deck move shows them, and the rest of the window in the background. A flagged item leaves the in-memory deck: no decision row is written, so it returns in any rebuilt deck once the setting is off. Videos aren't analyzed. Analysis fails open: an item with no local image or a failed check is shown. Source counts ignore sensitivity, so a deck can end a few cards short of its count. Analysis needs the `com.apple.developer.sensitivecontentanalysis.client` entitlement and the user's Sensitive Content Warning or Communication Safety setting in iOS. When either is missing, the Settings row shows off, can't be toggled, and says how to turn it on.
 - **FR-35** In the Likely Duplicates deck every card is labeled with its place in its set — for example, "2 of 4 in this set". The count includes members that already have a decision: after a resume the label shows the set's real size, not the cards left in the deck. The label sits in the card scrim above the FR-18 metadata row in `caption textSecondary` (§5.7) and the card's VoiceOver description reads it (NFR-8). No other deck shows a label, and the label is additive: it changes no deck's contents or order and no Home count (FR-6, §6.5).
 - **FR-38** A **Hide** button on the swipe screen hides the current item in the Photos library (the asset's `hidden` flag: it leaves the library grid and stays in the Hidden album). Hiding is **immediate** — no in-app confirmation and no queue; Undo is the safety net. It is not a decision: no decision row is written, the item counts toward none of the FR-21 kept / queued / skipped numbers, and the deck's kept/skip state is untouched — but it does advance the deck and the FR-19 progress like a decision would. The deck advances only after the hide write succeeds (NFR-7); on success a 3 s toast reads "Hidden in Photos", on failure the card stays and a toast reads "Couldn't hide this item — try again". The button is disabled while a hide or a decision write is in flight. **Undo** (FR-15) unhides exactly the asset the undo entry names and brings the card back in place (§5.6). Hiding a favorite whose FR-22 confirm is pending clears the confirm; Undo restores it with the returned card.
 
@@ -98,7 +99,7 @@ IDs are stable. Reference them in commits and tests, for example `FR-12`.
 - **FR-34** While the in-app delete confirmation is up (§6.7), it shows an estimate of the disk size of the items being deleted — "Frees about 1.2 GB once Recently Deleted clears." Sizing reads the `PHAssetResource` file sizes (undocumented KVC, Risk R3) for the current queue only, off the main thread (`Dispatchers.Default`), when the dialog opens. It never blocks or delays the delete: the confirmation behaves exactly the same with the line absent or still loading, and the delete path (FR-25, NFR-5) is untouched. The wording stays honest: **at least** when some sizes could not be read, the line omitted entirely when none could; the estimate is the queue as it stood when the dialog opened (an "about" number, not a receipt); space frees only once Recently Deleted clears (30 days), and iCloud-only originals may free no device space at all — the "about" hedge covers that.
 
 ### Settings
-- **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos, play video sound by default (off).
+- **FR-29** Settings toggles: haptics, include iCloud-only items, autoplay videos, hide sensitive photos (FR-33), play video sound by default (off).
 - **FR-30** "Reset all decisions" clears the KEEP history after a confirmation that says how many kept items come back as undecided and that items in To Delete stay queued; the toast afterwards says how many came back. With nothing kept, the row shows a "Nothing to reset" toast instead of the dialog. It does not touch the delete queue. Home, Albums and By month pick up the change when they resume (§6.5 *Counts*).
 - **FR-31** Settings shows the app version and build, and the date the current signing expires if it can be determined (otherwise this is skipped).
 
@@ -544,14 +545,16 @@ interface ShuffleExclusionStore {                           // shuffle_exclusion
     suspend fun setExcluded(albumId: String, excluded: Boolean)  // switch write; a failed write leaves the switch where it was (NFR-7)
 }
 
-interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos = true, playVideoSound = false
+interface SettingsStore {                                   // NSUserDefaults; defaults haptics/includeCloudOnly/autoplayVideos/hideSensitive = true, playVideoSound = false
     val haptics: StateFlow<Boolean>                         // FR-29
     val includeCloudOnly: StateFlow<Boolean>                // FR-29
     val autoplayVideos: StateFlow<Boolean>                  // FR-29
+    val hideSensitive: StateFlow<Boolean>                   // FR-33, default true
     val playVideoSound: StateFlow<Boolean>                  // FR-29; swipe sessions start with video sound on (FR-16)
     fun setHaptics(enabled: Boolean)
     fun setIncludeCloudOnly(enabled: Boolean)
     fun setAutoplayVideos(enabled: Boolean)
+    fun setHideSensitive(enabled: Boolean)
     fun setPlayVideoSound(enabled: Boolean)
 }
 
@@ -561,6 +564,11 @@ interface MediaSharer {                                     // FR-32; iosMain im
 
 interface MediaHider {                                      // FR-38; iosMain impl PhotoKitMediaHider — the hide write door, sibling to MediaDeleter: on MediaLibrary's side it stays a reader. Koin binds it only into the swipe path (SwipeViewModel); §8.3 check-rules keep the type out of every other production file, and PhotoKitMediaHider's change block (PHAssetChangeRequest.hidden) is the only performChanges writer besides PhotoKitMediaLibrary's delete path
     suspend fun setHidden(id: String, hidden: Boolean): HideResult  // APPLIED once the change request completes, FAILED when the asset cannot be fetched or the change fails; never queues, never confirms, never reaches deleteAssets
+}
+
+interface SensitivityAnalyzer {                             // FR-33; iosMain impl PhotoKitSensitivityAnalyzer (SensitiveContentAnalysis, on-device)
+    fun isAvailable(): Boolean                              // policy != Disabled (entitlement + the user's iOS setting)
+    suspend fun isSensitive(id: String): Boolean            // true only when flagged; false for videos, no local image, or any failure
 }
 
 interface MediaSizing {                                     // FR-34; iosMain impl PhotoKitMediaSizing — read-only sizing (undocumented PHAssetResource "fileSize" KVC, R3), the estimate line on the delete confirmation and nothing else. Sums on Dispatchers.Default; never downloads originals; a throw or a null is just Unavailable — sizing gates no delete (NFR-5)
@@ -602,7 +610,7 @@ Kotlin 2.4 stdlib, so no custom `Clock` interface is defined. `FakeClock` implem
    - Likely duplicates: `duplicateCandidates(type)` (id + date + size only, date-sorted) run through `DuplicateGrouper` — runs of ≥ 2 items taken within 2 s of their predecessor with identical pixel dimensions, members next to each other. Decided ids are subtracted before grouping. The one candidate pass feeds both halves: the deck is the grouping of the filtered candidates, and the FR-35 set label is the grouping of the full, unfiltered list — decided members count, so a resumed set still reads its real size. The memberships feed the card label only, never the deck or the counts, and no second library scan runs (NFR-4).
    - Everything else: creation date descending (the library returns that order).
 2. `SwipeViewModel` holds `deck: List<String>`, `index`, and an `undoStack`. It loads metadata in pages of 20. An id whose page does not resolve is dropped from the deck rather than ending it or showing a blank card (FR-6, WP-8.3); drops sit at or beyond the loaded end, so undo entries behind the head are never disturbed.
-3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5.
+3. Prefetching keeps the **current + next 3** items requested from `PHCachingImageManager` at screen pixel size (`deliveryMode = opportunistic`, `isNetworkAccessAllowed` per setting). The decoded bitmap cache is an LRU of 5. With FR-33 on, the same window is screened by `SensitiveFilter`; flagged ids are dropped from the deck (positions at or past the head only).
 4. Video: the next video's `AVPlayerItem` is created ahead of time, so playback starts as soon as its card is on top. `SwipeViewModel` calls `VideoPreloader.preload(id)` for video ids entering the same current + next 3 window (metadata `type == VIDEO` only) and `cancel(id)` for ids leaving it — alongside the image prefetch of step 3 (WP-4.1). Preload and cancel requests are applied in the order they are made, so a `cancel` that overtakes its own `preload` leaves nothing behind and one that loses the race evicts once the load lands; an item the visible player is already awaiting is never torn down from under it — it is dropped as soon as the player releases it (WP-9.4). The cache is hard-bound to the window: at most **current + next 3** items (4), least-usefully-recent first.
 5. On swipe, the ViewModel saves to `DecisionStore` first, then advances `index`. If the save fails, it emits an error and reverts the card (NFR-7).
 

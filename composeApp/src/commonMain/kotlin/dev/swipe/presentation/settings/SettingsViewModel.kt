@@ -3,6 +3,7 @@ package dev.swipe.presentation.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.DecisionStore
+import dev.swipe.data.SensitivityAnalyzer
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import kotlinx.coroutines.CancellationException
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The Settings screen (FR-29–31): the four toggles ride
+ * The Settings screen (FR-29–31, FR-33): the five toggles ride
  * [SettingsStore]'s flows in both directions, and "Reset all decisions" is the
  * two-step FR-30 flow — [SettingsIntent.RequestReset] reads the counts the
  * dialog reports (or toasts when nothing is kept) and
@@ -32,6 +33,11 @@ import kotlinx.coroutines.launch
  * unchanged, so the switch falls back to the stored value on the next emission
  * and the user gets a [SettingsEvent.SaveFailed] toast instead of a lying UI.
  *
+ * FR-33's availability flag comes from [SensitivityAnalyzer.isAvailable], read
+ * once when the screen opens like the version rows: when analysis is
+ * unavailable the row shows off and cannot be toggled (AC3), even though the
+ * stored `hideSensitive` default stays on underneath.
+ *
  * Version and signing expiry are read once when the screen opens (FR-31):
  * neither changes while the app runs — a new profile means a new build.
  */
@@ -39,6 +45,7 @@ class SettingsViewModel(
     private val settings: SettingsStore,
     private val decisions: DecisionStore,
     systemActions: SystemActions,
+    sensitivity: SensitivityAnalyzer = SensitivityAnalyzer.Unavailable,
 ) : ViewModel() {
     private val _uiState =
         MutableStateFlow(
@@ -46,6 +53,8 @@ class SettingsViewModel(
                 hapticsEnabled = settings.haptics.value,
                 includeCloudOnly = settings.includeCloudOnly.value,
                 autoplayVideos = settings.autoplayVideos.value,
+                hideSensitive = settings.hideSensitive.value,
+                sensitiveAnalysisAvailable = sensitivity.isAvailable(),
                 playVideoSound = settings.playVideoSound.value,
                 appVersion = systemActions.appVersion(),
                 signingExpiry = systemActions.signingExpiry(),
@@ -61,25 +70,29 @@ class SettingsViewModel(
     val events: Flow<SettingsEvent> = eventChannel.receiveAsFlow()
 
     init {
-        // Live mirror of the four FR-29 values. The store only changes through
-        // this screen today, but the flows keep the state honest regardless.
+        // Live mirror of the five FR-29/FR-33 values. The store only changes
+        // through this screen today, but the flows keep the state honest
+        // regardless.
         viewModelScope.launch {
             combine(
                 settings.haptics,
                 settings.includeCloudOnly,
                 settings.autoplayVideos,
+                settings.hideSensitive,
                 settings.playVideoSound,
-            ) { haptics, cloud, autoplay, sound -> ToggleValues(haptics, cloud, autoplay, sound) }
-                .collect { values ->
-                    _uiState.update {
-                        it.copy(
-                            hapticsEnabled = values.haptics,
-                            includeCloudOnly = values.cloud,
-                            autoplayVideos = values.autoplay,
-                            playVideoSound = values.sound,
-                        )
-                    }
+            ) { haptics, cloud, autoplay, hideSensitive, sound ->
+                ToggleValues(haptics, cloud, autoplay, hideSensitive, sound)
+            }.collect { values ->
+                _uiState.update {
+                    it.copy(
+                        hapticsEnabled = values.haptics,
+                        includeCloudOnly = values.cloud,
+                        autoplayVideos = values.autoplay,
+                        hideSensitive = values.hideSensitive,
+                        playVideoSound = values.sound,
+                    )
                 }
+            }
         }
     }
 
@@ -89,6 +102,7 @@ class SettingsViewModel(
             is SettingsIntent.SetHaptics -> save { settings.setHaptics(intent.enabled) }
             is SettingsIntent.SetIncludeCloudOnly -> save { settings.setIncludeCloudOnly(intent.enabled) }
             is SettingsIntent.SetAutoplayVideos -> save { settings.setAutoplayVideos(intent.enabled) }
+            is SettingsIntent.SetHideSensitive -> save { settings.setHideSensitive(intent.enabled) }
             is SettingsIntent.SetPlayVideoSound -> save { settings.setPlayVideoSound(intent.enabled) }
             SettingsIntent.RequestReset -> requestReset()
             SettingsIntent.ConfirmReset -> confirmReset()
@@ -173,10 +187,11 @@ class SettingsViewModel(
     }
 }
 
-/** The four toggle values combined out of [SettingsStore]'s flows. */
+/** The five toggle values combined out of [SettingsStore]'s flows. */
 private data class ToggleValues(
     val haptics: Boolean,
     val cloud: Boolean,
     val autoplay: Boolean,
+    val hideSensitive: Boolean,
     val sound: Boolean,
 )

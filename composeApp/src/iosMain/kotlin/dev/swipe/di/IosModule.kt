@@ -12,6 +12,7 @@ import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
 import dev.swipe.data.MediaSizing
 import dev.swipe.data.PerfTrace
+import dev.swipe.data.SensitivityAnalyzer
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
 import dev.swipe.data.VideoPreloader
@@ -28,6 +29,7 @@ import dev.swipe.platform.PhotoKitMediaLibrary
 import dev.swipe.platform.PhotoKitMediaLoader
 import dev.swipe.platform.PhotoKitMediaSharer
 import dev.swipe.platform.PhotoKitMediaSizing
+import dev.swipe.platform.PhotoKitSensitivityAnalyzer
 import dev.swipe.platform.VideoItemCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -96,4 +98,8 @@ val iosModule: Module =
         // confirmation line. Unlike the write doors it needs no guard — it can
         // only read — but it stays Koin-bound like every other platform bridge.
         single<MediaSizing> { PhotoKitMediaSizing() }
+
+        // Sensitive content (FR-33): on-device nudity check for the swipe deck's
+        // prefetch window. Reports unavailable until the entitlement is added (👤).
+        single<SensitivityAnalyzer> { PhotoKitSensitivityAnalyzer() }
     }

@@ -22,6 +22,7 @@ class NSUserDefaultsSettingsStore : SettingsStore {
                 KEY_HAPTICS to true,
                 KEY_INCLUDE_CLOUD_ONLY to true,
                 KEY_AUTOPLAY_VIDEOS to true,
+                KEY_HIDE_SENSITIVE to true,
                 KEY_PLAY_VIDEO_SOUND to false,
             ),
         )
@@ -30,11 +31,13 @@ class NSUserDefaultsSettingsStore : SettingsStore {
     private val _haptics = MutableStateFlow(defaults.boolForKey(KEY_HAPTICS))
     private val _includeCloudOnly = MutableStateFlow(defaults.boolForKey(KEY_INCLUDE_CLOUD_ONLY))
     private val _autoplayVideos = MutableStateFlow(defaults.boolForKey(KEY_AUTOPLAY_VIDEOS))
+    private val _hideSensitive = MutableStateFlow(defaults.boolForKey(KEY_HIDE_SENSITIVE))
     private val _playVideoSound = MutableStateFlow(defaults.boolForKey(KEY_PLAY_VIDEO_SOUND))
 
     override val haptics: StateFlow<Boolean> = _haptics
     override val includeCloudOnly: StateFlow<Boolean> = _includeCloudOnly
     override val autoplayVideos: StateFlow<Boolean> = _autoplayVideos
+    override val hideSensitive: StateFlow<Boolean> = _hideSensitive
     override val playVideoSound: StateFlow<Boolean> = _playVideoSound
 
     override fun setHaptics(enabled: Boolean) = write(KEY_HAPTICS, enabled, _haptics)
@@ -42,6 +45,8 @@ class NSUserDefaultsSettingsStore : SettingsStore {
     override fun setIncludeCloudOnly(enabled: Boolean) = write(KEY_INCLUDE_CLOUD_ONLY, enabled, _includeCloudOnly)
 
     override fun setAutoplayVideos(enabled: Boolean) = write(KEY_AUTOPLAY_VIDEOS, enabled, _autoplayVideos)
+
+    override fun setHideSensitive(enabled: Boolean) = write(KEY_HIDE_SENSITIVE, enabled, _hideSensitive)
 
     override fun setPlayVideoSound(enabled: Boolean) = write(KEY_PLAY_VIDEO_SOUND, enabled, _playVideoSound)
 
@@ -59,6 +64,7 @@ class NSUserDefaultsSettingsStore : SettingsStore {
         const val KEY_HAPTICS = "settings.haptics"
         const val KEY_INCLUDE_CLOUD_ONLY = "settings.includeCloudOnly"
         const val KEY_AUTOPLAY_VIDEOS = "settings.autoplayVideos"
+        const val KEY_HIDE_SENSITIVE = "settings.hideSensitive"
         const val KEY_PLAY_VIDEO_SOUND = "settings.playVideoSound"
     }
 }

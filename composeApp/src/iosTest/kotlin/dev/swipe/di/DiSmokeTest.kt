@@ -13,6 +13,7 @@ import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSizing
+import dev.swipe.data.SensitivityAnalyzer
 import dev.swipe.data.SessionStore
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.SystemActions
@@ -78,6 +79,10 @@ class DiSmokeTest {
         // FR-34: the sizing door resolves too — its own implementation again,
         // reading PHAssetResource sizes beside (never inside) the library.
         koin.get<MediaSizing>()
+        // FR-33: the sensitivity analyzer resolves through the graph too — the
+        // SensitiveFilter's future home. Resolution is entitlement-independent;
+        // only isAvailable() is gated by the (👤) entitlement.
+        koin.get<SensitivityAnalyzer>()
         koin.get<MediaLoader>()
         koin.get<SettingsStore>()
         koin.get<SystemActions>()

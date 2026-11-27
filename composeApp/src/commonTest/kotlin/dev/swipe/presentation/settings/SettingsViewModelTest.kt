@@ -6,6 +6,7 @@ import app.cash.turbine.expectMostRecentItem
 import app.cash.turbine.test
 import dev.swipe.domain.model.Decision
 import dev.swipe.fakes.FakeDecisionStore
+import dev.swipe.fakes.FakeSensitivityAnalyzer
 import dev.swipe.fakes.FakeSettingsStore
 import dev.swipe.fakes.FakeSystemActions
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +71,27 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `FR-33 hide sensitive photos defaults on and persists through the settings store`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val settings = FakeSettingsStore()
+            val viewModel = SettingsViewModel(settings, FakeDecisionStore(), FakeSystemActions())
+
+            viewModel.uiState.test {
+                // FR-33's default is on (the store's default, mirrored at open).
+                assertTrue(awaitItem().hideSensitive)
+
+                viewModel.onIntent(SettingsIntent.SetHideSensitive(false))
+                advanceUntilIdle()
+
+                // The write went through the store…
+                assertEquals(listOf("hideSensitive=false"), settings.setCalls)
+                // …and the state mirrors it back.
+                assertFalse(expectMostRecentItem().hideSensitive)
+            }
+        }
+
+    @Test
     fun `FR-16 video sound setting defaults off and persists through the settings store`() =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -88,6 +110,24 @@ class SettingsViewModelTest {
                 // …and the state mirrors it back.
                 assertTrue(expectMostRecentItem().playVideoSound)
             }
+        }
+
+    @Test
+    fun `FR-33 analysis availability is read from the analyzer`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val available =
+                SettingsViewModel(
+                    FakeSettingsStore(),
+                    FakeDecisionStore(),
+                    FakeSystemActions(),
+                    sensitivity = FakeSensitivityAnalyzer(available = true),
+                )
+            assertTrue(available.uiState.value.sensitiveAnalysisAvailable)
+
+            // The default parameter (SensitivityAnalyzer.Unavailable) reads false (AC3).
+            val defaultVm = SettingsViewModel(FakeSettingsStore(), FakeDecisionStore(), FakeSystemActions())
+            assertFalse(defaultVm.uiState.value.sensitiveAnalysisAvailable)
         }
 
     @Test

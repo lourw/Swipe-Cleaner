@@ -84,6 +84,44 @@ class DeckCursorTest {
         }
 
     @Test
+    fun `FR-33 drop removes ids at or past the head and leaves earlier positions alone`() =
+        runTest {
+            val cursor = DeckCursor(library(6))
+            cursor.reset((1..6).map { "asset-$it" })
+            cursor.ensureMetadataLoaded()
+            repeat(2) { cursor.advance() }
+
+            // asset-1 sits behind the head and never moves; asset-3 (the head) and
+            // asset-5 leave the deck, and the head now shows what slid into its slot.
+            cursor.drop(setOf("asset-1", "asset-3", "asset-5"))
+            assertEquals(listOf("asset-1", "asset-2", "asset-4", "asset-6"), cursor.deck)
+            assertEquals("asset-4", cursor.currentId)
+            assertEquals(2, cursor.index)
+        }
+
+    @Test
+    fun `FR-33 drop keeps paging consistent`() =
+        runTest {
+            val lib = library(25)
+            val cursor = DeckCursor(lib)
+            cursor.reset((1..25).map { "asset-$it" })
+            cursor.ensureMetadataLoaded()
+            assertEquals(1, lib.itemsCalls.size)
+
+            // Dropping two loaded ids shrinks the deck and the loaded region by 2.
+            cursor.drop(setOf("asset-2", "asset-3"))
+            assertEquals(23, cursor.deck.size)
+
+            repeat(14) { cursor.advance() }
+            cursor.ensureMetadataLoaded()
+            // The second page starts right after the shrunk loaded region: no id is
+            // skipped and none is requested twice.
+            assertEquals(2, lib.itemsCalls.size)
+            assertEquals((21..25).map { "asset-$it" }, lib.itemsCalls.last())
+            assertEquals(23, cursor.deck.size)
+        }
+
+    @Test
     fun `FR-6 a failing page fetch keeps its ids and the next call retries`() =
         runTest {
             val lib = library(25)

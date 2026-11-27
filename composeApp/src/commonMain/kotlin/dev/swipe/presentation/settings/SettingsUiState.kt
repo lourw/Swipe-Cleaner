@@ -3,7 +3,7 @@ package dev.swipe.presentation.settings
 import kotlin.time.Instant
 
 /**
- * The one state of [SettingsViewModel] (FR-29–31): the four setting values
+ * The one state of [SettingsViewModel] (FR-29–31, FR-33): the five setting values
  * mirrored live from [dev.swipe.data.SettingsStore], the version/build and
  * signing-expiry text, and the FR-30 reset confirm-dialog flag.
  */
@@ -14,6 +14,14 @@ data class SettingsUiState(
     val includeCloudOnly: Boolean = true,
     /** Videos autoplay on top of the deck (FR-29). Mirrors `autoplayVideos`. */
     val autoplayVideos: Boolean = true,
+    /** Hide sensitive photos (FR-33). Mirrors `SettingsStore.hideSensitive` (default on). */
+    val hideSensitive: Boolean = true,
+    /**
+     * Sensitive-content analysis is available on this device (FR-33, AC3):
+     * `SensitivityAnalyzer.isAvailable()` read once when the screen opens, like
+     * [appVersion]. When false the sensitive row shows off and cannot be toggled.
+     */
+    val sensitiveAnalysisAvailable: Boolean = false,
     /**
      * New Swipe sessions start with video sound on (FR-16, FR-29). Default off;
      * mirrors `playVideoSound`.

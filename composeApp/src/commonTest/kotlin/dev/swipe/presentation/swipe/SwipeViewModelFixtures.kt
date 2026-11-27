@@ -4,6 +4,7 @@ package dev.swipe.presentation.swipe
 
 import app.cash.turbine.ReceiveTurbine
 import dev.swipe.data.DecisionStore
+import dev.swipe.data.SensitivityAnalyzer
 import dev.swipe.domain.model.Decision
 import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.MediaItem
@@ -70,6 +71,8 @@ internal class Fixture(
     seed: Long = SEED,
     favoriteIds: Set<String> = emptySet(),
     items: List<MediaItem>? = null,
+    analyzer: SensitivityAnalyzer = SensitivityAnalyzer.Unavailable,
+    hideSensitive: Boolean = true,
     playVideoSound: Boolean = false,
 ) {
     val clock = FakeClock()
@@ -103,6 +106,7 @@ internal class Fixture(
             settings = settings,
             decisions = store,
             seedProvider = { seed },
+            sensitiveFilter = SensitiveFilter(analyzer) { hideSensitive },
         )
 }
 

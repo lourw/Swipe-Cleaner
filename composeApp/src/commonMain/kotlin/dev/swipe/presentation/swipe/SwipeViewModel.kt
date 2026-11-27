@@ -8,6 +8,7 @@ import dev.swipe.data.MediaHider
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.MediaLoader
 import dev.swipe.data.MediaSharer
+import dev.swipe.data.SensitivityAnalyzer
 import dev.swipe.data.SettingsStore
 import dev.swipe.data.VideoPreloader
 import dev.swipe.domain.model.Decision
@@ -79,6 +80,10 @@ import kotlinx.coroutines.launch
  * **Prefetch** (§6.5 step 3): after every move the window of current + next 3 is
  * requested from [MediaLoader.prefetch] and ids that left the window are cancelled.
  *
+ * **Sensitive (FR-33)**: [SensitiveFilter] screens the prefetch window: ids the
+ * analyzer flags leave the deck before they can become the current or next card,
+ * and no decision row is ever written for them.
+ *
  * **Video sound** (FR-16): the session starts muted unless [SettingsStore.playVideoSound]
  * is on — read once at construction, so the setting applies to the *next* session and
  * this one remembers only [SwipeIntent.ToggleMute].
@@ -106,6 +111,7 @@ class SwipeViewModel(
     settings: SettingsStore,
     private val decisions: DecisionStore,
     private val seedProvider: () -> Long,
+    private val sensitiveFilter: SensitiveFilter = SensitiveFilter(SensitivityAnalyzer.Unavailable) { false },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SwipeUiState(muted = !settings.playVideoSound.value))
 
@@ -295,8 +301,9 @@ class SwipeViewModel(
             reviewedBase = started.reviewedBase
             duplicateSets = started.duplicateSets
             cursor.reset(started.deck)
-            cursor.ensureMetadataLoaded()
+            sensitiveFilter.settle(cursor)
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+            sensitiveFilter.screenAhead(viewModelScope, cursor)
             when {
                 // Every card disposed before process death, the summary never delivered.
                 cursor.isEmpty && reviewedBase > 0 -> {
@@ -420,9 +427,10 @@ class SwipeViewModel(
             // FR-6 (WP-8.3): page metadata and drop unresolvable ids *before*
             // testing exhaustion, so a deck whose tail ids never resolve
             // carries on to reviewable cards instead of finishing early.
-            pageMetadataQuietly { cursor.ensureMetadataLoaded() }
+            pageMetadataQuietly { sensitiveFilter.settle(cursor) }
             if (cursor.isExhausted) finish() else publish()
             prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+            sensitiveFilter.screenAhead(viewModelScope, cursor)
             // FR-15 (WP-9.10): the tap queued during this write fires now —
             // after the advance, so it rewinds exactly this decision and the
             // card comes back. On an exhausted deck it is a no-op: finish()
@@ -496,9 +504,10 @@ class SwipeViewModel(
                 // and finish() carry `hiding = false` down with the deck state.
                 undoStack.push(UndoEntry(id = id, verdict = null, index = cursor.index, pendingFavorite = pendingFavorite))
                 cursor.advance()
-                pageMetadataQuietly { cursor.ensureMetadataLoaded() }
+                pageMetadataQuietly { sensitiveFilter.settle(cursor) }
                 if (cursor.isExhausted) finish() else publish(toast = ToastMessage.Hidden)
                 prefetch.refresh(cursor.deck, cursor.index, cursor.metadata)
+                sensitiveFilter.screenAhead(viewModelScope, cursor)
             } else {
                 // Race loser, mirror of decide(): the hide is durable but the deck
                 // already moved, so no deck state follows — clear the flag.

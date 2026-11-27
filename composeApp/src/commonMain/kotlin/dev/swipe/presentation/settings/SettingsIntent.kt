@@ -21,6 +21,11 @@ sealed interface SettingsIntent {
         val enabled: Boolean,
     ) : SettingsIntent
 
+    /** Hide-sensitive-photos toggle (FR-33): writes `SettingsStore.setHideSensitive`. */
+    data class SetHideSensitive(
+        val enabled: Boolean,
+    ) : SettingsIntent
+
     /** Video-sound toggle (FR-16, FR-29): writes `SettingsStore.setPlayVideoSound`. */
     data class SetPlayVideoSound(
         val enabled: Boolean,

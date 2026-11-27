@@ -21,7 +21,8 @@ import dev.swipe.domain.model.MediaItem
  * positions at or beyond the loaded end, and the loaded region always contains
  * the index, so undo entries — whose `index` is behind the head — are never
  * disturbed. A failing page fetch keeps its ids in the deck (nothing is
- * dropped on a failed fetch) and the next call retries.
+ * dropped on a failed fetch) and the next call retries. [drop] applies the same
+ * at-or-past-the-head rule to FR-33's sensitive-id removals.
  */
 class DeckCursor(
     private val mediaLibrary: MediaLibrary,
@@ -66,6 +67,22 @@ class DeckCursor(
     /** Undo returns the head to a position recorded earlier. */
     fun rewindTo(i: Int) {
         index = i
+    }
+
+    /**
+     * FR-33: remove [ids] found at or past the head. Positions behind the head never move,
+     * so undo entries stay valid; the loaded region shrinks by the loaded ids removed.
+     */
+    fun drop(ids: Set<String>) {
+        val removed =
+            deck
+                .withIndex()
+                .filter { (i, id) -> i >= index && id in ids }
+                .map { it.index }
+                .toSet()
+        if (removed.isEmpty()) return
+        loadedCount -= removed.count { it < loadedCount }
+        deck = deck.filterIndexed { i, _ -> i !in removed }
     }
 
     /** The item at [i], or null past the deck's end or before its metadata arrives. */

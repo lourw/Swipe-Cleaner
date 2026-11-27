@@ -3,6 +3,7 @@ package dev.swipe.di
 import dev.swipe.data.DecisionStore
 import dev.swipe.data.MediaSizing
 import dev.swipe.data.SessionStore
+import dev.swipe.data.SettingsStore
 import dev.swipe.data.ShuffleExclusionStore
 import dev.swipe.data.db.SqlDecisionStore
 import dev.swipe.data.db.SqlSessionStore
@@ -23,6 +24,7 @@ import dev.swipe.presentation.months.MonthsViewModel
 import dev.swipe.presentation.permission.PermissionViewModel
 import dev.swipe.presentation.queue.QueueViewModel
 import dev.swipe.presentation.settings.SettingsViewModel
+import dev.swipe.presentation.swipe.SensitiveFilter
 import dev.swipe.presentation.swipe.SwipeViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -76,7 +78,10 @@ val commonModule: Module =
 
         // The Swipe deck (WP-1.8). Source and filter are route parameters: WP-1.9
         // resolves it with `koinViewModel { parameters { parametersOf(source, typeFilter) } }`.
+        // FR-33: a fresh SensitiveFilter per ViewModel, so sensitivity verdicts
+        // last exactly one deck run; the enabled flag follows the setting live.
         viewModel { params ->
+            val settings = get<SettingsStore>()
             SwipeViewModel(
                 source = params.get(),
                 typeFilter = params.get(),
@@ -93,6 +98,7 @@ val commonModule: Module =
                 settings = get(),
                 decisions = get(),
                 seedProvider = { Random.nextLong() },
+                sensitiveFilter = SensitiveFilter(analyzer = get()) { settings.hideSensitive.value },
             )
         }
 
@@ -153,6 +159,7 @@ val commonModule: Module =
                 settings = get(),
                 decisions = get(),
                 systemActions = get(),
+                sensitivity = get(),
             )
         }
     }

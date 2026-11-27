@@ -325,10 +325,12 @@ and reinstall it.
    profile in the bundle).
 8. ☐ 👤 On a device with free provisioning, the expiry row appears with a date
    about 7 days after the profile was signed (FR-31).
-9. ☐ **Play video sound by default** on → the next Swipe session starts with
-   sound and the mute button shows `volume_up`; off (the default) → it
-   starts muted (FR-16). The setting applies to the **next** session, never
-   mid-session.
+9. ☐ On the simulator the **Hide sensitive photos** row shows off, greyed,
+   with the 'Unavailable…' caption (FR-33).
+10. ☐ **Play video sound by default** on → the next Swipe session starts with
+    sound and the mute button shows `volume_up`; off (the default) → it
+    starts muted (FR-16). The setting applies to the **next** session, never
+    mid-session.
 
 ## Debug gallery
 
@@ -387,3 +389,5 @@ Carried over from the archived plan (`docs/archive/plan-v2.md` §3) on 2026-11-2
 - ☐ VoiceOver and Reduce Motion session on a device.
 - ☐ Favorite confirmation user test (FR-22): on a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. File follow-ups as factory features.
 - ☐ Per-feature device checks recorded when each work package merged: see the Notes column of the tracker in `docs/archive/plan-v2.md` and the reports in `docs/archive/reports/`.
+- ☐ 👤 FR-33 entitlement: in Xcode, select the iosApp target → Signing & Capabilities → + Capability → Sensitive Content Analysis. Commit `iosApp/iosApp/iosApp.entitlements` and the `CODE_SIGN_ENTITLEMENTS` build-setting lines, with no team id (hard rule 8). Run `scripts/validate.sh --full`.
+- ☐ 👤 FR-33 on device: turn on Settings → Privacy & Security → Sensitive Content Warning, then relaunch. The Settings row is live and on. Seed a test-safe flagged image (Apple's sample, or a photo the Photos app already blurs): it never appears in the deck and isn't recorded. Toggle off → a new session shows it. Card-to-card latency still feels instant (NFR-1).

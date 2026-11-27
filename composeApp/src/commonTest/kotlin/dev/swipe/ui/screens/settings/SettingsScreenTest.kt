@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -93,6 +94,32 @@ class SettingsScreenTest {
                 ),
                 intents,
             )
+        }
+
+    @Test
+    fun `FR-33 an unavailable analyzer shows the sensitive row off and explains why`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(SettingsUiState(hideSensitive = true, sensitiveAnalysisAvailable = false))
+            }
+            waitForIdle()
+            // AC3: off, inert, and the caption says how to turn the feature on,
+            // so the screen never implies items are being hidden.
+            onNodeWithTag(SWITCH_SENSITIVE_TEST_TAG).assertIsOff()
+            onNodeWithTag(SWITCH_SENSITIVE_TEST_TAG).assertIsNotEnabled()
+            onNodeWithText(
+                "Unavailable. Turn on Sensitive Content Warning in iOS Settings → Privacy & Security",
+            ).assertExists()
+        }
+
+    @Test
+    fun `FR-33 an available analyzer shows the sensitive row on`() =
+        runComposeUiTest {
+            setContent {
+                TestScreen(SettingsUiState(hideSensitive = true, sensitiveAnalysisAvailable = true))
+            }
+            waitForIdle()
+            onNodeWithTag(SWITCH_SENSITIVE_TEST_TAG).assertIsOn()
         }
 
     @Test
