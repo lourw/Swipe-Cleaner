@@ -7,7 +7,6 @@ import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.MonthBucket
-import dev.swipe.domain.model.SmartFilter
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -44,16 +43,6 @@ interface MediaLibrary {
     suspend fun months(type: MediaTypeFilter): List<MonthBucket>
 
     /**
-     * Item counts per smart filter for [type] (FR-6): cheap fetch counts except for
-     * the two entries that need a full-library pass — Likely Duplicates (id+date+size only)
-     * and Bursts (`burstIdentifier` has no predicate, so counting means enumerating,
-     * every burst frame included). No screen calls this since WP-8.12: every displayed
-     * count is a deck size through `DeckMembership` (§6.5), kept only for its
-     * implementations and fakes until removal.
-     */
-    suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int>
-
-    /**
      * Asset IDs of [source] narrowed by [type] (FR-5). IDs only, no metadata, so this
      * stays fast on a 50k-item library (NFR-4). The order is deck order (§6.5):
      * `Smart(LONG_VIDEOS)` comes back duration-descending, every other source
@@ -63,6 +52,13 @@ interface MediaLibrary {
         source: DeckSource,
         type: MediaTypeFilter,
     ): List<String>
+
+    /**
+     * How many assets the app can see, the FR-2 limited-banner N: the size of the
+     * same library-wide fetch [assetIds] (`DeckSource.All`, `MediaTypeFilter.ALL`)
+     * reads, taken from the fetch result's count with no enumeration (NFR-4).
+     */
+    suspend fun assetCount(): Int
 
     /** Metadata for one page of at most 20 ids, kept in the order given (§6.5 step 2, NFR-4). */
     suspend fun items(ids: List<String>): List<MediaItem>

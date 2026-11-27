@@ -13,6 +13,7 @@ import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeShuffleExclusionStore
 import dev.swipe.fakes.buildDeckUseCase
 import dev.swipe.fakes.sourceCountsUseCase
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,9 +60,6 @@ class SourceCountsUseCaseTest {
                 assertEquals(mapOf("a1" to 2), last.albumCounts)
                 awaitComplete()
             }
-            // The estimate never reached an emission, and the raw smart-count pass
-            // is gone entirely — every number came off the deck path.
-            assertEquals(0, library.smartCountsCalls)
         }
 
     @Test
@@ -297,6 +295,57 @@ class SourceCountsUseCaseTest {
                 assertEquals(mapOf("a1" to 1), awaitItem().albumCounts)
                 awaitComplete()
             }
+        }
+
+    @Test
+    fun `NFR-4 one count refresh makes one Bursts pass and one duplicate-candidate pass`() =
+        runTest {
+            val library =
+                FakeMediaLibrary(
+                    listOf(
+                        burstFrame("b1", "burst-1", "2024-01-01T10:00:00Z"),
+                        burstFrame("b2", "burst-1", "2024-01-01T10:00:01Z"),
+                        twin("d1", "2024-06-01T10:00:00Z"),
+                        twin("d2", "2024-06-01T10:00:01Z"),
+                        photo("p1"),
+                        video("v1"),
+                    ),
+                    albums = mapOf("a1" to setOf("b1", "d1", "p1", "v1")),
+                )
+            val useCase = sourceCountsUseCase(library, FakeDecisionStore())
+
+            val emissions = useCase(MediaTypeFilter.ALL).toList()
+
+            // NFR-4: one refresh is one Bursts id pass and one candidate pass.
+            assertEquals(
+                1,
+                library.assetIdsCalls.count {
+                    it == (DeckSource.Smart(SmartFilter.BURSTS) to MediaTypeFilter.ALL)
+                },
+            )
+            assertEquals(listOf(MediaTypeFilter.ALL), library.duplicateCandidatesCalls)
+
+            // Sanity: the run was real. Bursts is 2 (b1, b2). Likely Duplicates
+            // is 4: the twin pair groups, and so does the burst pair — frames
+            // 1 s apart with the same 120×160 dimensions are duplicate twins
+            // too — while the undated photo and video drop out of grouping.
+            val last = emissions.last()
+            assertEquals(2, last.smartCounts.getValue(SmartFilter.BURSTS))
+            assertEquals(4, last.smartCounts.getValue(SmartFilter.LIKELY_DUPLICATES))
+
+            // A refresh for another type makes one pass each under its own
+            // type — one refresh, one pass each, not cumulative caching.
+            useCase(MediaTypeFilter.PHOTOS).toList()
+            assertEquals(
+                1,
+                library.assetIdsCalls.count {
+                    it == (DeckSource.Smart(SmartFilter.BURSTS) to MediaTypeFilter.PHOTOS)
+                },
+            )
+            assertEquals(
+                listOf(MediaTypeFilter.ALL, MediaTypeFilter.PHOTOS),
+                library.duplicateCandidatesCalls,
+            )
         }
 
     // ---- helpers ----

@@ -3,11 +3,9 @@
 package dev.swipe.presentation.permission
 
 import app.cash.turbine.test
-import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
 import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
-import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.fakes.FakeMediaLibrary
 import dev.swipe.fakes.FakeSystemActions
 import kotlinx.coroutines.CompletableDeferred
@@ -134,9 +132,9 @@ class PermissionViewModelTest {
                 assertEquals(7, home.limitedCount)
             }
             assertEquals(1, library.requestAuthorizationCalls.size)
-            // N is assetIds(All, ALL).size — an ids-only count, no metadata (FR-2, NFR-4).
-            val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> = listOf(DeckSource.All to MediaTypeFilter.ALL)
-            assertEquals(expectedCalls, library.assetIdsCalls)
+            // N is the fetch count (NFR-4), never an id listing (FR-2).
+            assertEquals(0, library.assetIdsCalls.size)
+            assertEquals(1, library.assetCountCalls)
         }
 
     @Test
@@ -154,9 +152,32 @@ class PermissionViewModelTest {
                 assertEquals(LibraryAccess.LIMITED, home.access)
                 assertEquals(7, home.limitedCount)
             }
-            // N is assetIds(All, ALL).size — an ids-only count, no metadata (FR-2, NFR-4).
-            val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> = listOf(DeckSource.All to MediaTypeFilter.ALL)
-            assertEquals(expectedCalls, library.assetIdsCalls)
+            // N is the fetch count (NFR-4), never an id listing.
+            assertEquals(0, library.assetIdsCalls.size)
+            assertEquals(1, library.assetCountCalls)
+        }
+
+    @Test
+    fun `NFR-4 the FR-2 limited count comes from the fetch count never an id listing`() =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            val library = FakeMediaLibrary(photoItems(4), access = LibraryAccess.LIMITED)
+            // FR-38: PhotoKit's default fetch view excludes hidden assets, so the
+            // banner must count the three that are visible.
+            library.hiddenAssetIds += "asset-2"
+
+            val viewModel = PermissionViewModel(library, FakeSystemActions())
+
+            viewModel.uiState.test {
+                awaitItem() // splash
+                val home = awaitItem()
+                assertEquals(LibraryAccess.LIMITED, home.access)
+                assertEquals(3, home.limitedCount)
+            }
+            // Regression (NFR-4): the count used to list every id — assetIds(All, ALL)
+            // — to take its .size. It must come from assetCount() alone.
+            assertEquals(0, library.assetIdsCalls.size)
+            assertEquals(1, library.assetCountCalls)
         }
 
     @Test
@@ -260,10 +281,9 @@ class PermissionViewModelTest {
                 assertEquals(5, refreshed.limitedCount)
                 assertEquals(PermissionScreen.HOME, refreshed.startScreen)
             }
-            // Both counts came from ids-only fetches (NFR-4).
-            val expectedCalls: List<Pair<DeckSource, MediaTypeFilter>> =
-                listOf(DeckSource.All to MediaTypeFilter.ALL, DeckSource.All to MediaTypeFilter.ALL)
-            assertEquals(expectedCalls, library.assetIdsCalls)
+            // Both counts came from fetch counts, never id listings (NFR-4).
+            assertEquals(0, library.assetIdsCalls.size)
+            assertEquals(2, library.assetCountCalls)
         }
 
     @Test

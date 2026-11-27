@@ -300,6 +300,10 @@ and reinstall it.
 5. ☐ iOS Settings → Photos → **Limited access**: change the picked items; the
    app decks exactly those.
 6. ☐ Revoke fully in iOS Settings, reopen the app → back on the denied screen.
+7. ☐ 👤 **Picker over a sheet** (limited access, item 005): with any sheet or
+   dialog presented, trigger Manage on the limited banner → the system
+   limited-library picker appears on top; before the fix it could silently not
+   appear.
 
 ## Settings
 
@@ -389,5 +393,6 @@ Carried over from the archived plan (`docs/archive/plan-v2.md` §3) on 2026-11-2
 - ☐ VoiceOver and Reduce Motion session on a device.
 - ☐ Favorite confirmation user test (FR-22): on a TestFlight build, have 2 or 3 people who haven't seen the app swipe a favorite left, without guidance. Note whether they can see which photo is being confirmed, whether they find Cancel without help, and whether anyone presses the wrong button. File follow-ups as factory features.
 - ☐ Per-feature device checks recorded when each work package merged: see the Notes column of the tracker in `docs/archive/plan-v2.md` and the reports in `docs/archive/reports/`.
+- ☐ NFR-4 (item 005): on a 10k+ library, record Home refresh hitches after a library change (Instruments, Animation Hitches) in `perf.md` Results.
 - ☐ 👤 FR-33 entitlement: in Xcode, select the iosApp target → Signing & Capabilities → + Capability → Sensitive Content Analysis. Commit `iosApp/iosApp/iosApp.entitlements` and the `CODE_SIGN_ENTITLEMENTS` build-setting lines, with no team id (hard rule 8). Run `scripts/validate.sh --full`.
 - ☐ 👤 FR-33 on device: turn on Settings → Privacy & Security → Sensitive Content Warning, then relaunch. The Settings row is live and on. Seed a test-safe flagged image (Apple's sample, or a photo the Photos app already blurs): it never appears in the deck and isn't recorded. Toggle off → a new session shows it. Card-to-card latency still feels instant (NFR-1).

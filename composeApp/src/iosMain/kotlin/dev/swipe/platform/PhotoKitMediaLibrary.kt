@@ -23,7 +23,6 @@ import dev.swipe.domain.model.MediaItem
 import dev.swipe.domain.model.MediaType
 import dev.swipe.domain.model.MediaTypeFilter
 import dev.swipe.domain.model.MonthBucket
-import dev.swipe.domain.model.SmartFilter
 import dev.swipe.domain.usecase.DuplicateGrouper
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -174,31 +173,6 @@ class PhotoKitMediaLibrary(
         }
 
     /**
-     * Cheap per-filter counts for Home's **Smart filters** rows (FR-5, FR-6), safe at
-     * startup (NFR-4): Screenshots and Long videos are lazy fetch counts over predicate
-     * options, Selfies counts inside the `smartAlbumSelfPortraits` collection, Bursts
-     * counts [burstAssetIds] (PhotoKit offers no predicate count for `burstIdentifier`,
-     * see its KDoc), and Likely duplicates reuses the [DuplicateGrouper] run over the
-     * id+date+size candidate scan — no metadata or image loading anywhere (FR-6).
-     */
-    override suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int> =
-        withContext(fetchDispatcher) {
-            val selfies = selfiesCollection()
-            mapOf(
-                SmartFilter.SCREENSHOTS to assetsWithOptions(screenshotPredicate(type)).count.toInt(),
-                SmartFilter.LONG_VIDEOS to assetsWithOptions(longVideoPredicate(type)).count.toInt(),
-                SmartFilter.BURSTS to countBurstAssets(type),
-                SmartFilter.SELFIES to
-                    if (selfies == null) {
-                        0
-                    } else {
-                        PHAsset.fetchAssetsInAssetCollection(selfies, optionsWithPredicate(typePredicate(type))).count.toInt()
-                    },
-                SmartFilter.LIKELY_DUPLICATES to DuplicateGrouper.group(duplicateCandidates(type)).size,
-            )
-        }
-
-    /**
      * Ids of [source] narrowed by [type] (FR-5) — the type predicate ANDed into **every**
      * source predicate — enumerating **only** `localIdentifier` off the fetch result, the
      * whole point of NFR-4. Deck order (§6.5): `Smart(LONG_VIDEOS)` comes back
@@ -233,6 +207,17 @@ class PhotoKitMediaLibrary(
                     smartAssetIds(source.kind, type)
                 }
             }
+        }
+
+    /**
+     * The FR-2 limited-banner N: the **count** of the library-wide `ALL`-type fetch,
+     * read off the fetch result with no enumeration (NFR-4). Same predicate as
+     * `allAssetIds(MediaTypeFilter.ALL)` with default options — so hidden and burst
+     * handling match the deck — minus the sort, which a count never needs.
+     */
+    override suspend fun assetCount(): Int =
+        withContext(fetchDispatcher) {
+            assetsWithOptions(typePredicate(MediaTypeFilter.ALL)).count.toInt()
         }
 
     /**

@@ -192,6 +192,17 @@ abstract class MediaLibraryContract {
     }
 
     @Test
+    fun `FR-2 assetCount equals the Shuffle id listing`() {
+        if (!assumeSeeded()) return
+        runBlocking {
+            // The FR-2 banner's N must be exactly the size of the library-wide id
+            // listing — the fetch count and the enumeration may never drift, in the
+            // fake or in PhotoKit (NFR-4).
+            assertEquals(idsFor(DeckSource.All, MediaTypeFilter.ALL).size, library.assetCount())
+        }
+    }
+
+    @Test
     fun `FR-7 month deck holds exactly that month`() {
         if (!assumeSeeded()) return
         runBlocking {
@@ -322,23 +333,6 @@ abstract class MediaLibraryContract {
                 resolved.map { it.burstId },
                 "resolved frames must carry their burst identity (FR-6)",
             )
-        }
-    }
-
-    @Test
-    fun `FR-9 the Bursts count equals the deck the row opens`() {
-        if (!assumeSeeded()) return
-        runBlocking {
-            // The count and the deck are one enumeration in the real library
-            // (forEachBurstId) and one filter in the fake; this pins that they
-            // never drift apart — on a granted host this runs against its real
-            // bursts, seeded or not.
-            val deck = idsFor(DeckSource.Smart(SmartFilter.BURSTS), MediaTypeFilter.ALL)
-            val count = library.smartCounts(MediaTypeFilter.ALL)[SmartFilter.BURSTS]
-            assertEquals(deck.size, count, "the Home Bursts row must count exactly the cards its deck shows (FR-9)")
-            if (burstFrameIds.isNotEmpty()) {
-                assertEquals(burstFrameIds.size, count, "the count must count frames, not bursts (FR-6, FR-9)")
-            }
         }
     }
 

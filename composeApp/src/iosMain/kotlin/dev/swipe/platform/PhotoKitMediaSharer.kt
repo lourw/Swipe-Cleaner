@@ -19,11 +19,6 @@ import platform.Photos.PHAssetResource
 import platform.Photos.PHAssetResourceManager
 import platform.Photos.PHAssetResourceRequestOptions
 import platform.UIKit.UIActivityViewController
-import platform.UIKit.UIApplication
-import platform.UIKit.UISceneActivationStateForegroundActive
-import platform.UIKit.UIViewController
-import platform.UIKit.UIWindow
-import platform.UIKit.UIWindowScene
 import kotlin.coroutines.resume
 
 /**
@@ -164,23 +159,6 @@ class PhotoKitMediaSharer(
     }
 
     private fun shareRoot(): String = NSTemporaryDirectory() + SHARE_DIRECTORY
-
-    /**
-     * The foreground window's root view controller, walked up its presented chain,
-     * so the sheet lands on top of whatever is showing.
-     */
-    private fun topViewController(): UIViewController? {
-        val scenes = UIApplication.sharedApplication().connectedScenes.filterIsInstance<UIWindowScene>()
-        val scene =
-            scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
-                ?: scenes.firstOrNull()
-        val windows = scene?.windows?.filterIsInstance<UIWindow>() ?: emptyList()
-        val window = windows.firstOrNull { it.keyWindow } ?: windows.firstOrNull()
-        var top = window?.rootViewController ?: return null
-        while (true) {
-            top = top.presentedViewController ?: return top
-        }
-    }
 
     private companion object {
         /** Temp subdirectory holding the files of the share sheet that is up (FR-32). */

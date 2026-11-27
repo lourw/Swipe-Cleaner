@@ -153,27 +153,17 @@ internal fun smartAssetIds(
  */
 internal fun burstAssetIds(type: MediaTypeFilter): List<String> {
     val ids = mutableListOf<String>()
-    forEachBurstId(type, sorted = true) { ids += it }
+    forEachBurstId(type) { ids += it }
     return ids
-}
-
-/** Burst count without materializing ids — the `smartCounts` entry (NFR-4, no sort needed). */
-internal fun countBurstAssets(type: MediaTypeFilter): Int {
-    var count = 0
-    forEachBurstId(type, sorted = false) { count++ }
-    return count
 }
 
 private fun forEachBurstId(
     type: MediaTypeFilter,
-    sorted: Boolean,
     body: (String) -> Unit,
 ) {
     val options = optionsWithPredicate(typePredicate(type))
     options.includeAllBurstAssets = true
-    if (sorted) {
-        options.sortDescriptors = listOf(NSSortDescriptor(key = "creationDate", ascending = false))
-    }
+    options.sortDescriptors = listOf(NSSortDescriptor(key = "creationDate", ascending = false))
     PHAsset.fetchAssetsWithOptions(options).enumerateObjectsUsingBlock { asset, _, _ ->
         (asset as? PHAsset)?.let { if (it.burstIdentifier != null) body(it.localIdentifier) }
     }

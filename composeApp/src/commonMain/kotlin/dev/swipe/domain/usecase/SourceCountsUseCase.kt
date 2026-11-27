@@ -91,7 +91,9 @@ class SourceCountsUseCase(
      * row identity first (cheap, no enumeration — NFR-4), then the exact
      * Shuffle count, then the five smart rows one by one, then the album rows
      * one by one. The full-library passes (Bursts, Likely Duplicates) sit
-     * behind their own row, not in front of the cheap ones (§6.5).
+     * behind their own row, not in front of the cheap ones (§6.5). A refresh
+     * makes exactly one Bursts id pass and one duplicate-candidate pass
+     * (NFR-4, pinned by `SourceCountsUseCaseTest`).
      */
     operator fun invoke(type: MediaTypeFilter): Flow<SourceCounts> =
         flow {

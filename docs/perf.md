@@ -135,13 +135,13 @@ Found while tracing; none are NFR misses on their own, all are the first
 places to look when Instruments shows a problem:
 
 - **Home count ladder** (`HomeViewModel` + `PhotoKitSourceFetches.kt`):
-  every `changes()` tick re-runs the whole estimation→refinement ladder —
-  `smartCounts`, `duplicateCandidates`, burst detection — each of
-  which enumerates the full asset collection through PhotoKit. On a 50k
-  library that is several full passes per library change; Bursts and
-  Duplicates each pay two (fetch + refine). If NFR-4 or post-delete Home
-  hitches show up, start here: the fix is debouncing `changes()` and caching
-  per-bucket counts, not making the enumeration faster.
+  every `changes()` tick re-runs the count path (`SourceCountsUseCase` →
+  `DeckMembership`): one Shuffle id pass, one Bursts pass, and one
+  duplicate-candidate pass per refresh, each of which enumerates the full
+  asset collection through PhotoKit (NFR-4, item 005). On a 50k library
+  that is three full passes per library change. If NFR-4 or post-delete
+  Home hitches show up, start here: the fix is debouncing `changes()` and
+  caching per-bucket counts, not making the enumeration faster.
 - **Per-settle AVPlayer churn** (`DeckMotion.kt`): the hosted player mounts
   only while the top card settles (R2) and unmounts on drag/leave. Fast
   swipers pay create/destroy per card. If NFR-2 shows hitches on video-heavy

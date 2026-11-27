@@ -24,10 +24,6 @@ import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 import platform.UIKit.UIAccessibilityReduceMotionStatusDidChangeNotification
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenSettingsURLString
-import platform.UIKit.UISceneActivationStateForegroundActive
-import platform.UIKit.UIViewController
-import platform.UIKit.UIWindow
-import platform.UIKit.UIWindowScene
 import platform.posix.FILE
 import platform.posix.SEEK_END
 import platform.posix.fclose
@@ -52,11 +48,12 @@ class IosSystemActions : SystemActions {
 
     /**
      * Presents the limited-library picker so the user can add items (FR-2). It must
-     * run on the foreground window's root view controller; with no window (background)
-     * or a permission that doesn't allow the picker, PhotoKit no-ops — a log is enough.
+     * run on the topmost presented view controller of the foreground window, so the
+     * picker appears even over a sheet; with no window (background) or a permission
+     * that doesn't allow the picker, PhotoKit no-ops — a log is enough.
      */
     override fun presentLimitedLibraryPicker() {
-        val controller = frontmostViewController()
+        val controller = topViewController()
         if (controller == null) {
             println("SwipeCleaner: no foreground view controller for the limited library picker")
             return
@@ -139,21 +136,6 @@ class IosSystemActions : SystemActions {
                 fread(pinned.addressOf(0), sizeOf<ByteVar>().convert(), size.convert(), file)
             }
         return if (read.toLong() == size) buffer else null
-    }
-
-    /**
-     * The root view controller of the key window in the active window scene (falls
-     * back to any connected scene, then any window) — what PhotoKit wants for the
-     * limited-library picker.
-     */
-    private fun frontmostViewController(): UIViewController? {
-        val scenes = UIApplication.sharedApplication().connectedScenes.filterIsInstance<UIWindowScene>()
-        val scene =
-            scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
-                ?: scenes.firstOrNull()
-        val windows = scene?.windows?.filterIsInstance<UIWindow>() ?: emptyList()
-        val window = windows.firstOrNull { it.keyWindow } ?: windows.firstOrNull()
-        return window?.rootViewController
     }
 
     private companion object {

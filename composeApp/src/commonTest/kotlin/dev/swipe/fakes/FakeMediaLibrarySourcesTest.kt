@@ -164,33 +164,6 @@ class FakeMediaLibrarySourcesTest {
             assertEquals(1, library.albumsCalls)
         }
 
-    @Test
-    fun `FR-6 smartCounts totals every smart filter and narrows by type`() =
-        runTest {
-            val library = library()
-            assertEquals(
-                mapOf(
-                    SmartFilter.SCREENSHOTS to 1,
-                    SmartFilter.LONG_VIDEOS to 2,
-                    SmartFilter.BURSTS to 1,
-                    SmartFilter.LIKELY_DUPLICATES to 2,
-                    SmartFilter.SELFIES to 1,
-                ),
-                library.smartCounts(MediaTypeFilter.ALL),
-            )
-            assertEquals(
-                mapOf(
-                    SmartFilter.SCREENSHOTS to 0,
-                    SmartFilter.LONG_VIDEOS to 2,
-                    SmartFilter.BURSTS to 0,
-                    SmartFilter.LIKELY_DUPLICATES to 0,
-                    SmartFilter.SELFIES to 0,
-                ),
-                library.smartCounts(MediaTypeFilter.VIDEOS),
-            )
-            assertEquals(2, library.smartCountsCalls)
-        }
-
     private fun item(
         id: String,
         type: MediaType,

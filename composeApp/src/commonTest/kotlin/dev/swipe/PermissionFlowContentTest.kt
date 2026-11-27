@@ -180,7 +180,6 @@ class PermissionFlowContentTest {
             assertFalse(mounted)
             assertEquals(0, library.assetIdsCalls.size)
             assertEquals(0, library.albumsCalls)
-            assertEquals(0, library.smartCountsCalls)
         }
 
     /**

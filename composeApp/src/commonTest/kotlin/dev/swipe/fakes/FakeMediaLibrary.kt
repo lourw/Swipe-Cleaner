@@ -42,8 +42,7 @@ import kotlinx.datetime.TimeZone
  * - **Album** membership is modeled by [albums] (album id → member asset ids) with
  *   [albumTitles] for row titles; an unknown album is empty. **Selfies** (FR-6) are
  *   modeled by [selfieIds] the same way. [albums] counts and covers reflect current
- *   contents. [months] and month decks bucket in [monthZone] (UTC by default);
- *   [smartCounts] counts the same membership each `assetIds` returns.
+ *   contents. [months] and month decks bucket in [monthZone] (UTC by default).
  *
  * Calls are recorded (`assetIdsCalls`, `deleteCalls`, …). Each `failNext…` switch throws
  * once. [delete] models the FR-26 resolve-then-delete behavior (ids in
@@ -83,15 +82,15 @@ class FakeMediaLibrary(
         private set
     var monthsCalls = 0
         private set
-    var smartCountsCalls = 0
+    var assetCountCalls = 0
         private set
 
     var failNextAuthorization: Throwable? = null
     var failNextRequestAuthorization: Throwable? = null
     var failNextAlbums: Throwable? = null
     var failNextMonths: Throwable? = null
-    var failNextSmartCounts: Throwable? = null
     var failNextAssetIds: Throwable? = null
+    var failNextAssetCount: Throwable? = null
     var failNextItems: Throwable? = null
     var failNextDuplicateCandidates: Throwable? = null
 
@@ -130,7 +129,7 @@ class FakeMediaLibrary(
     /**
      * FR-38: ids whose `hidden` flag [setHidden] has set. PhotoKit's default fetch
      * view excludes hidden assets (`includeHiddenAssets = false`), so these ids are
-     * absent from **every** read path — `assetIds`, [items], [months], [smartCounts],
+     * absent from **every** read path — `assetIds`, [items], [months],
      * [albums], [duplicateCandidates] — exactly like a hidden asset is absent from
      * the real deck's source fetches. Distinct from [hiddenItemIds], which models
      * unresolvable ids (FR-6), not hidden ones.
@@ -240,39 +239,6 @@ class FakeMediaLibrary(
         return monthBuckets(visibleItems.filterType(type).map { it.createdAt }, monthZone)
     }
 
-    /**
-     * When true, the **next** `smartCounts` call hangs on [releaseSmartCounts]
-     * before answering — the NFR-4 seam that proves Home renders the cheap rows
-     * while the full-library smart-count pass is still in flight. The gate arms
-     * for exactly one call, and tests that never set the flag never touch the
-     * deferred, so nothing else can wait on it.
-     */
-    var gateNextSmartCounts: Boolean = false
-
-    private var smartCountsReleased: CompletableDeferred<Unit>? = null
-
-    /** Let the gated `smartCounts` call (see [gateNextSmartCounts]) answer. */
-    fun releaseSmartCounts() {
-        smartCountsReleased?.complete(Unit)
-        smartCountsReleased = null
-    }
-
-    override suspend fun smartCounts(type: MediaTypeFilter): Map<SmartFilter, Int> {
-        smartCountsCalls++
-        failNextSmartCounts?.let {
-            failNextSmartCounts = null
-            throw it
-        }
-        if (gateNextSmartCounts) {
-            val gate =
-                smartCountsReleased
-                    ?: CompletableDeferred<Unit>().also { smartCountsReleased = it }
-            gate.await()
-            gateNextSmartCounts = false
-        }
-        return SmartFilter.entries.associateWith { smartItems(it, type).size }
-    }
-
     override suspend fun assetIds(
         source: DeckSource,
         type: MediaTypeFilter,
@@ -283,6 +249,16 @@ class FakeMediaLibrary(
             throw it
         }
         return matchingItems(source, type).map { it.id }
+    }
+
+    /** FR-2 banner N: the size of the same library-wide fetch [assetIds] answers (FR-38: hidden excluded). */
+    override suspend fun assetCount(): Int {
+        assetCountCalls++
+        failNextAssetCount?.let {
+            failNextAssetCount = null
+            throw it
+        }
+        return visibleItems.size
     }
 
     /** FR-38: PhotoKit's default fetch view — hidden assets are not in it. */

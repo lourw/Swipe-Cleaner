@@ -4,9 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.swipe.data.MediaLibrary
 import dev.swipe.data.SystemActions
-import dev.swipe.domain.model.DeckSource
 import dev.swipe.domain.model.LibraryAccess
-import dev.swipe.domain.model.MediaTypeFilter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -94,7 +92,7 @@ class PermissionViewModel(
      * [dev.swipe.HomeDestination]). Only DENIED blocks with the Settings screen
      * (FR-3). A `NOT_DETERMINED` read fires the one automatic launch request
      * exactly once (FR-1). LIMITED counts the accessible items for the banner
-     * (FR-2) with an ids-only fetch (NFR-4), re-run on every `changes()`
+     * (FR-2) with the fetch count (NFR-4), re-run on every `changes()`
      * emission (WP-3.2).
      */
     private suspend fun publish(access: LibraryAccess) {
@@ -117,7 +115,7 @@ class PermissionViewModel(
             }
         val limitedCount =
             if (access == LibraryAccess.LIMITED) {
-                mediaLibrary.assetIds(DeckSource.All, MediaTypeFilter.ALL).size
+                mediaLibrary.assetCount()
             } else {
                 null
             }

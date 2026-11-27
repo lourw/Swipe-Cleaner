@@ -208,8 +208,6 @@ class HomeViewModelTest {
             // One refresh — not one per collector.
             assertEquals(albumsBefore + 1, library.albumsCalls)
             assertEquals(shuffleBefore + 1, library.assetIdsCalls.count { it.first == DeckSource.All })
-            // The raw smart-count pass is gone: Home counts run only on the deck path.
-            assertEquals(0, library.smartCountsCalls)
         }
 
     @Test
